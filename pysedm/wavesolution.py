@@ -6,11 +6,13 @@
 import warnings
 import numpy as np
 import matplotlib.pyplot as mpl
-from scipy.special import orthogonal
-from scipy import optimize
+from scipy         import optimize
+
 # - External Modules
 from propobject              import BaseObject
 from astrobject.spectroscopy import BaseSpectrum
+# - Internal Modules
+from .ccd import CCD
 
 # Vacuum wavelength
 # from KECK https://www2.keck.hawaii.edu/inst/lris/arc_calibrations.html
@@ -22,8 +24,8 @@ LINES= {"Hg":{ #5790.66  :  {"ampl":1. ,"mu":202-_REFORIGIN},
                5778.0   : {"ampl":1. ,"mu":201-_REFORIGIN,
                            "doublet":True,"info":"merge of 5769.59, 5790.66"},
                5460.735 : {"ampl":10.,"mu":187-_REFORIGIN},
-               4358.32  : {"ampl":5. ,"mu":127-_REFORIGIN},
-               4046.563 : {"ampl":2. ,"mu":102-_REFORIGIN},
+               4358.32  : {"ampl":5. ,"mu":126-_REFORIGIN},
+               4046.563 : {"ampl":2. ,"mu":104.5-_REFORIGIN},
                #3663.27:{"ampl":0.1 ,"mu":3},
                #3654.84:{"ampl":0.1 ,"mu":1},
                #3650.153:{"ampl":1. ,"mu":0},
@@ -31,12 +33,20 @@ LINES= {"Hg":{ #5790.66  :  {"ampl":1. ,"mu":202-_REFORIGIN},
         "Cd": {4678.15  : {"ampl":2. ,"mu":146-_REFORIGIN},
                4799.91  : {"ampl":5. ,"mu":153-_REFORIGIN},
                5085.822 : {"ampl":8. ,"mu":169-_REFORIGIN},
-               6438.5   : {"ampl":4. ,"mu":228-_REFORIGIN}, # Exact Value To be confirmed
+               6438.5   : {"ampl":5. ,"mu":227-_REFORIGIN}, # Exact Value To be confirmed
+               # - Cd and Xe seems to have the same lines
+               # Almost same wavelength but diffent enough to save the code
+               8280.01  : {"ampl": 1. ,"mu":280-_REFORIGIN,
+                            "backup":"Xe", # used only if Xe is not there
+                            "doublet":True,"info":"merge of 8230, 8341"},
+               #8818.51  : {"ampl": 0.8,"mu":295-_REFORIGIN},
+               #9000.01  : {"ampl": 0.5,"mu":302-_REFORIGIN,
+               #             "doublet":True,"info":"merge of 8945, 9050"},
                 },
         "Xe": {8280.    : {"ampl": 1. ,"mu":280-_REFORIGIN,
                             "doublet":True,"info":"merge of 8230, 8341"},
                8818.5   : {"ampl": 0.8,"mu":295-_REFORIGIN},
-               8900     : {"ampl": 0.5,"mu":302-_REFORIGIN,
+               9000     : {"ampl": 0.5,"mu":302-_REFORIGIN,
                             "doublet":True,"info":"merge of 8945, 9050"},
                }
         }
@@ -46,6 +56,12 @@ LINES= {"Hg":{ #5790.66  :  {"ampl":1. ,"mu":202-_REFORIGIN},
 #  Generators             #
 #                         #
 ###########################
+def get_cubesolution(*lamps):
+    """ Loads the object that enables to build the CubeSolution. """
+    cube = CubeSolution()
+    [cube.add_lampccd(l) for l in lamps]
+    return cube
+    
 def get_arcspectrum(x, y, dy=None, name=None):
     """ """
     spec = ArcSpectrum(wave=x, flux=y, errors=dy)
@@ -68,6 +84,75 @@ def get_wavesolution(specid, lamps):
 #  WaveSolution           #
 #                         #
 ###########################
+class CubeSolution( BaseObject ):
+    """ """
+    PROPERTIES = ["lamps"]
+    DERIVED_PROPERTIES = ["wavesolutions"]
+
+    # ================== #
+    #  Main Methods      #
+    # ================== #
+    # -------- #
+    # BUILDER  #
+    # -------- #
+    def fit_wavelesolution(self, specid, sequential=True, contdegree=3, wavedegree=4,
+                            saveplot=None, plotprop={}):
+        """ """
+        wsol = get_wavesolution(specid, [self.lampccds[i] for i in self.lampnames])
+        wsol.fit_lineposition(contdegree=contdegree, sequential=sequential)
+        wsol.fit_wavelengthsolution(wavedegree, legendre=False)
+        self.wavesolutions[specid] = wsol.data
+        
+        if saveplot is not None:
+            wsol.show(specid=specid, xrange=[3600,9500], savefile=saveplot, **plotprop)
+
+    
+    # -------- #
+    # GETTER   #
+    # -------- #
+
+    # -------- #
+    #  I/O     #
+    # -------- #
+    def add_lampccd(self, lampccd, name=None):
+        """ """
+        if CCD not in lampccd.__class__.__mro__:
+            raise TypeError("The given lampccd is not a pysedm's CCD object")
+        
+        if name is None:
+            if lampccd.objname is None:
+                raise ValueError("You need to provide a name for the arcspectrum")
+            name = lampccd.objname
+            
+        # - Set it.
+        self.lampccds[name] = lampccd
+
+    def remove_lampccd(self, name):
+        """ """
+        self.lampccds.pop(name)
+        
+    # ================== #
+    #  Properties        #
+    # ================== #
+    @property
+    def lampnames(self):
+        """ Names of the lamps loaded """
+        return np.sort(self.lampccds.keys())
+    @property
+    def lampccds(self):
+        """ dictionary containing the LampCCD objects used
+        to get the wavelength solution of the cube """
+        if self._properties["lamps"] is None:
+            self._properties["lamps"] = {}
+        return self._properties["lamps"]
+
+    @property
+    def wavesolutions(self):
+        """ dictionary containing the wavelength solution for the loaded spectra """
+        if self._derived_properties["wavesolutions"] is None:
+            self._derived_properties["wavesolutions"] = {}
+        return self._derived_properties["wavesolutions"]
+    
 class WaveSolution( BaseObject ):
     """ """
     PROPERTIES = ["wavesolution","inverse_wavesolution"]
@@ -258,7 +343,7 @@ class VirtualArcSpectrum( BaseObject ):
                              exclude_reddest_part=True,
                              red_buffer=30,
                              exclude_bluest_part=True,
-                             blue_buffer=30
+                             blue_buffer=30, line_to_skip=None
                              ):
         """ Fit gaussian profiles of expected arclamp emmisions.
         The list of fitted lines are given in `usedlines`.
@@ -300,18 +385,20 @@ class VirtualArcSpectrum( BaseObject ):
         for i,l in enumerate(self.usedlines):
             guesses["ampl%d_guess"%i]      = self.arclines[l]["ampl"]
             guesses["mu%d_guess"%i]        = self.arclines[l]["mu"]+lines_shift
-            guesses["mu%d_boundaries"%i]   = [guesses["mu%d_guess"%i]-30,guesses["mu%d_guess"%i]+30]
+            guesses["mu%d_boundaries"%i]   = [guesses["mu%d_guess"%i]-5,guesses["mu%d_guess"%i]+5]
             guesses["ampl%d_boundaries"%i] = [0, None]
             guesses["sig%d_guess"%i]       = 1.5
-            guesses["sig%d_boundaries"%i]  = [0.5,3] if not "doublet" in self.arclines[l] or not self.arclines[l]["doublet"] else [1, 5]
+            guesses["sig%d_boundaries"%i]  = [1.1,3] if not "doublet" in self.arclines[l] or not self.arclines[l]["doublet"] else [1.5, 5]
 
         if exclude_reddest_part:
-            warnings.warn("part redder than %d removed"%(guesses["mu%d_guess"%(len(self.usedlines)-1)]+red_buffer))
             flagin *= (self.wave<=guesses["mu%d_guess"%(len(self.usedlines)-1)]+red_buffer)
-
+        else:
+            warnings.warn("part redder than %d *not* removed"%(guesses["mu%d_guess"%(len(self.usedlines)-1)]+red_buffer))
+            
         if exclude_bluest_part:
-            warnings.warn("part bluer than %d removed"%(guesses["mu0_guess"]-blue_buffer))
             flagin *= (self.wave>=guesses["mu0_guess"]-blue_buffer)
+        else:
+            warnings.warn("part bluer than %d *not* removed"%(guesses["mu0_guess"]-blue_buffer))
             
         norm = np.nanmean(self.flux[flagin])    
         self._derived_properties["linefitter"] = \
@@ -356,6 +443,21 @@ class VirtualArcSpectrum( BaseObject ):
     # ================ #
     #  Properties      #
     # ================ #
+    @property
+    def data(self):
+        """ Foundamental Information about the fit """
+        mus,emus = self._linefit_to_mus_() if self.has_linefitter() else [None,None]
+        if self.has_linefitter():
+            fitvalue = self.linefitter.fitvalues if not self._sequentialfit \
+              else {lamp:self.linefitter[lamp].fitvalues for lamp in self.arcnames}
+        else:
+            fitvalue = None
+        return {"lampname": self.arcnames,
+                "usedlines": self.usedlines,
+                "fit_linepos":mus,"fit_linepos.err":emus,
+                "wavesolution": self.wavesolution.data if self.has_wavesolution() else None,
+                "line_fitvalues":fitvalue
+                    }
     @property
     def databounds(self):
         """ limits of the effective spectrum """
@@ -444,8 +546,16 @@ class ArcSpectrum( BaseSpectrum, VirtualArcSpectrum ):
             warnings.warn("Unknown Arc Lamp (%s). No Line Attached"%name)
             self._derived_properties["arclines"] = {}
         else:
-            self._derived_properties["arclines"] = LINES[self.arcname]
-            
+            self.reload_lines()
+
+    def remove_line(self, line):
+        """ """
+        self.arclines.pop(line)
+
+    def reload_lines(self):
+        """ """
+        self._derived_properties["arclines"] = LINES[self.arcname].copy()
+        
     # ================ #
     #  Properties      #
     # ================ #
@@ -536,6 +646,8 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
         -------
         Void (sets linefitter)
         """
+        self._build_arclines_()
+        
         lineprop = dict(contdegree=contdegree,line_shift=line_shift,
                         exclude_reddest_part=exclude_reddest_part,
                         red_buffer=red_buffer,
@@ -563,9 +675,9 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
         for li in self.usedlines:
             lamp_ = self.line_to_lamp(li)
             line_ = self.arcspectra[lamp_].line_to_fitnumber(li)[0]
-            
             mus.append(self.linefitter[lamp_].fitvalues["mu%d"%line_])
             emus.append(self.linefitter[lamp_].fitvalues["mu%d.err"%line_])
+            
         return np.asarray(mus),np.asarray(emus)
     
     # -------- #
@@ -573,9 +685,7 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
     # -------- #
     def line_to_lamp(self, line):
         """ """
-        for s in self.arcnames:
-            if line in self.arcspectra[s].usedlines:
-                return s
+        return self.arclines[line]["arcname"]
     
     def add_arcspectrum(self, arcspectrum, name=None):
         """ """
@@ -594,6 +704,149 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
         """ Remove an arcspectrum from the collection """
         self.arcspectra.pop(arcname)
         self._derived_properties["arclines"] = None
+
+
+    # -------- #
+    # PLOTTER  #
+    # -------- #
+    def show(self, savefile=None, **kwargs):
+        """ """
+        if self.has_linefitter() and self.has_wavesolution():
+            self._show_full_(savefile=savefile, **kwargs)
+        elif self.has_wavesolution():
+            self._show_wavesolution_(savefile=savefile, **kwargs)
+        elif self.has_linefitter():
+            self._show_linefit_(savefile=savefile, **kwargs)
+        else:
+            raise AttributeError("No WaveSolution, Not LineFitter. Nothing to show")
+
+    def _show_full_(self, savefile=None, show=True,
+                    fig=None, stampsloc="right", specid=None,
+                        show_guesses=False, **kwargs):
+        """ """
+        from astrobject.utils.mpladdon import figout
+        if fig is None:
+            fig = mpl.figure(figsize=[10,5]) if stampsloc in ["left", "right"] \
+              else mpl.figure(figsize=[10,10])
+
+        if stampsloc == "right":
+            heigth, bottom = 0.82, 0.12
+            space = 0.11
+            axwave   = fig.add_axes([0.1,bottom,0.58,heigth])
+            axstamps = [fig.add_axes([0.7,bottom+((heigth+space/(self.nspectra-1))/self.nspectra)*i,
+                                      0.2, (heigth-space)/self.nspectra])
+                            for i in range(self.nspectra)]
+                
+            self._show_linefit_(show=False, savefile=None, ax=axstamps, remove_xticks=False,
+                                    show_guesses=show_guesses)
+            self._show_wavesolution_(show=False, savefile=None, ax=axwave, **kwargs)
+
+            axwave.set_xlabel(r"Wavelength [$\mathrm{\AA}$]", fontsize="large")
+            axwave.set_ylabel(r"Pixels (ccd-row)", fontsize="large")
+            axstamps[0].set_xlabel(r"Pixels (ccd-row)", fontsize="medium")
+            if specid is not None:
+                fig.text(0.01,0.99,"Spectrum #%d"%specid,
+                        va="top",ha="left", fontsize="small")
+
+        fig.figout(savefile=savefile, show=show)
+        
+    def _show_linefit_(self, savefile=None, show=True, ax=None,
+                           show_gaussian=True, show_guesses=False,
+                           remove_xticks=False, **kwargs):
+        """ """
+        from astrobject.utils.mpladdon import figout
+        if not self._sequentialfit:
+            # - Non Sequential
+            if ax is None:
+                fig = mpl.figure(figsize=[8,5])
+                ax = fig.add_axes([0.12,0.12,0.78,0.78])
+                ax.set_xlabel(r"Wavelength [$\mathrm{\AA}$]", fontsize="large")
+                ax.set_xlabel(r"Flux []", fontsize="large")
+            else:
+                fig = ax.figure
+
+            self.linefitter.show(ax=ax, savefile=None, show=False, show_gaussian=show_gaussian, **kwargs)
+            if remove_xticks:
+                ax.set_xticks([])
+            if show_guesses:
+                    _ = [ax.axvline(self.linefitter[lamp].param_input["mu%s_guess"%i], color="0.8", lw=1) 
+                         for i,l in enumerate(self.usedlines)]
+        else:
+            # - Non Sequential
+            if ax is None:
+                fig = mpl.figure(figsize=[10,3])
+                ax = [fig.add_subplot(1,self.nspectra,i+1) for i in range(self.nspectra)]
+            elif len(ax) != self.nspectra:
+                raise ValueError("In Sequential fit, ax must be an array with the size of `nspectra`")
+            else:
+                fig = ax[0].figure
+                
+            for ax_, lamp in zip(ax, self.arcnames):
+                self.linefitter[lamp].show(ax=ax_, savefile=None, show=False,
+                                        show_gaussian=show_gaussian,**kwargs)
+                color = self._lamp_to_color_(lamp)
+                [[s_.set_color(color),s_.set_linewidth(1.)] for s_ in ax_.spines.values()]
+                ax_.text(0.04,0.96, lamp, transform=ax_.transAxes,
+                         va="top", ha="left", fontsize="medium")
+                ax_.set_yticks([])
+                if remove_xticks:
+                    ax_.set_xticks([])
+                if show_guesses:
+                    _ = [ax_.axvline(self.linefitter[lamp].param_input["mu%s_guess"%i], color="0.8", lw=1) 
+                         for i,l in enumerate(self.arcspectra[lamp].usedlines)]
+
+                
+        fig.figout(savefile=savefile, show=show)
+            
+    def _show_wavesolution_(self, savefile=None, show=True, ax=None,
+                                show_legend=True, show_model=True,
+                                ecolor="0.3", xrange=None,**kwargs):
+        """ """
+        from astrobject.utils.mpladdon import figout, errorscatter
+        from astrobject.utils.tools    import kwargs_update
+        
+        self._plot = {}
+        if ax is None:
+            fig = mpl.figure(figsize=[8,5])
+            ax = fig.add_axes([0.12,0.12,0.78,0.78])
+            ax.set_xlabel(r"Wavelength [$\mathrm{\AA}$]", fontsize="large")
+            ax.set_ylabel(r"Pixels (ccd-row)", fontsize="large")
+        else:
+            fig = ax.figure
+            
+        # -------
+        # - Data
+        prop = kwargs_update( dict(ms=15, ls="None",mew=1.5, marker="o", zorder=5), **kwargs)
+        mu,emus = self._linefit_to_mus_()
+        # Fancy coloring based on lamps
+        for i,lamp in enumerate(self.arcnames[::-1]):
+            flagin = np.asarray([lamp in self.line_to_lamp(l)  for l in self.usedlines], dtype="bool")
+            ax.plot(self.usedlines[flagin], mu[flagin],
+                        mfc= self._lamp_to_color_(lamp, 0.5),mec= self._lamp_to_color_(lamp, 0.9),
+                        label=r"%s"%lamp,**prop)
+
+        er = ax.errorscatter(self.usedlines, mu, dy=emus, zorder=prop["zorder"]-1,
+                             ecolor=ecolor)
+        # --------
+        # - Model
+        if show_model:
+            if xrange is None:
+                xrange = [self.usedlines.min()-100, self.usedlines.max()+100]
+            x = np.linspace(xrange[0],xrange[1], 1000)
+            ml = ax.plot(x, self.lbda_to_pixels(x), lw=2, color="C1")
+        # --------
+        # - Output
+        if show_legend:
+            ax.legend(loc="upper left", frameon=False, fontsize="medium",
+                          markerscale=0.6)
+
+        fig.figout(savefile=savefile, show=show)
+
+    def _lamp_to_color_(self, lamp, alpha=1):
+        """ Internal Ploting tool to get a consistent color for the lamp.
+        Slower to use that, but prettier."""
+        i = float(np.argwhere(self.arcnames == lamp)[0][0])/self.nspectra
+        return mpl.cm.viridis(i, alpha)
         
     # ================ #
     #  Properties      #
@@ -657,15 +910,25 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
     def arclines(self):
         """ """
         if self._derived_properties["arclines"] is None:
-            di={}
-            for d in self.arcspectra.values():
-                for k,v in d.arclines.items():
-                    di[k]=v
-            self._derived_properties["arclines"] = di
-            
+            self._build_arclines_()
         return self._derived_properties["arclines"]
     
 
+    def _build_arclines_(self, rebuild=False):
+        """ """
+        if self._derived_properties["arclines"] is not None and not rebuild:
+                return
+        di={}
+        for lampname,d in self.arcspectra.items():
+            for k,v in d.arclines.items():
+                if "backup" in v.keys() and v["backup"] in self.arcnames:
+                    print "line %s skiped since %s loaded"%(k,v["backup"])
+                    d.remove_line(k)
+                    continue
+                v["arcname"] = lampname
+                di[k]=v
+        self._derived_properties["arclines"] = di
+        
 
    
 

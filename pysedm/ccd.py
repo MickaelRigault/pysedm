@@ -219,22 +219,43 @@ class SpectralMatch( BaseObject ):
         # masking edge and face
         maskface = (rmap.T == fr) * (bmap.T == fb) * (gmap.T == fg)
         maskedge = (rmap.T == er) * (bmap.T == eb) * (gmap.T == eg)
+        
         # let's build the actual mask
         mask = maskface + maskedge if include in ["all",'both','faceandedge'] else\
           maskface if include in ['core',"face"] else\
           maskedge if include in ['edge'] else None
+          
         if mask is None:
             raise ValueError("include not understood: 'all'/'both' or 'face'/'core' or 'edge'")
         
         return mask
+
+    # -------------
+    # - Select idx
+    def get_idx_within_bounds(self, xbounds, ybounds):
+        """ Returns the list of indexes for which the indexth's polygon 
+        is fully contained within xbounds, ybounds (in CCD index) """
+        from shapely.geometry import Polygon
         
+        rectangle = Polygon([[xbounds[0],ybounds[0]],[xbounds[0],ybounds[1]],
+                             [xbounds[1],ybounds[1]],[xbounds[1],ybounds[0]]])
+        
+        return self.get_idx_within_polygon(rectangle)
+    
+    def get_idx_within_polygon(self, polygon_):
+        """ Returns the list of indexes for which the indexth's polygon 
+        is fully contained within the given polygon """
+        return np.arange(self.nspectra)[ np.asarray([polygon_.contains(p_)
+                                         for p_ in self.spectral_polygon], dtype="bool") ]    
     # ----------- #
     #  Plotting   #
     # ----------- #
-    def display_polygon(self, ax, **kwargs):
+    def display_polygon(self, ax, idx=None,**kwargs):
         """ display on the given axis the polygon used to define the spectral match """
         from astrobject.utils.shape import draw_polygon
-        return ax.draw_polygon(self.spectral_polygon, **kwargs)
+        if idx is None:
+            return ax.draw_polygon(self.spectral_polygon, **kwargs)
+        return [ax.draw_polygon(self.spectral_polygon[i])  for i in idx]
     
     def show(self, ax=None, savefile=None, show=True, cmap=None,
                  add_colorbar=True, index=None,
@@ -282,7 +303,7 @@ class SpectralMatch( BaseObject ):
     def spectral_polygon(self):
         """ Shapely Multi Polygon associated to the given vertices """
         if self._derived_properties["specpoly"] is None:
-            self._derived_properties["specpoly"] = shapely.geometry.MultiPolygon([shapely.geometry.polygon.Polygon(rect_)
+            self._derived_properties["specpoly"] = shapely.geometry.MultiPolygon([ shapely.geometry.polygon.Polygon(rect_)
                                                                                       for rect_ in self.spectral_vertices])
         return self._derived_properties["specpoly"]
 
@@ -437,6 +458,7 @@ class ScienceCCD( CCD ):
         if "Calib" in self.header["NAME"]:
             return self.header["NAME"].split()[1]
         return self.header["NAME"]
+    
 # ============================== #
 #                                #
 #  Childs Of CCD                 #

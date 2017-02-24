@@ -61,15 +61,14 @@ def get_cubesolution(*lamps):
     cube = CubeSolution()
     [cube.add_lampccd(l) for l in lamps]
     return cube
-    
+
 def get_arcspectrum(x, y, dy=None, name=None):
     """ """
     spec = ArcSpectrum(wave=x, flux=y, errors=dy)
     spec.set_arcname(name)
     return spec
 
-
-def get_wavesolution(specid, lamps):
+def get_arccollection(specid, lamps):
     """ """
     wsol= ArcSpectrumCollection()
     
@@ -87,7 +86,7 @@ def get_wavesolution(specid, lamps):
 class CubeSolution( BaseObject ):
     """ """
     PROPERTIES = ["lamps"]
-    DERIVED_PROPERTIES = ["wavesolutions"]
+    DERIVED_PROPERTIES = ["wavesolutions","solutions"]
 
     # ================== #
     #  Main Methods      #
@@ -98,10 +97,11 @@ class CubeSolution( BaseObject ):
     def fit_wavelesolution(self, specid, sequential=True, contdegree=3, wavedegree=4,
                             saveplot=None, plotprop={}):
         """ """
-        wsol = get_wavesolution(specid, [self.lampccds[i] for i in self.lampnames])
+        wsol = get_arccollection(specid, [self.lampccds[i] for i in self.lampnames])
         wsol.fit_lineposition(contdegree=contdegree, sequential=sequential)
         wsol.fit_wavelengthsolution(wavedegree, legendre=False)
         self.wavesolutions[specid] = wsol.data
+        self._solution[specid]     = WaveSolution(wsol.data["wavesolution"])
         
         if saveplot is not None:
             wsol.show(specid=specid, xrange=[3600,9500], savefile=saveplot, **plotprop)
@@ -110,10 +110,29 @@ class CubeSolution( BaseObject ):
     # -------- #
     # GETTER   #
     # -------- #
+    def get_spaxel_wavesolution(self, specid):
+        """ """
+        if specid not in self.wavesolutions:
+            raise ValueError("Unknown wavelength solution for the spaxels #%d"%specid)
+        return self._solution[specid]
 
+    def pixels_to_lbda(self, pixel, specid):
+        """ Pick the requested spaxel and get the wavelength [in angstrom] that goes with the given pixel """
+        return self.get_spaxel_wavesolution(specid).pixels_to_lbda(pixel)
+    
+    def lbda_to_pixels(self, lbda, specid):
+        """ Pick the requested spaxel and get the pixel that goes with the given wavelength [in angstrom] """
+        return self.get_spaxel_wavesolution(specid).lbda_to_pixels(lbda)
+    
     # -------- #
     #  I/O     #
     # -------- #
+    def set_wavesolutions(self, wavesolutions):
+        """ Load a dictionary containing the wavelength solution of individual spaxels """
+        for specid,data in wavesolutions.items():
+            self.wavesolutions[specid] = data
+            self._solution[specid]     = WaveSolution(data["wavesolution"])
+            
     def add_lampccd(self, lampccd, name=None):
         """ """
         if CCD not in lampccd.__class__.__mro__:
@@ -152,6 +171,12 @@ class CubeSolution( BaseObject ):
         if self._derived_properties["wavesolutions"] is None:
             self._derived_properties["wavesolutions"] = {}
         return self._derived_properties["wavesolutions"]
+    @property
+    def _solution(self):
+        """ WaveSolution object. use get_wavesolution() """
+        if self._derived_properties["solutions"] is None:
+            self._derived_properties["solutions"] = {}
+        return self._derived_properties["solutions"]
     
 class WaveSolution( BaseObject ):
     """ """
@@ -523,8 +548,7 @@ class ArcSpectrum( BaseSpectrum, VirtualArcSpectrum ):
     def line_to_fitnumber(self, line):
         """ What is the index of the line within the 'usedlines' array """
         return np.argwhere(self.usedlines==line)[0]
-        
-    # --------- #
+            # --------- #
     #  SETTER   #
     # --------- #
     def set_arcname(self, name):
@@ -922,7 +946,7 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
         for lampname,d in self.arcspectra.items():
             for k,v in d.arclines.items():
                 if "backup" in v.keys() and v["backup"] in self.arcnames:
-                    print "line %s skiped since %s loaded"%(k,v["backup"])
+                    warnings.warn("line %s skiped since %s loaded"%(k,v["backup"]))
                     d.remove_line(k)
                     continue
                 v["arcname"] = lampname

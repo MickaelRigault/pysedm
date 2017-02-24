@@ -135,7 +135,8 @@ def polygon_mask(polygons, width=2047, height=2047,
 class SpectralMatch( BaseObject ):
     """ """
     PROPERTIES = ["spectral_vertices"]
-    DERIVED_PROPERTIES = ["maskimage","specpoly","spectral_fc","spectral_ec"]
+    DERIVED_PROPERTIES = ["maskimage","specpoly","spectral_fc","spectral_ec",
+                          ]
 
     # ================== #
     #  Main Tools        #
@@ -168,7 +169,39 @@ class SpectralMatch( BaseObject ):
     def index_to(self, index, what):
         """ """
         return eval("self.spectral_%s[index]"%what)
-    
+
+    def build_hexneighbors(self, usedindex = None, qdistance=None):
+        """ Build the array of neightbords.
+        This is built on a KDTree (scipy)
+
+        Parameters
+        ----------
+        usedindex: [list of indexes] -optional-
+            Select the indexes you want to use. If None [default] all will be.
+
+        
+
+        
+        """
+        from shapely.geometry import MultiPoint
+        from .utils import hexagrid
+        
+        # - Index game
+        all_index = np.arange(self.nspectra)
+        if usedindex is None:
+            usedindex = all_index
+        # Careful until the end of this method
+        # The indexes will be index of 'usedindex'
+        # they will have the sidx_ name
+
+            
+        # - position used to define 1 location of 1 spectral_trace
+        # spectra_ref = [np.asarray(self.spectral_polygon[int(i)].centroid.xy).T[0] for i in usedindex]
+        spectra_ref          = MultiPoint([self.spectral_polygon[int(i)].centroid for i in usedindex]) # shapely format
+        xydata  = np.asarray([np.concatenate(c.xy) for c in spectra_ref]) # array format for kdtree
+        
+        self._derived_properties["hexneighbors"] = hexagrid.HexagoneProject(xydata)
+        
     # ----------- #
     #  GETTER     #
     # ----------- #
@@ -293,6 +326,24 @@ class SpectralMatch( BaseObject ):
         return len(self.spectral_vertices) if self.spectral_vertices is not None else 0
 
     # -----------------
+    # - Hexagonal Grid
+    @property
+    def hexneighbors(self):
+        """ """
+        return self._derived_properties["hexneighbors"]
+
+    def has_hexneighbors(self):
+        """ Tests if the hexneighbors dictionary has been built. """
+        return self.hexneighbors is not None
+
+    @property
+    def hexgrid(self):
+        """ Coordinate (Q,R) of the given index """
+        if self._derived_properties["hexgrid"] is None:
+            self._derived_properties["hexgrid"]  = {i:None for i in range(self.nspectra)}
+        return self._derived_properties["hexgrid"]
+    
+    # -----------------
     # - Spectral Info
     @property
     def spectral_vertices(self):
@@ -344,7 +395,17 @@ class SpectralMatch( BaseObject ):
     def has_maskimage(self):
         return self.has_maskimage is not None
 
-
+#####################################
+#                                   #
+#  Position Matching Class          #
+#                                   #
+#####################################
+""" Going from Spectral Index to Spatial Position """
+class PositionMatching( BaseObject ):
+    """ """
+    PROPERTIES = []
+    def set_polygons(self, polygons, index):
+        """ """
     
 #####################################
 #                                   #

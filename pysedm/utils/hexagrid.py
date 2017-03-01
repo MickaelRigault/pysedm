@@ -6,34 +6,49 @@ import numpy         as np
 from scipy.spatial   import KDTree, distance
 from propobject      import BaseObject
 
+__all__ = ["get_hexprojection"]
 
 
+def get_hexprojection(xy, ids=None, qdistance=None,
+                      reference_ids=None, build=True, **kwargs):
+    """ """
+    hgrid = HexagoneProjection(xy, ids=ids, qdistance=qdistance, **kwargs)
+    
+    reference_idx = hgrid.get_default_grid_reference() \
+      if reference_ids is None else hgrid.ids_to_index(reference_ids)
 
-class HexagoneProject( BaseObject ):
+    hgrid.set_grid_reference(*reference_idx)
+    if build:
+        hgrid.build_qr_grid(hgrid.ref_idx)
+        
+    return hgrid
+
+class HexagoneProjection( BaseObject ):
     """ This class enable to build th Q,R hexagone grid
     based on given reference positions 
     """
     PROPERTIES         = ["xy","qdistance"]
-    SIDE_PROPERTIES    = ["ref_idx"]
+    SIDE_PROPERTIES    = ["ref_idx","index_ids"]
     DERIVED_PROPERTIES = ["neighbors","hexgrid","hexafilled",
-                              "tree","multipoint","rotmatrix"]
+                              "tree","multipoint","rotmatrix",
+                              "ids_index"]
 
-    def __init__(self, xy, qdistance=None, load=True):
+    def __init__(self, xy, qdistance=None, load=True, ids=None):
         """ """
-        self.set_xy(xy)
+        self.set_xy(xy, ids=ids)
         self.set_qdistance(qdistance)
         if load:
             self.load_hexneighbor()
-
             
     # -------------- #
     #   SETTER       #
     # -------------- # 
-    def set_xy(self, xy):
+    def set_xy(self, xy, ids=None):
         """ """
         self._properties["xy"] = np.asarray(xy)
         self._derived_properties["tree"] = KDTree(self.xy)
         self._derived_properties["hexgrid"] = None # reset
+        self.set_ids(ids)
         
     def set_qdistance(self, qdistance=None):
         """ Distance at which the KDtree will be queried
@@ -50,6 +65,10 @@ class HexagoneProject( BaseObject ):
         
         self._properties["qdistance"] = qdistance
 
+    def set_ids(self, ids):
+        """ The id corresponding the given coordinates (xy). """
+        self._side_properties["index_ids"] = ids
+        
     def load_hexneighbor(self):
         """ """
         self._derived_properties["neighbors"] = self.tree.query_ball_tree(self.tree, r=self.qdistance)
@@ -63,15 +82,36 @@ class HexagoneProject( BaseObject ):
             raise ValueError("This cannot estimate the centroid (no Shapely?).")
         
         return np.argmin([distance.euclidean(xydata_,self.centroid) for xydata_ in self.xy])
+
+
+    def get_default_grid_reference(self):
+        """ Look For the central value and 3 neightbors to define the 
+        (0,0), (0,1) and (1,0) coordinates. 
+        Returns
+        -------
+        3 indexes (with Q,R coords: (0,0), (0,1) and (1,0))
+        """
+        r00 = self.get_central_index()
+        r01 = self.get_idx_neighbors(r00)[0]
+        r10 = self.get_shared_neighbors(r00,r01)[0]
+        return r00, r01, r10
     
     def get_idx_neighbors(self, index):
-        """ """
+        """ Gives the name of all the `index` neightbors.
+        There should be 6 (since it is an haxagonal grid) but less is expected
+        if the index is at the edge of the detector. 
+        More would be sign of problem
+
+        Returns
+        -------
+        list of indexes
+        """
         # No test here for fast recursive tricks
         arr = np.asarray(self.neighbors[index])
         return arr[arr!=index]
 
     def get_shared_neighbors(self, index1, index2):
-        """ Get the index that are neighbors of both indexes """
+        """ Get the indexes that are neighbors of both indexes """
         return np.intersect1d(self.get_idx_neighbors(index1),
                               self.get_idx_neighbors(index2),
                               assume_unique=True)
@@ -89,11 +129,23 @@ class HexagoneProject( BaseObject ):
             return None
         if len(index)>2:
             warnings.warn("Several 'forth' indexes for n0 %d, n1 %d (ref %d)"%(n0,n1, ref))
+            
         return index[0]
         
     # -------------- #
     #  Coordinates   #
     # -------------- #
+    def index_to_ids(self, index):
+        """ given the index of the given ids """
+        return self.index_ids[index]
+
+    def ids_to_index(self, ids):
+        """ given the id of the given index """        
+        if hasattr(ids, "__iter__"):
+            return np.asarray([self.ids_to_index(ids_) for ids_ in ids])
+        
+        return self.ids_index[ids]
+    
     def index_to_qr(self, index):
         """ get the (Q,R) hexagonal coordinates of the given index"""
         return self.hexgrid[index]
@@ -116,7 +168,7 @@ class HexagoneProject( BaseObject ):
         return np.dot(self.grid_rotmatrix,np.asarray([x,y]))
     
     # -------------- #
-    # GRID BUILDING  #
+    # Grid Building  #
     # -------------- #
     def set_grid_reference(self, ref_00, ref_01, ref_10, theta=None):
         """  The three indexes defining (0,0),(0,1),(1,0).
@@ -217,10 +269,6 @@ class HexagoneProject( BaseObject ):
         self._hexafilled[central_hexagon] = True
         return neighbors
 
-        
-    # ---------- #
-    #  Builder   #
-    # ---------- #
     def build_qr_grid(self, ref_idx):
         """ 
         Parameters
@@ -243,21 +291,20 @@ class HexagoneProject( BaseObject ):
         
         while(goahead and running_i<self.npoints):
             potential_next = self.populate_hexagon(n0)
-            if potential_next is not None:
-                next_          = [n for n in potential_next if not self._hexafilled[n]]
-            else:
-                next_      = []
-                
+            next_          = [n for n in potential_next if not self._hexafilled[n]] if potential_next is not None\
+              else []                
             next_to_run    = [n_ for n_ in next_to_run if n_ not in [n0]] + next_
             if len(next_to_run)>1:
                 n0 = np.random.choice(next_to_run)
                 running_i +=1
             else:
                 goahead = False
-            
-                
-                
-        
+
+
+    # ----------- #
+    #   PLOTTER   #
+    # ----------- #
+
     # ================= #
     #   Properties      #
     # ================= #
@@ -277,6 +324,22 @@ class HexagoneProject( BaseObject ):
         if self._properties["qdistance"] is None:
             self.set_qdistance(None)
         return self._properties["qdistance"]
+
+    @property
+    def index_ids(self):
+        """ IDS corresponding the to indexes. If nothing set, this simply is this index. """
+        if self._side_properties["index_ids"] is None:
+            self._side_properties["index_ids"] = np.arange(self.npoints)
+            
+        return self._side_properties["index_ids"]
+
+    @property
+    def ids_index(self):
+        """ IDs corresponding the to indexes. If nothing set, this simply is this index. """
+        if self._derived_properties["ids_index"] is None:
+            self._derived_properties["ids_index"] = {self.index_ids[i]:i for i in np.arange(self.npoints)}
+            
+        return self._derived_properties["ids_index"]
 
     # ----------
     # Derived
@@ -313,11 +376,12 @@ class HexagoneProject( BaseObject ):
 
     @property
     def grid_theta(self):
-        """ """
+        """ Angle [rad] that the (0,1), (0,0) (1,0) coordinates do. """
         return self._derived_properties["grid_theta"]
+    
     @property
     def grid_rotmatrix(self):
-        """ Rotation matrix associated to reference id of the grid """
+        """ Rotation matrix associated to the grid. (based on self.grid_theta) """
         return np.matrix([[np.cos(self.grid_theta),np.sin(self.grid_theta)],
                             [-np.sin(self.grid_theta), np.cos(self.grid_theta)]])
     # ----------

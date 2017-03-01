@@ -18,7 +18,8 @@ from .ccd import CCD
 # from KECK https://www2.keck.hawaii.edu/inst/lris/arc_calibrations.html
 # Cadmium http://www.avantes.com/images/stories/applications/pagina_93-94_cadmium.jpg
 # Xenon from SNIFS 
-_REFORIGIN= 69
+_REFORIGIN = 69
+
 LINES= {"Hg":{ #5790.66  :  {"ampl":1. ,"mu":202-_REFORIGIN},
                #5769.59  : {"ampl":1. ,"mu":201-_REFORIGIN},
                5778.0   : {"ampl":1. ,"mu":201-_REFORIGIN,
@@ -73,8 +74,8 @@ def get_arccollection(specid, lamps):
     wsol= ArcSpectrumCollection()
     
     for lamp in lamps:
-        wsol.add_arcspectrum( get_arcspectrum(x=np.arange(len(lamp.extract_spectrum(specid, on="rawdata")[::-1])),
-                                    y=lamp.extract_spectrum(specid, on="data")[::-1],
+        wsol.add_arcspectrum( get_arcspectrum(x=np.arange(len(lamp.get_spectrum(specid, on="rawdata")[::-1])),
+                                    y=lamp.get_spectrum(specid, on="data")[::-1],
                                     name=lamp.objname))
     return wsol
 

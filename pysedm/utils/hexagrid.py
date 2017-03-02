@@ -9,6 +9,12 @@ from propobject      import BaseObject
 __all__ = ["get_hexprojection"]
 
 
+def load_hexprojection(hexfile):
+    """ """
+    hex_ = HexagoneProjection(None, empty=True)
+    hex_.load(hexfile)
+    return hex_
+
 def get_hexprojection(xy, ids=None, qdistance=None,
                       reference_ids=None, build=True, **kwargs):
     """ """
@@ -27,18 +33,62 @@ class HexagoneProjection( BaseObject ):
     """ This class enable to build th Q,R hexagone grid
     based on given reference positions 
     """
-    PROPERTIES         = ["xy","qdistance"]
+    PROPERTIES         = ["xy","qdistance","hexgrid", "neighbors"]
     SIDE_PROPERTIES    = ["ref_idx","index_ids"]
-    DERIVED_PROPERTIES = ["neighbors","hexgrid","hexafilled",
+    DERIVED_PROPERTIES = ["hexafilled",
                               "tree","multipoint","rotmatrix",
                               "ids_index"]
 
-    def __init__(self, xy, qdistance=None, load=True, ids=None):
+    def __init__(self, xy, qdistance=None, load=True, ids=None,
+                     empty=False):
         """ """
+        if empty:
+            return
+        
         self.set_xy(xy, ids=ids)
         self.set_qdistance(qdistance)
         if load:
-            self.load_hexneighbor()
+            self.fetch_neighbors()
+
+    # -------------- #
+    #   I/O          #
+    # -------------- #
+    def writeto(self, savefile):
+        """ """
+        from .tools import dump_pkl
+        data = {
+            "neighbors": self.neighbors,
+            "ids":       self.index_ids,
+            "hexgrid":   self.hexgrid,
+            "ref_idx":   self.ref_idx,
+            "qdistance": self.qdistance
+            }
+            
+        dump_pkl(data, savefile)
+
+    def load(self, hexfile):
+        """ load the hexagone grid from the pkl file containing the data """
+        from .tools import load_pkl
+        data = load_pkl(hexfile)
+        if "neighbors" not in data.keys():
+            raise TypeError("The given filename does not have the appropriate format. No 'neighbors' entry.")
+
+        # You can rerun everything with this
+        self.set_neighbors(data["neighbors"])
+
+        #  No need to run anything with that again
+        if "hexgrid" in data.keys(): #
+            self.set_hexgrid(data["hexgrid"])
+        #  Valuable information
+        if "ref_idx" in data.keys():
+            self.set_grid_reference(*data["ref_idx"])
+            
+        if "ids" in data.keys():
+            self.set_ids(data["ids"])
+
+        if "qdistance" in data.keys():
+            self.set_qdistance(data["qdistance"])
+
             
     # -------------- #
     #   SETTER       #
@@ -47,7 +97,7 @@ class HexagoneProjection( BaseObject ):
         """ """
         self._properties["xy"] = np.asarray(xy)
         self._derived_properties["tree"] = KDTree(self.xy)
-        self._derived_properties["hexgrid"] = None # reset
+        self._properties["hexgrid"] = None # reset
         self.set_ids(ids)
         
     def set_qdistance(self, qdistance=None):
@@ -69,10 +119,18 @@ class HexagoneProjection( BaseObject ):
         """ The id corresponding the given coordinates (xy). """
         self._side_properties["index_ids"] = ids
         
-    def load_hexneighbor(self):
+    def fetch_neighbors(self):
         """ """
-        self._derived_properties["neighbors"] = self.tree.query_ball_tree(self.tree, r=self.qdistance)
+        self.set_neighbors( self.tree.query_ball_tree(self.tree, r=self.qdistance) )
 
+    def set_neighbors(self, neighbors):
+        """ """
+        self._properties["neighbors"] = neighbors
+        
+    def set_hexgrid(self, hexgrid):
+        """ directly provide the (Q,R) coordinates for the indexes. """
+        self._properties["hexgrid"] = hexgrid
+        
     # ---------- #
     #   GETTER   #
     # ---------- #
@@ -82,7 +140,6 @@ class HexagoneProjection( BaseObject ):
             raise ValueError("This cannot estimate the centroid (no Shapely?).")
         
         return np.argmin([distance.euclidean(xydata_,self.centroid) for xydata_ in self.xy])
-
 
     def get_default_grid_reference(self):
         """ Look For the central value and 3 neightbors to define the 
@@ -316,7 +373,10 @@ class HexagoneProjection( BaseObject ):
     @property
     def npoints(self):
         """ """
-        return len(self.xy) if self.xy is not None else None
+        if self._properties["xy"] is not None:
+            return len(self.xy)
+        return len(self._properties["neighbors"]) if self._properties["neighbors"] is not None else None
+        
     
     @property
     def qdistance(self):
@@ -351,15 +411,15 @@ class HexagoneProjection( BaseObject ):
     @property
     def neighbors(self):
         """ The neightbors """
-        return self._derived_properties["neighbors"]
+        return self._properties["neighbors"]
 
     # - Building the Q,R grid
     @property
     def hexgrid(self):
         """ List containing the relation between index and (Q,R) """
-        if self._derived_properties["hexgrid"] is None:
-            self._derived_properties["hexgrid"] = np.asarray([None for i in range(self.npoints)])
-        return self._derived_properties["hexgrid"]
+        if self._properties["hexgrid"] is None:
+            self._properties["hexgrid"] = np.asarray([None for i in range(self.npoints)])
+        return self._properties["hexgrid"]
 
     @property
     def _hexafilled(self):

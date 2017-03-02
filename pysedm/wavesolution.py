@@ -870,8 +870,8 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
     def _lamp_to_color_(self, lamp, alpha=1):
         """ Internal Ploting tool to get a consistent color for the lamp.
         Slower to use that, but prettier."""
-        i = float(np.argwhere(self.arcnames == lamp)[0][0])/self.nspectra
-        return mpl.cm.viridis(i, alpha)
+        from .utils.mpl import get_lamp_color
+        return get_lamp_color(lamp, alpha=1)
         
     # ================ #
     #  Properties      #

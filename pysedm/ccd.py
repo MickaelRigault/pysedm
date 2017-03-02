@@ -136,6 +136,7 @@ class ScienceCCD( CCD ):
     
     def set_specmatch(self, specmatch):
         """ """
+        from .spectralmatching import SpectralMatch
         if SpectralMatch not in specmatch.__class__.__mro__:
             raise TypeError("The given specmatch must be a SpectralMatch object")
         

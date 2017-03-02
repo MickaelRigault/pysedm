@@ -15,3 +15,9 @@ def get_datapath(YYYYMMDD):
 
 
 
+def get_spectralmatch(YYYYMMDD):
+    """ Load the spectral matcher.
+    This object must have been created. 
+    """
+    from .spectralmatching import load_specmatcher
+    return load_specmatcher(get_datapath(YYYYMMDD)+"%s_SpectralMatch.pkl"%(YYYYMMDD))

@@ -27,9 +27,6 @@ Then to set this Matching to all the ScienceCCD objects.
 
 
 
-SEDMSPAXELS = np.asarray([[np.sqrt(3.)/2.,1./2],[0,1],[-np.sqrt(3.)/2.,1./2],
-                              [-np.sqrt(3.)/2.,-1./2],[0,-1],[np.sqrt(3.)/2.,-1./2],
-                              ])*2/3.
 
 
 ##################################
@@ -215,7 +212,7 @@ class ScienceCCD( CCD ):
     def extract_cube(self, wavesolution, lbda,
                     hexagrid=None, used_indexes=None):
         """ """
-        from pyifu.spectroscopy import Cube
+        from .sedm import SEDMSPAXELS, SEDMCube
         from scipy.interpolate import interp1d
         
         # - index check
@@ -229,7 +226,7 @@ class ScienceCCD( CCD ):
             hexagrid = self.smap.build_hexgrid(used_indexes)
         used_indexes = [i_ for i_ in used_indexes if i_ in hexagrid.ids_index.keys()]
         # - data
-        cube     = Cube(None)
+        cube     = SEDMCube(None)
         cubeflux = []
         cubevar  = [] if self.has_var() else None
         for i in used_indexes:
@@ -244,9 +241,6 @@ class ScienceCCD( CCD ):
         cube.create(np.asarray(cubeflux).T,lbda=lbda, spaxel_mapping=spaxel_map, variance=np.asarray(cubevar).T)
         cube.set_spaxel_vertices(np.dot(hexagrid.grid_rotmatrix,SEDMSPAXELS.T).T)
         return cube
-
-
-
         
     # ================== #
     #  Internal Tools     #

@@ -11,6 +11,14 @@ from ..spectralmatching import get_specmatcher, illustrate_traces
 from ..wavesolution import get_cubesolution
 
 
+_EDGES_Y = 20
+_EDGES_X = 100
+INDEX_CCD_CONTOURS = [[_EDGES_X,_EDGES_Y],[_EDGES_X,1700],
+                      [300,2040-_EDGES_Y],[2040-_EDGES_X,2040-_EDGES_Y],
+                        [2040-_EDGES_X,_EDGES_Y]]
+
+
+
 ############################
 #                          #
 #  Spectral Matcher        #
@@ -92,7 +100,7 @@ def build_spectmatcher(date, lamps=["Hg","Cd","Xe"], verbose=True):
 ############################
 def build_wavesolution(date, verbose=False, ntest=None,
                        lamps=["Hg","Cd","Xe"],
-                       xybounds=[[50,50],[50,1700],[300,2030],[2030,2030],[2030,50]]):
+                       xybounds=None):
     """ Create the wavelength solution for the given night.
     The core of the solution fitting is made in pysedm.wavesolution.
 
@@ -117,17 +125,19 @@ def build_wavesolution(date, verbose=False, ntest=None,
     # ----------------
     # - Load the Data
     # - SpectralMatch using domes
+    #   Built by build_spectmatcher
     smap = get_spectralmatch(date)
         
     # - lamps 
-    lamps = [get_lamp(timedir+"%s.fits"%s_, specmatch=smap)
-                 for s_ in lamps]
+    lamps = [get_lamp(timedir+"%s.fits"%s_, specmatch=smap) for s_ in lamps]
     if verbose: print "Cd, Hg and Xe lamp loaded"
     # - The CubeSolution
     csolution = get_cubesolution(*lamps)
 
     # ----------------
-    # - Spaxel Selection 
+    # - Spaxel Selection
+    if xybounds is None: xybounds=INDEX_CCD_CONTOURS
+        
     if np.shape(xybounds)[0] ==2:
         idxall = smap.get_idx_within_bounds(*xybounds)
     else:

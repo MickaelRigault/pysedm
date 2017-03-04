@@ -57,11 +57,17 @@ LINES= {"Hg":{ #5790.66  :  {"ampl":1. ,"mu":202-_REFORIGIN},
 #  Generators             #
 #                         #
 ###########################
-def get_cubesolution(*lamps):
-    """ Loads the object that enables to build the CubeSolution. """
-    cube = CubeSolution()
-    [cube.add_lampccd(l) for l in lamps]
-    return cube
+def load_wavesolution(filenames):
+    """ Load the wavesolution from saved data """
+    wsol = WaveSolution()
+    wsol.load(filenames)
+    return wsol
+    
+def get_wavesolution(*lamps):
+    """ Loads the object that enables to build the WaveSolution. """
+    wsol = WaveSolution()
+    [wsol.add_lampccd(l) for l in lamps]
+    return wsol
 
 def get_arcspectrum(x, y, dy=None, name=None):
     """ """
@@ -84,7 +90,7 @@ def get_arccollection(specid, lamps):
 #  WaveSolution           #
 #                         #
 ###########################
-class CubeSolution( BaseObject ):
+class WaveSolution( BaseObject ):
     """ """
     PROPERTIES = ["lamps"]
     DERIVED_PROPERTIES = ["wavesolutions","solutions"]
@@ -92,6 +98,23 @@ class CubeSolution( BaseObject ):
     # ================== #
     #  Main Methods      #
     # ================== #
+    # -------- #
+    #  I/O     #
+    # -------- #
+    def writeto(self, filename):
+        """ """
+        from .utils.tools import dump_pkl
+        dump_pkl(self.wavesolutions, filename)
+
+    def load(self, filename):
+        """ """
+        from .utils.tools import load_pkl
+        data = load_pkl(filename)
+        if "wavesolution" not in data.values()[0]:
+            raise TypeError('The given dictionary file does not seem to be a wavelength solution. No "wavesolution" in the first entry')
+        
+        self.set_wavesolutions(data)
+        
     # -------- #
     # BUILDER  #
     # -------- #
@@ -102,7 +125,7 @@ class CubeSolution( BaseObject ):
         wsol.fit_lineposition(contdegree=contdegree, sequential=sequential)
         wsol.fit_wavelengthsolution(wavedegree, legendre=False)
         self.wavesolutions[specid] = wsol.data
-        self._solution[specid]     = WaveSolution(wsol.data["wavesolution"])
+        self._solution[specid]     = SpaxelWaveSolution(wsol.data["wavesolution"])
         
         if saveplot is not None:
             wsol.show(specid=specid, xrange=[3600,9500], savefile=saveplot, **plotprop)
@@ -132,7 +155,7 @@ class CubeSolution( BaseObject ):
         """ Load a dictionary containing the wavelength solution of individual spaxels """
         for specid,data in wavesolutions.items():
             self.wavesolutions[specid] = data
-            self._solution[specid]     = WaveSolution(data["wavesolution"])
+            self._solution[specid]     = SpaxelWaveSolution(data["wavesolution"])
             
     def add_lampccd(self, lampccd, name=None):
         """ """
@@ -179,7 +202,7 @@ class CubeSolution( BaseObject ):
             self._derived_properties["solutions"] = {}
         return self._derived_properties["solutions"]
     
-class WaveSolution( BaseObject ):
+class SpaxelWaveSolution( BaseObject ):
     """ """
     PROPERTIES = ["wavesolution","inverse_wavesolution"]
 
@@ -248,7 +271,7 @@ class WaveSolution( BaseObject ):
             return None
         return self._wavesolution.coeffs
     
-    # - WaveSolution
+    # - SpaxelWaveSolution
     def has_wavesolution(self):
         """ Test if the wavelength solution has been set. """
         return self._wavesolution is not None
@@ -362,7 +385,7 @@ class VirtualArcSpectrum( BaseObject ):
         self.solutionfitter.fit(**guesses)
         # - Set the best fit solution
         self._derived_properties["wavesolution"] = \
-          WaveSolution([self.solutionfitter.fitvalues["a%i"%i]
+          SpaxelWaveSolution([self.solutionfitter.fitvalues["a%i"%i]
                         for i in range(self.solutionfitter.model.DEGREE)[::-1]])
         
     def fit_lineposition(self,contdegree=2, line_shift=None,
@@ -502,7 +525,7 @@ class VirtualArcSpectrum( BaseObject ):
         l, amp = np.asarray([[l,v["ampl"]] for l,v in self.arclines.items()]).T
         return l[np.argmax(amp)]
 
-    # - WaveSolution
+    # - SpaxelWaveSolution
     @property
     def wavesolution(self):
         """ """
@@ -743,7 +766,7 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
         elif self.has_linefitter():
             self._show_linefit_(savefile=savefile, **kwargs)
         else:
-            raise AttributeError("No WaveSolution, Not LineFitter. Nothing to show")
+            raise AttributeError("No SpaxelWaveSolution, Not LineFitter. Nothing to show")
 
     def _show_full_(self, savefile=None, show=True,
                     fig=None, stampsloc="right", specid=None,
@@ -871,7 +894,7 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
         """ Internal Ploting tool to get a consistent color for the lamp.
         Slower to use that, but prettier."""
         from .utils.mpl import get_lamp_color
-        return get_lamp_color(lamp, alpha=1)
+        return get_lamp_color(lamp, alpha=alpha)
         
     # ================ #
     #  Properties      #

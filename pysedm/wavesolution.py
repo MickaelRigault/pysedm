@@ -77,13 +77,14 @@ def get_arcspectrum(x, y, dy=None, name=None):
 
 def get_arccollection(specid, lamps):
     """ """
-    wsol= ArcSpectrumCollection()
+    sol_ = ArcSpectrumCollection()
     
     for lamp in lamps:
-        wsol.add_arcspectrum( get_arcspectrum(x=np.arange(len(lamp.get_spectrum(specid, on="rawdata")[::-1])),
-                                    y=lamp.get_spectrum(specid, on="data")[::-1],
-                                    name=lamp.objname))
-    return wsol
+        spec_ = lamp.get_spectrum(specid, on="data")[::-1]
+        lbda_ = np.arange(len(spec_))
+        sol_.add_arcspectrum( get_arcspectrum(x=lbda_, y=spec_, name=lamp.objname))
+        
+    return sol_
 
 ###########################
 #                         #
@@ -121,14 +122,14 @@ class WaveSolution( BaseObject ):
     def fit_wavelesolution(self, specid, sequential=True, contdegree=3, wavedegree=4,
                             saveplot=None, plotprop={}):
         """ """
-        wsol = get_arccollection(specid, [self.lampccds[i] for i in self.lampnames])
-        wsol.fit_lineposition(contdegree=contdegree, sequential=sequential)
-        wsol.fit_wavelengthsolution(wavedegree, legendre=False)
-        self.wavesolutions[specid] = wsol.data
-        self._solution[specid]     = SpaxelWaveSolution(wsol.data["wavesolution"])
+        wsol_ = get_arccollection(specid, [self.lampccds[i] for i in self.lampnames]) # <0.1s # with saved masks
+        wsol_.fit_lineposition(contdegree=contdegree, sequential=sequential) # 3s 
+        wsol_.fit_wavelengthsolution(wavedegree, legendre=False) # 0.01s
+        self.wavesolutions[specid] = wsol_.data
+        self._solution[specid]     = SpaxelWaveSolution(wsol_.data["wavesolution"])
         
         if saveplot is not None:
-            wsol.show(specid=specid, xrange=[3600,9500], savefile=saveplot, **plotprop)
+            wsol_.show(specid=specid, xrange=[3600,9500], savefile=saveplot, **plotprop)
 
     
     # -------- #
@@ -183,7 +184,7 @@ class WaveSolution( BaseObject ):
         return np.sort(self.lampccds.keys())
     @property
     def lampccds(self):
-        """ dictionary containing the LampCCD objects used
+        """ dictionary containing the ScienceCCD objects used
         to get the wavelength solution of the cube """
         if self._properties["lamps"] is None:
             self._properties["lamps"] = {}
@@ -426,8 +427,10 @@ class VirtualArcSpectrum( BaseObject ):
         """
         from modefit import get_normpolyfit
         
-        flagin = (self.wave>=self.databounds[0])  * (self.wave<=self.databounds[1])
+        # where to look at? (~1ms)
+        flagin = (self.wave>=self.databounds[0])  * (self.wave<=self.databounds[1]) # 1ms
 
+        # Building guess (~1ms)
         guesses = {}
         if line_shift is None:
             lines_shift = self.get_line_shift()
@@ -439,6 +442,7 @@ class VirtualArcSpectrum( BaseObject ):
             guesses["sig%d_guess"%i]       = 1.5
             guesses["sig%d_boundaries"%i]  = [1.1,3] if not "doublet" in self.arclines[l] or not self.arclines[l]["doublet"] else [1.5, 5]
 
+        # where do you wanna fit? (~1ms)
         if exclude_reddest_part:
             flagin *= (self.wave<=guesses["mu%d_guess"%(len(self.usedlines)-1)]+red_buffer)
         else:
@@ -448,14 +452,16 @@ class VirtualArcSpectrum( BaseObject ):
             flagin *= (self.wave>=guesses["mu0_guess"]-blue_buffer)
         else:
             warnings.warn("part bluer than %d *not* removed"%(guesses["mu0_guess"]-blue_buffer))
-            
-        norm = np.nanmean(self.flux[flagin])    
+
+        # Setup the linefitter (3ms)
+        norm = np.nanmean(self.flux[flagin])
         self._derived_properties["linefitter"] = \
           get_normpolyfit(self.wave[flagin],self.flux[flagin]/norm,
                               self.errors[flagin]/norm if self.has_errors() else
                               np.nanstd(self.flux[flagin])/norm/5.,
                               contdegree, ngauss=len(self.usedlines), legendre=True)
-            
+
+        # The actual fit ~4s
         self.linefitter.fit(**guesses)
 
     def _linefit_to_mus_(self):
@@ -965,7 +971,7 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
     def _build_arclines_(self, rebuild=False):
         """ """
         if self._derived_properties["arclines"] is not None and not rebuild:
-                return
+            return
         di={}
         for lampname,d in self.arcspectra.items():
             for k,v in d.arclines.items():

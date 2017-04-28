@@ -89,7 +89,25 @@ class HexagoneProjection( BaseObject ):
         if "qdistance" in data.keys():
             self.set_qdistance(data["qdistance"])
 
-            
+
+    def show(self, ax=None, **kwargs):
+        """ """
+        from ..sedm import SEDMSPAXELS
+        import matplotlib.pyplot as mpl
+        from matplotlib      import patches
+        if ax is None:
+            fig = mpl.figure()
+            ax  = fig.add_subplot(111)
+        else:
+            fig = ax.figure
+
+        indexes = self.ids_index.keys()
+        colors = mpl.cm.viridis(np.random.uniform(size=len(indexes)))
+        ps = [patches.Polygon(SEDMSPAXELS + np.asarray(self.index_to_xy(self.ids_to_index(id_))),
+                        facecolor=colors[i], alpha=0.8, **kwargs) for i,id_  in enumerate(indexes)]
+        ip = [ax.add_patch(p_) for p_ in ps]
+        ax.autoscale(True, tight=True)
+        fig.show()
     # -------------- #
     #   SETTER       #
     # -------------- # 
@@ -209,8 +227,10 @@ class HexagoneProjection( BaseObject ):
 
     def index_to_xy(self, index, invert_rotation=True):
         """ """
-        q,r = np.asarray([self.index_to_qr(i) for i in index]).T\
+        qr = np.asarray([self.index_to_qr(i) for i in index]).T\
           if hasattr(index,"__iter__") else self.index_to_qr(index)
+          
+        q,r = qr if qr is not None else [np.NaN, np.NaN]
         return self.qr_to_xy(q,r, invert_rotation=invert_rotation)
     
     def qr_to_xy(self, q,r, invert_rotation=True):

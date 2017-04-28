@@ -21,68 +21,74 @@ SPECTID_CMAP = mpl.cm.viridis
 The Idea of the CCD calibration is to first estimate the Spectral Matching. 
 Then to set this Matching to all the ScienceCCD objects. 
 
-- SpectralMatch holds the spaxel->pixel_area relation.
+- Tracematch holds the spaxel->pixel_area relation.
 
 """
 
-
-
-
+__all__ = ["get_dome","get_ccd"]
 
 ##################################
 #                                #
 #   Object Generators            #
 #                                #
 ##################################
-
-def get_dome(domefile, specmatch=None,  **kwargs):
-    """ Load a SEDmachine domeflat image. 
-
-    Parameters
-    -----------
-    domefile: [string]
-        Location of the file containing the object
-    
-    specmatch: [SpectralMatch (pysedm object)] -optional-
-        SpectralMatch object containing the Spectral property on the CCD
-
-    **kwargs goes to DomeCCD.__init__() if specmatch is None 
-             else to _get_default_background_
-    Returns
-    -------
-     DomeCCD (Child of CCD which is a Child of an astrobjec's Image)
-    """
-    if specmatch is None:
-        return DomeCCD(domefile, **kwargs)
-    # = SpectralMatch that gonna help the background
-    dome = DomeCCD(domefile, background= 0, **kwargs)
-    dome.set_specmatch(specmatch)
-    dome.set_background(dome._get_default_background_(**kwargs), force_it=True)
-    return dome
-
-def get_lamp(lampfile, ccdspec_mask=None,
-                 specmatch=None, **kwargs):
-    """ Load a SEDmachine lamp image. 
+def get_ccd(lampfile, ccdspec_mask=None,
+            tracematch=None, specmatch=None,
+                background=None, **kwargs):
+    """ Load a SEDmachine ccd image. 
 
     Parameters
     -----------
     lampfile: [string]
         Location of the file containing the object
     
-    specmatch: [SpectralMatch (pysedm object)] -optional-
-        SpectralMatch object containing the Spectral property on the CCD
+    tracematch: [Tracematch (pysedm object)] -optional-
+        Tracematch object containing the Spectral property on the CCD
 
+    background: [bool] -optional-
+        which kind of background do you want (i.e. background=0)
     **kwargs goes to _get_default_background_()
 
     Returns
     -------
-    LampCCD (Child of CCD which is a Child of an astrobjec's Image)
+    ScienceCCD (Child of CCD which is a Child of an astrobjec's Image)
     """
-    lamp = LampCCD(lampfile, background=0)
-    if specmatch is not None:
-        lamp.set_specmatch(specmatch)
-    lamp.set_background(lamp._get_default_background_(**kwargs), force_it=True)
+    lamp = ScienceCCD(lampfile, background=0)
+    if tracematch is not None:
+        lamp.set_tracematch(tracematch)
+    if background is None:
+        lamp.set_background(lamp._get_default_background_(**kwargs), force_it=True)
+    if not background == 0:
+        lamp.set_background(background)
+        
     return lamp
+
+def get_dome(domefile, tracematch=None,  **kwargs):
+    """ Load a SEDmachine domeflat image. 
+    (special version of get_ccd. might be moved to get_ccd...)
+
+    Parameters
+    -----------
+    domefile: [string]
+        Location of the file containing the object
+    
+    tracematch: [Tracematch (pysedm object)] -optional-
+        Tracematch object containing the Spectral property on the CCD
+
+    **kwargs goes to DomeCCD.__init__() if tracematch is None 
+             else to _get_default_background_
+    Returns
+    -------
+     DomeCCD (Child of CCD which is a Child of an astrobjec's Image)
+    """
+    if tracematch is None:
+        return DomeCCD(domefile, **kwargs)
+    # = Tracematch that gonna help the background
+    dome = DomeCCD(domefile, background=0, **kwargs)
+    dome.set_tracematch(tracematch)
+    dome.set_background(dome._get_default_background_(**kwargs), force_it=True)
+    return dome
+
 
 
 #####################################
@@ -90,10 +96,10 @@ def get_lamp(lampfile, ccdspec_mask=None,
 #  Raw CCD Images for SED machine   #
 #                                   #
 #####################################
-class CCD( Image ):
+class BaseCCD( Image ):
     """ """
-    def __build__(self,bw=300, bh=300,
-                      fw=3, fh=3,**kwargs):
+    def __build__(self,bw=15, bh=15,
+                      fw=10, fh=10,**kwargs):
         """ build the structure of the class
 
         // Doc from SEP
@@ -124,29 +130,145 @@ class CCD( Image ):
     @property
     def data_log(self):
         return np.log10(self.data)
-
-
     
-class ScienceCCD( CCD ):
+# ============================== #
+#                                #
+#  Main CCD Object               #
+#  Tracing <-> CCD <-> Cube      #
+#                                #
+# ============================== #
+class CCD( BaseCCD ):
     """ Virtual Class For CCD images that have input light """
-    PROPERTIES = ["spectralmatch"]
-    
-    def set_specmatch(self, specmatch):
-        """ """
-        from .spectralmatching import SpectralMatch
-        if SpectralMatch not in specmatch.__class__.__mro__:
-            raise TypeError("The given specmatch must be a SpectralMatch object")
+    PROPERTIES         = ["tracematch"]
+    DERIVED_PROPERTIES = ["matched_septrace_index"]
+    # ------------------- #
+    # Tracematch <-> CCD   #
+    # ------------------- #
+    def set_tracematch(self, tracematch):
+        """ Attach to this instance the Tracematch """
+        from .spectralmatching import TraceMatch
+        if TraceMatch not in tracematch.__class__.__mro__:
+            raise TypeError("The given tracematch must be a TraceMatch object")
         
-        self._properties["spectralmatch"] = specmatch
+        self._properties["tracematch"] = tracematch
+
+    def match_trace_and_sep(self):
+        """ SEP extracted object will be matched with trace indexes
+        (This might time a bit of time)
+
+        You can then use the methods:
+        - sepindex_to_traceindex()
+        - traceindex_to_sepindex()
+        
+        """
+        if not self.has_sepobjects():
+            raise AttributeError("Sep extract has not been run. This is needed to match the traces with detected lines.")
+
+        x,y,a,b,theta = self.sepobjects.get(["x","y","a","b","theta"]).T
+        
+        septrace_index = [self.tracematch.get_trace_source(x_, y_, a=a_*2, b=b_*2, theta=theta_ )
+                              for x_,y_,a_,b_,theta_ in zip(x,y,a,b,theta)]
+        
+        self._derived_properties["matched_septrace_index"] = np.asarray([s[0] if len(s)==1 else np.NaN
+                                                                             for s in septrace_index])
+
+    def sepindex_to_traceindex(self, sepindex):
+        """ Give the index of an sep entry. This will give the corresponding trace index """
+        if not self.has_matchedindex():
+            raise AttributeError("spectral match traces has not been matched with sep indexes. Run match_tracematch_and_sep()")
+        return self.matchedindex[sepindex]
+    
+    def traceindex_to_sepindex(self, traceindex):
+        """ Give the index of an sep entry. This will give the corresponding trace index """
+        if not self.has_matchedindex():
+            raise AttributeError("spectral match traces has not been matched with sep indexes. Run match_tracematch_and_sep()")
+        return np.argwhere(self.matchedindex == traceindex).flatten()
 
 
-    def get_spectrum(self, specidx, on="data"):
-        """ Get the basic spectrum extracted for the CCD based on the 
-        SpectralMatch object. 
+    def get_finetuned_trace(self, traceindex, polydegree=2, width=None, **kwargs):
+        """ The builds a fine tuned trace of the given traceindex.
+        The tuning uses detected object from sep.
+        => You must have run match_tracematch_and_sep()
         
         Parameters
         ----------
-        sepcidx: [int, list of]
+        traceindex: [int]
+            Index of the trace you want to fine tune
+
+        polydegree: [positive-int] -optional-
+            Degree of the polynome that will be used to define the trace.
+            (See 'width' for details on the width of the trace polygon)
+            => If polydegree is higher than the number of sep object detected
+               belonging to this trace, polydegree will the reduced to that number
+            => If polydegree ends up being lower of equal to 0, None is returned
+
+        width: [float / None] -optional-
+            Width of the polygon (in pixels)
+            If None, width will be estimated based on the b-values of the 
+            sep detected objects.
+
+        **kwargs goes to spectralmatching.get_boxing_polygone()
+
+        Returns
+        -------
+        One of these:
+          - None if no fit possible (one of less sep object for this trace )
+          - array (vertices) 
+        """
+        x, y, b = self.sepobjects.get(["x","y","b"], self.traceindex_to_sepindex(traceindex)).T
+        
+        if len(x) < polydegree:
+            warnings.warn("less sep-points than plynom degree. Degree reduced ")
+            polydegree = len(x)-1
+            
+        if polydegree <=0:
+            return None
+        
+        return self.tracematch.get_finetuned_trace_vertices(traceindex, x, y,
+                                                            width= np.nanmedian(b)*2. if width is None else width,
+                                                            polydegree=polydegree, **kwargs)    
+    
+    def get_trace_mask(self, traceindex, finetune=False, polydegree=2,
+                           subpixelisation=5):
+        """ """
+        if not finetune:
+            return self.tracematch.get_trace_mask(traceindex)
+        
+        from .spectralmatching import polygon_mask, _HAS_SKIMAGE
+        if not _HAS_SKIMAGE:
+            warnings.warn("get_trace needs skimage to be able to use subpixelisation")
+            subpixelisation = 1
+            
+        verts = self.get_finetuned_trace(traceindex, polydegree=polydegree, width=None, get_vertices=True)
+            
+        mask = np.asarray(polygon_mask( verts*subpixelisation,
+                                        self.shape[0]*subpixelisation, self.shape[1]*subpixelisation,
+                                        get_fullcolor=False),
+                              dtype="bool")
+        
+        if subpixelisation==1:
+            return mask
+            
+        from .spectralmatching import measure
+        return measure.block_reduce(mask, (subpixelisation,subpixelisation) )/float(subpixelisation**2)
+
+    def get_finetuned_tracematch(self, indexes, build_masking=False):
+        """ """
+        from .spectralmatching import TraceMatch
+        tmap = TraceMatch()
+        tmap.set_trace_vertices({i:self.get_finetuned_trace(i) for i in indexes}, build_masking=build_masking)
+        return tmap
+        
+    # ---------------- #
+    #  Tracematch      #
+    # ---------------- #
+    def get_spectrum(self, traceindex, on="data", finetune=False):
+        """ Get the basic spectrum extracted for the CCD based on the 
+        TraceMatch object. 
+        
+        Parameters
+        ----------
+        traceindex: [int, list of]
             index(es) of the spectrum(a) to return
 
         on: [str] -optional-
@@ -154,26 +276,31 @@ class ScienceCCD( CCD ):
             By Default 'data', but you can set e.g. rawdata, background 
             or anything accessible as 'self.%s'%on. 
             
+        finetune: [bool] -optional-
+            Should the trace masking come from finetunning of spectral trace?
+            (Remark: The spectral match loaded might already be finetuned ones.)
+
         Returns
         -------
         flux (or list of) as a function of pixels
         """
-        if not self.has_specmatch():
-            raise AttributeError("The SpectralMatch has not been set. see set_specmatch() ")
+        if not self.has_tracematch():
+            raise AttributeError("The TraceMatch has not been set. see set_tracematch() ")
             
-        if hasattr(specidx, "__iter__"):
-            return [self.get_spectrum(id_) for id_ in specidx]
+        if hasattr(traceindex, "__iter__"):
+            return [self.get_spectrum(id_) for id_ in traceindex]
 
-        maskidx  = self.specmatch.get_idx_mask(specidx)
+        maskidx  = self.get_trace_mask(traceindex, finetune=finetune)
         return np.sum(eval("self.%s"%on)*maskidx, axis=0)
 
-    def extract_spectrum(self, specidx, cubesolution, get_spectrum=True):
-        """ Buiuld the `specidx` spectrum based on the given wavelength solution.
+    def extract_spectrum(self, traceindex, cubesolution, get_spectrum=True,
+                             finetune=False):
+        """ Build the `traceindex` spectrum based on the given wavelength solution.
         The returned object could be an pyifu's Spectrum or three arrays, lbda, flux, variance.
 
         Parameters
         ----------
-        specidx: [int]
+        traceindex: [int]
             The index of the spectrum you want to extract
             
         cubesolution: [CubeSolution]
@@ -182,21 +309,25 @@ class ScienceCCD( CCD ):
         get_spectrum: [bool] -optional-
             Which form the returned data should have?
 
+        finetune: [bool] -optional-
+            Should the trace masking come from finetunning of spectral trace?
+            (Remark: The spectral match loaded might already be finetuned ones.)
+
         Returns
         -------
         Spectrum or
         array, array, array/None (lbda, flux, varirance)
         """
         
-        f = self.get_spectrum(specidx)
+        f = self.get_spectrum(traceindex, finetune=finetune)
         pixs = np.arange(len(f))[::-1]
         # Black magic, but it works.
         # - Faster with masking
         hasflux = np.argwhere(f>0.0)
         mask = pixs[(pixs>np.min(hasflux))* (pixs<np.max(hasflux))][::-1]
         
-        lbda = cubesolution.pixels_to_lbda(pixs[mask], specidx)
-        variance = self.get_spectrum(specidx, on="var")[mask] if self.has_var() else None
+        lbda = cubesolution.pixels_to_lbda(pixs[mask], traceindex)
+        variance = self.get_spectrum(traceindex, on="var")[mask] if self.has_var() else None
         
         if get_spectrum:
             from pyifu.spectroscopy import Spectrum
@@ -209,49 +340,191 @@ class ScienceCCD( CCD ):
     # --------------- #
     #  Extract Cube   #
     # --------------- #
-    def extract_cube(self, wavesolution, lbda,
-                    hexagrid=None, used_indexes=None):
+    def extract_cube(self, wavesolution, lbda, finetune_trace=False,
+                    hexagrid=None, traceindexes=None):
         """ """
         from .sedm import SEDMSPAXELS, SEDMCube
         from scipy.interpolate import interp1d
         
         # - index check
-        if used_indexes is None:
-            used_indexes = np.sort(wavesolution.wavesolutions.keys())
-        elif np.any(~np.in1d(used_indexes, wavesolution.wavesolutions.keys())):
+        if traceindexes is None:
+            traceindexes = np.sort(wavesolution.wavesolutions.keys())
+        elif np.any(~np.in1d(traceindexes, wavesolution.wavesolutions.keys())):
             raise ValueError("At least some given indexes in `used_indexes` do not have a wavelength solution")
         
         # - Hexagonal Grid
         if hexagrid is None:
-            hexagrid = self.smap.build_hexgrid(used_indexes)
-        used_indexes = [i_ for i_ in used_indexes if i_ in hexagrid.ids_index.keys()]
+            hexagrid = self.tracematch.extract_hexgrid(traceindexes)
+            
+        used_indexes = [i_ for i_ in traceindexes if i_ in hexagrid.ids_index.keys()]
         # - data
         cube     = SEDMCube(None)
         cubeflux = []
         cubevar  = [] if self.has_var() else None
         for i in used_indexes:
-            lbda_, flux_, variance_ = self.extract_spectrum(i, wavesolution, get_spectrum=False)
-            cubeflux.append(interp1d(lbda_, flux_, kind="cubic")(lbda))
+            lbda_, flux_, variance_ = self.extract_spectrum(i, wavesolution, get_spectrum=False,
+                                                            finetune=finetune_trace)
+            try:
+                cubeflux.append(interp1d(lbda_, flux_, kind="cubic")(lbda))
+            except:
+                print("FAILED FOR %s"%i)
+                print("lbda range %.1f %.1f"%(np.nanmin(lbda_),np.nanmax(lbda_)))
+                cubeflux.append(np.zeros(len(lbda))*np.NaN)
+                if cubevar is not None:
+                    cubevar.append(np.zeros(len(lbda))*np.NaN)
+                continue
             if cubevar is not None:
                 cubevar.append(interp1d(lbda_, variance_, kind="cubic")(lbda))
             
-        spaxel_map = {i:c for i,c in enumerate(np.asarray(hexagrid.index_to_xy(hexagrid.ids_to_index(used_indexes),
-                                                        invert_rotation=True)).T)}
+        spaxel_map = {i:c for i,c in zip(used_indexes,
+                                        np.asarray(hexagrid.index_to_xy(hexagrid.ids_to_index(used_indexes),invert_rotation=True)).T)
+                     }
             
         cube.create(np.asarray(cubeflux).T,lbda=lbda, spaxel_mapping=spaxel_map, variance=np.asarray(cubevar).T)
         cube.set_spaxel_vertices(np.dot(hexagrid.grid_rotmatrix,SEDMSPAXELS.T).T)
         return cube
+
+
+    # --------------- #
+    #  Extract Cube   #
+    # --------------- #
+    def show(self, toshow="data", ax=None,
+                 logscale= False, cmap = None, show_sepobjects=False,
+                 vmin = None, vmax = None, savefile=None, show=True, **kwargs):
+        """ Highlight the trace on top of the CCD image. 
+        This method requires that the spectral match has been loaded. 
         
+        Parameters
+        ----------
+        idx: [int]
+        
+
+        vmin, vmax: [float /string / None]
+            Upper and lower value for the colormap. 3 Format are available
+            - float: Value in data unit
+            - string: percentile. Give a float (between 0 and 100) in string format.
+                      This will be converted in float and passed to numpy.percentile
+            - None: The default will be used (percentile 0.5 and 99.5 percent respectively).
+            (NB: vmin and vmax are independent, i.e. one can be None and the other '98' for instance)
+
+    
+        """
+        from .utils.mpl import figout
+
+        if ax is None:
+            fig = mpl.figure(figsize=[8,8])
+            ax  = fig.add_axes([0.13,0.13,0.8,0.8])
+            ax.set_xlabel(r"$\mathrm{x\ [ccd]}$",fontsize = "large")
+            ax.set_ylabel(r"$\mathrm{y\ [ccd]}$",fontsize = "large")
+        elif "imshow" not in dir(ax):
+            raise TypeError("The given 'ax' most likely is not a matplotlib axes. "+\
+                             "No imshow available")
+        else:
+            fig = ax.figure
+        
+        # What To Show
+        data_ = eval("self.%s"%toshow) if type(toshow) == str else toshow
+        if logscale:
+            data_ = np.log10(data_)
+            
+        if cmap is None:  cmap=mpl.cm.viridis
+        vmin = np.percentile(data_, 0.5) if vmin is None else \
+          np.percentile(data_, float(vmin)) if type(vmin) == str else\
+          vmin
+        vmax = np.percentile(data_, 99.5) if vmax is None else \
+          np.percentile(data_, float(vmax)) if type(vmax) == str else\
+          vmax
+        
+        prop = kwargs_update(dict(origin="lower", aspect='auto', vmin=vmin, vmax=vmax), **kwargs)
+
+        # Show It
+        sc = ax.imshow(data_, **prop)
+
+        # - sepobject
+        if show_sepobjects and self.has_sepobjects():
+            self.sepobjects.display(ax)
+
+            
+        fig.figout(savefile=savefile, show=show)
+        
+        return {"ax":ax, "fig" : fig, "imshow":sc}
+        
+    def show_traceindex(self, traceindex, ax=None,
+                          logscale= False, toshow="data", show_finetuned_traces=False,
+                          cmap = None, facecolor = "None", edgecolor="k", 
+                          vmin = None, vmax = None, savefile=None, show=True, **kwargs):
+        """ Highlight the trace on top of the CCD image. 
+        This method requires that the spectral match has been loaded. 
+        
+        Parameters
+        ----------
+        traceindex: [int]
+            
+        """
+        from .utils.mpl import figout
+        
+        pl = self.show( toshow=toshow, ax=ax, logscale=logscale, cmap = cmap, 
+                    vmin = vmin, vmax = vmax, savefile=None, show=False, **kwargs)
+        ax, fig = pl["ax"], pl["fig"]
+        pl["patch"] = self.display_traces(ax, traceindex, facecolors=facecolor, edgecolors=edgecolor)
+
+        if show_finetuned_traces and self.has_matchedindex():
+            from matplotlib import patches
+            traces = traceindex if hasattr(traceindex, "__iter__") else [traceindex]
+            for idx_ in traces:
+                self.sepobjects.display_ellipses(pl["ax"], self.traceindex_to_sepindex(idx_))
+                p_ = patches.Polygon(self.get_finetuned_trace(idx_),
+                                         facecolor="None", edgecolor="C1")
+                pl["ax"].add_patch(p_)
+            
+        # Output
+        fig.figout(savefile=savefile, show=show)
+        return pl
+
+    def display_traces(self, ax, traceindex, facecolors="None", edgecolors="k",
+                             update_limits=True):
+        """ """
+        pl = self.tracematch.display_traces(ax, traceindex,
+                                            facecolors =facecolors, edgecolors=edgecolors)
+        
+        # Fancy It
+        if update_limits:
+            [xmin, xmax], [ymin, ymax] = np.percentile(self.tracematch.trace_vertices[traceindex] if not hasattr(traceindex,"__iter__")  else\
+                                                       np.concatenate([self.tracematch.trace_vertices[idx] for idx in traceindex], axis=0),
+                                                       [0,100], axis=0).T
+            ax.set_xlim(xmin-20, xmax+20)
+            ax.set_ylim(ymin-5, ymax+5)
+            
+        return pl
+
+
+    
     # ================== #
-    #  Internal Tools     #
+    #  Internal Tools    #
     # ================== #
     def _get_default_background_(self, add_mask=None,
+                                     cut_bright_pixels=None,
+                                     exclude_edges=False,
                                  scaleup_sepmask=2, apply_sepmask=True,
                                  **kwargs):
-        """ This Background has been Optimized for SEDm Calibration Lamps """
-        if add_mask is None and self.has_specmatch():
-            add_mask = self.specmatch.get_spectral_mask()
-            
+        """ This Background has been optimized for SEDm Calibration Lamps """
+        
+        if add_mask is None and self.has_tracematch():
+            add_mask = np.asarray(~self.tracematch.get_notrace_mask(), dtype="bool")
+
+        if add_mask is not None and cut_bright_pixels is not None:
+            data_ = self.rawdata.copy()
+            data_[add_mask] = np.NaN
+            add_mask = add_mask + (data_>np.percentile(data_[data_==data_],50))
+
+        if exclude_edges:
+            falses = np.zeros(self.shape)
+            # - x cuts
+            xremove, yremove =100, 20
+            falses[:,(np.arange(self.shape[1])<xremove) + (np.arange(self.shape[1])>(self.shape[1]-xremove))  ] = 1.
+            falses[(np.arange(self.shape[0])<yremove)   + (np.arange(self.shape[0])>(self.shape[0]-yremove)),:] = 1.
+            add_mask = add_mask + np.asarray(falses, dtype="bool")
+
         return self.get_sep_background(doublepass=False, update_background=False,
                                        add_mask=add_mask,
                                        apply_sepmask=apply_sepmask, scaleup_sepmask=scaleup_sepmask,
@@ -260,26 +533,42 @@ class ScienceCCD( CCD ):
     # ================== #
     #   Properties       #
     # ================== #
-    @property
-    def specmatch(self):
-        """ """
-        return self._properties["spectralmatch"]
     
-    def has_specmatch(self):
-        return self.specmatch is not None    
+    # - TraceMatching association
+    @property
+    def tracematch(self):
+        """ """
+        return self._properties["tracematch"]
+    
+    def has_tracematch(self):
+        return self.tracematch is not None    
 
     @property
+    def matchedindex(self):
+        """ Object containing the relation between the sepindex and the trace index.
+        see the methods sepindex_to_traceindex() and traceindex_to_sepindex() """
+        return self._derived_properties["matched_septrace_index"]
+    
+    def has_matchedindex(self):
+        """ Is the sep<-> trace index matching done? """
+        return self.matchedindex is not None
+
+    # - Generic properties
+    @property
     def objname(self):
-        if "Calib" in self.header["NAME"]:
+        if "Calib" in self.header.get("NAME","no-name"):
             return self.header["NAME"].split()[1]
-        return self.header["NAME"]
+        return self.header.get("NAME","no-name")
     
 # ============================== #
 #                                #
 #  Childs Of CCD                 #
 #                                #
 # ============================== #
-
+class ScienceCCD( CCD ):
+    """ Should be used to improve the trace matching. """
+    
+    
 class DomeCCD( ScienceCCD ):
     """ Object Build to handle the CCD images of the Dome exposures"""
 
@@ -288,6 +577,7 @@ class DomeCCD( ScienceCCD ):
     # ================== #
     def get_specrectangles(self, length="optimal",height="optimal",theta="optimal",
                                scaleup_red=2.5, scaleup_blue = 7.5, scaleup_heigth=1.5,
+                               fixed_pixel_length=None,
                                use_peak_xy=True):
         """ Vertices of the ~rectangles associated to each spectra based on the 
         detected SEP ellipses assuming a fixed height given by the median of the 
@@ -303,6 +593,10 @@ class DomeCCD( ScienceCCD ):
         Parameters
         ----------
 
+        fixed_pixel_length: [float/None] -optional-
+            how many pixel bluer (higher-x) should the traces be in comparison to the
+            reddest point (defined by scaleup_red).
+            If This is not None, scaleup_blue is ignored
         Returns
         -------
         ndarray (4x2xN) where N is the number of detected ellipses.
@@ -327,8 +621,12 @@ class DomeCCD( ScienceCCD ):
         
         left_lim = np.asarray([  x_-length*np.cos(-angle)*scaleup_red,
                                  y_+length*np.sin(-angle)*scaleup_red])
-        right_lim = np.asarray([ x_+length*np.cos(-angle)*scaleup_blue,
-                                 y_-length*np.sin(-angle)*scaleup_blue])        
+        if fixed_pixel_length is None:
+            right_lim = np.asarray([ x_+length*np.cos(-angle)*scaleup_blue,
+                                    y_-length*np.sin(-angle)*scaleup_blue])
+        else:
+            right_lim = np.asarray([ left_lim[0] + np.cos(-angle)*fixed_pixel_length,
+                                     left_lim[1] - np.sin(-angle)*fixed_pixel_length])
 
         return np.asarray([[left_lim[0],left_lim[0],right_lim[0],right_lim[0]],
                                [left_lim[1]-height,left_lim[1]+height,right_lim[1]+height,right_lim[1]-height]]).T
@@ -344,7 +642,7 @@ class DomeCCD( ScienceCCD ):
                                 apply_sepmask=False, **kwargs):
         """ This Background has been Optimized for SEDm Dome """
 
-        if from_spectmatch and self.has_specmatch():
+        if from_spectmatch and self.has_tracematch():
             return super(DomeCCD, self)._get_default_background_(**kwargs)
             
         self.set_background(np.percentile(self.rawdata,0.001), force_it=True)
@@ -363,5 +661,3 @@ class DomeCCD( ScienceCCD ):
         return self._sepbackground.globalrms*2
 
     
-class LampCCD( ScienceCCD ):
-    """ """

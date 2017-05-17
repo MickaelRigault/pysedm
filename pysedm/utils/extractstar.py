@@ -13,8 +13,9 @@ from astropy.modeling import models, fitting
 """ Module based to extract a point source in a 3D cube """
 
 """
-The Main method is 'fit_psf3d'. Change that to improve the PSF extraction
+SO FAR THIS MODULE IS NOT USED FOR THE SEDM PIPELINE. 
 """
+
 class PSF3DMODEL( BaseObject ):
     """ """
     PROPERTIES = ["model"]
@@ -61,11 +62,12 @@ class MOFFATPLANE( PSF3DMODEL ):
         x,y = np.asarray(cube.index_to_xy(cube.indexes)).T
         def fit_slice(data_):
             fit_p  = fitting.LevMarLSQFitter()
-            p      = fit_p(self.model, x, y, data_)
-            return {pname:[p.parameters[i],np.sqrt(fit_p.fit_info["param_cov"][i,i])]
+            flagnan = np.isnan(data_)
+            p      = fit_p(self.model, x[~flagnan], y[~flagnan], data_[~flagnan])
+            return {pname:[p.parameters[i],np.NaN]
                           for i,pname in enumerate(p.param_names)}
         
-        self._derived_properties["fit_param"] = {i:fit_slice(data_) for i,data_ in enumerate(cube.data)}
+        self._derived_properties["fit_param"] = {i:fit_slice(data_) for i, data_ in enumerate(cube.data)}
     
     def evaluate(self, lbda_idx, x, y):
         """ """
@@ -117,7 +119,7 @@ class ExtractStar( BaseObject ):
 
             # - initial guess
             slice_ = self.cube.get_slice(None,None)
-            imax   = np.argmax(slice_)
+            imax   = np.nanargmax(slice_)
             a0     = slice_[imax]
             x0,y0  = np.asarray(self.cube.index_to_xy(self.cube.indexes))[imax]
 

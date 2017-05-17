@@ -75,6 +75,15 @@ def get_night_cubes(YYYYMMDD, kind, target="*"):
     timedir = get_datapath(YYYYMMDD)
     return glob(timedir+"%s*%s*.fits*"%(root,target))
 
+def get_file_tracematch(YYYYMMDD, contains):
+    """ """
+    from glob import glob
+    tracefile = glob(get_datapath(YYYYMMDD)+"tracematch_*%s*"%contains)
+    if len(tracefile) == 0:
+        return None
+    from .spectralmatching import load_tracematcher
+    return load_tracematcher(tracefile[0])
+
 #########################
 #                       #
 #   NIGHT SOLUTION      #
@@ -84,8 +93,8 @@ def load_nightly_tracematch(YYYYMMDD):
     """ Load the spectral matcher.
     This object must have been created. 
     """
-    from .spectralmatching import load_specmatcher
-    return load_specmatcher(get_datapath(YYYYMMDD)+"%s_TraceMatch.pkl"%(YYYYMMDD))
+    from .spectralmatching import load_tracematcher
+    return load_tracematcher(get_datapath(YYYYMMDD)+"%s_TraceMatch.pkl"%(YYYYMMDD))
 
 def load_nightly_spectralmatch(YYYYMMDD):
     """ Load the spectral matcher.

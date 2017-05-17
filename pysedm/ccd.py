@@ -7,10 +7,15 @@
 
 import warnings
 import numpy as np
-import shapely # to be removed
+
 import matplotlib.pyplot as mpl
 from propobject import BaseObject
 from astrobject.photometry import Image
+try:
+    import shapely # to be removed
+    _HAS_SHAPELY = True
+except:
+    _HAS_SHAPELY = False
 
 from .utils.tools import kwargs_update
 
@@ -58,8 +63,8 @@ def get_ccd(lampfile, ccdspec_mask=None,
         lamp.set_tracematch(tracematch)
     if background is None:
         lamp.set_background(lamp._get_default_background_(**kwargs), force_it=True)
-    if not background == 0:
-        lamp.set_background(background)
+    elif not background == 0:
+        lamp.set_background(background, force_it=True)
         
     return lamp
 
@@ -89,8 +94,6 @@ def get_dome(domefile, tracematch=None,  **kwargs):
     dome.set_background(dome._get_default_background_(**kwargs), force_it=True)
     return dome
 
-
-
 #####################################
 #                                   #
 #  Raw CCD Images for SED machine   #
@@ -111,7 +114,7 @@ class BaseCCD( Image ):
 
         """
         
-        super(CCD,self).__build__(**kwargs)
+        super(BaseCCD,self).__build__(**kwargs)
         # -- How to read the image
         self._build_properties["bkgdbox"]={"bh":bh,"bw":bw,"fh":fh,"fw":fw}
 
@@ -164,28 +167,40 @@ class CCD( BaseCCD ):
         if not self.has_sepobjects():
             raise AttributeError("Sep extract has not been run. This is needed to match the traces with detected lines.")
 
-        x,y,a,b,theta = self.sepobjects.get(["x","y","a","b","theta"]).T
         
-        septrace_index = [self.tracematch.get_trace_source(x_, y_, a=a_*2, b=b_*2, theta=theta_ )
+        x,y,a,b,theta = self.sepobjects.get(["x","y","a","b","theta"]).T
+        if _HAS_SHAPELY:
+            from shapely import geometry, vectorized
+            self._derived_properties["matched_septrace_index"] =\
+              {idx: np.argwhere(vectorized.contains( geometry.Polygon(self.tracematch.get_trace_vertices(idx)), x,y)).ravel()
+                   for idx in self.tracematch.trace_indexes}
+        else:
+            print("DECREPATED, Install Shapely")
+            septrace_index = [self.tracematch.get_trace_source(x_, y_, a=a_*2, b=b_*2, theta=theta_ )
                               for x_,y_,a_,b_,theta_ in zip(x,y,a,b,theta)]
         
-        self._derived_properties["matched_septrace_index"] = np.asarray([s[0] if len(s)==1 else np.NaN
+            self._derived_properties["matched_septrace_index"] = np.asarray([s[0] if len(s)==1 else np.NaN
                                                                              for s in septrace_index])
 
     def sepindex_to_traceindex(self, sepindex):
         """ Give the index of an sep entry. This will give the corresponding trace index """
         if not self.has_matchedindex():
             raise AttributeError("spectral match traces has not been matched with sep indexes. Run match_tracematch_and_sep()")
-        return self.matchedindex[sepindex]
+        return [traceindex for traceindex, sepindexes in self.matchedindex.items() if sepindex in sepindexes]
     
     def traceindex_to_sepindex(self, traceindex):
         """ Give the index of an sep entry. This will give the corresponding trace index """
         if not self.has_matchedindex():
-            raise AttributeError("spectral match traces has not been matched with sep indexes. Run match_tracematch_and_sep()")
-        return np.argwhere(self.matchedindex == traceindex).flatten()
+            if not _HAS_SHAPELY:
+                raise AttributeError("spectral match traces has not been matched with sep indexes. Run match_tracematch_and_sep() or install shapely for onflight tools")
+            from shapely import geometry, vectorized
+            x,y,a,b,theta = self.sepobjects.get(["x","y","a","b",",theta"]).T
+            self.matchedindex[traceindex] = np.argwhere(vectorized.contains( geometry.Polygon(self.tracematch.get_trace_vertices(traceindex)), x,y)).ravel()
+        
+        return self.matchedindex[traceindex]
 
-
-    def get_finetuned_trace(self, traceindex, polydegree=2, width=None, **kwargs):
+    def get_finetuned_trace(self, traceindex, polydegree=2,
+                            width=None, trace_position=False, **kwargs):
         """ The builds a fine tuned trace of the given traceindex.
         The tuning uses detected object from sep.
         => You must have run match_tracematch_and_sep()
@@ -206,6 +221,10 @@ class CCD( BaseCCD ):
             Width of the polygon (in pixels)
             If None, width will be estimated based on the b-values of the 
             sep detected objects.
+            
+        trace_position: [bool] -optional-
+            Get the expected trace central position instead of the vertices of the polygon containing it.
+
 
         **kwargs goes to spectralmatching.get_boxing_polygone()
 
@@ -214,23 +233,57 @@ class CCD( BaseCCD ):
         One of these:
           - None if no fit possible (one of less sep object for this trace )
           - array (vertices) 
+          - array (x,y if trace_position=True)
         """
-        x, y, b = self.sepobjects.get(["x","y","b"], self.traceindex_to_sepindex(traceindex)).T
+        _cannot_finetune = False
+        try:
+            x, y, b = self.sepobjects.get(["x","y","b"], self.traceindex_to_sepindex(traceindex)).T
+        except:
+            _cannot_finetune = True
+            x,y,b = [],[],[]
         
         if len(x) < polydegree:
             warnings.warn("less sep-points than plynom degree. Degree reduced ")
             polydegree = len(x)-1
             
         if polydegree <=0:
-            return None
-        
-        return self.tracematch.get_finetuned_trace_vertices(traceindex, x, y,
+            _cannot_finetune = True
+
+        if  _cannot_finetune:
+            warnings.warn("cannot build finetune tracing for %s. Normal vertices returned"%traceindex)
+            return self.tracematch.get_trace_vertices(traceindex)
+        else:
+            if trace_position:
+                return self.tracematch.get_finetuned_trace(traceindex, x, y, polydegree=polydegree, **kwargs)
+            else:
+                return self.tracematch.get_finetuned_trace_vertices(traceindex, x, y,
                                                             width= np.nanmedian(b)*2. if width is None else width,
                                                             polydegree=polydegree, **kwargs)    
     
     def get_trace_mask(self, traceindex, finetune=False, polydegree=2,
-                           subpixelisation=5):
-        """ """
+                           subpixelisation=5, **kwargs):
+        """ Build a weightmask based on the trace vertices. 
+        
+        Parameters
+        ----------
+        traceindex: [int]
+            index of the trace for which you want a mask
+            
+        finetune: [bool] -optional-
+            Should the trace be remeasured based on potential detected sources?
+
+        // The following options apply if finetune is True
+
+        polydegree: [int] -optional-
+            Degree of the polynome used to define the traces
+           
+        subpixelisation: [int] -optional-
+            Our much should the pixel be subdivided to do the polygon-to-image
+            interpolation? (the higher the slower)
+            Set 1 for no subdivition (fastest)
+                 
+        **kwargs goes to the method `get_finetuned_trace`
+        """
         if not finetune:
             return self.tracematch.get_trace_mask(traceindex)
         
@@ -239,24 +292,25 @@ class CCD( BaseCCD ):
             warnings.warn("get_trace needs skimage to be able to use subpixelisation")
             subpixelisation = 1
             
-        verts = self.get_finetuned_trace(traceindex, polydegree=polydegree, width=None, get_vertices=True)
+        verts = self.get_finetuned_trace(traceindex, polydegree=polydegree, **kwargs)
             
         mask = np.asarray(polygon_mask( verts*subpixelisation,
                                         self.shape[0]*subpixelisation, self.shape[1]*subpixelisation,
                                         get_fullcolor=False),
-                              dtype="bool")
+                              dtype="float")
         
         if subpixelisation==1:
-            return mask
+            return mask/np.nanmax(mask)
             
         from .spectralmatching import measure
         return measure.block_reduce(mask, (subpixelisation,subpixelisation) )/float(subpixelisation**2)
 
-    def get_finetuned_tracematch(self, indexes, build_masking=False):
+    def get_finetuned_tracematch(self, indexes, polydegree=2, width=None, build_masking=False, **kwargs):
         """ """
         from .spectralmatching import TraceMatch
         tmap = TraceMatch()
-        tmap.set_trace_vertices({i:self.get_finetuned_trace(i) for i in indexes}, build_masking=build_masking)
+        tmap.set_trace_vertices({i:self.get_finetuned_trace(i, polydegree=polydegree, width=width, **kwargs)
+                                     for i in indexes}, build_masking=build_masking)
         return tmap
         
     # ---------------- #
@@ -323,8 +377,8 @@ class CCD( BaseCCD ):
         pixs = np.arange(len(f))[::-1]
         # Black magic, but it works.
         # - Faster with masking
-        hasflux = np.argwhere(f>0.0)
-        mask = pixs[(pixs>np.min(hasflux))* (pixs<np.max(hasflux))][::-1]
+        minpix, maxpix = self.tracematch.get_trace_xbounds(traceindex)
+        mask = pixs[(pixs>minpix)* (pixs<maxpix)][::-1]
         
         lbda = cubesolution.pixels_to_lbda(pixs[mask], traceindex)
         variance = self.get_spectrum(traceindex, on="var")[mask] if self.has_var() else None
@@ -341,7 +395,7 @@ class CCD( BaseCCD ):
     #  Extract Cube   #
     # --------------- #
     def extract_cube(self, wavesolution, lbda, finetune_trace=False,
-                    hexagrid=None, traceindexes=None):
+                    hexagrid=None, traceindexes=None, show_progress=False):
         """ """
         from .sedm import SEDMSPAXELS, SEDMCube
         from scipy.interpolate import interp1d
@@ -358,29 +412,50 @@ class CCD( BaseCCD ):
             
         used_indexes = [i_ for i_ in traceindexes if i_ in hexagrid.ids_index.keys()]
         # - data
-        cube     = SEDMCube(None)
-        cubeflux = []
-        cubevar  = [] if self.has_var() else None
-        for i in used_indexes:
-            lbda_, flux_, variance_ = self.extract_spectrum(i, wavesolution, get_spectrum=False,
+        cube      = SEDMCube(None)
+        cubeflux_ = {}
+        cubevar_  = {} if self.has_var() else None
+
+        # ------------ #
+        # MultiProcess #
+        # ------------ #
+        def _build_ith_flux_(i_):
+            lbda_, flux_, variance_ = self.extract_spectrum(i_, wavesolution, get_spectrum=False,
                                                             finetune=finetune_trace)
             try:
-                cubeflux.append(interp1d(lbda_, flux_, kind="cubic")(lbda))
+                cubeflux_[i_] = interp1d(lbda_, flux_, kind="cubic")(lbda)
             except:
-                print("FAILED FOR %s"%i)
+                print("FAILED FOR %s"%i_)
                 print("lbda range %.1f %.1f"%(np.nanmin(lbda_),np.nanmax(lbda_)))
-                cubeflux.append(np.zeros(len(lbda))*np.NaN)
-                if cubevar is not None:
-                    cubevar.append(np.zeros(len(lbda))*np.NaN)
-                continue
-            if cubevar is not None:
-                cubevar.append(interp1d(lbda_, variance_, kind="cubic")(lbda))
+                cubeflux_[i_] = np.zeros(len(lbda))*np.NaN
+                
+                if cubevar_ is not None:
+                    cubevar_[i_] = np.zeros(len(lbda))*np.NaN
+                return
             
-        spaxel_map = {i:c for i,c in zip(used_indexes,
-                                        np.asarray(hexagrid.index_to_xy(hexagrid.ids_to_index(used_indexes),invert_rotation=True)).T)
+            if cubevar_ is not None:
+                cubevar_[i_] = interp1d(lbda_, variance_, kind="cubic")(lbda)
+
+        # -- MultiThreading to speed this up
+        if show_progress:
+            from astropy.utils.console import ProgressBar
+            ProgressBar.map(_build_ith_flux_, used_indexes)
+        else:
+            #from multiprocessing import Pool as ThreadPool
+            #pool = ThreadPool(4)
+            #pool.map(_build_ith_flux_, used_indexes)
+            _ = [_build_ith_flux_[i] for i in used_indexes]
+            
+        cubeflux = np.asarray([cubeflux_[i] for i in used_indexes])
+        cubevar  = np.asarray([cubevar_[i]   for i in used_indexes]) if cubevar_ is not None else None
+        
+        # - Fill the Cube
+        spaxel_map = {i:c
+                for i,c in zip(used_indexes,
+                    np.asarray(hexagrid.index_to_xy(hexagrid.ids_to_index(used_indexes),invert_rotation=True)).T)
                      }
             
-        cube.create(np.asarray(cubeflux).T,lbda=lbda, spaxel_mapping=spaxel_map, variance=np.asarray(cubevar).T)
+        cube.create(cubeflux.T,lbda=lbda, spaxel_mapping=spaxel_map, variance=cubevar.T)
         cube.set_spaxel_vertices(np.dot(hexagrid.grid_rotmatrix,SEDMSPAXELS.T).T)
         return cube
 
@@ -476,7 +551,8 @@ class CCD( BaseCCD ):
                 p_ = patches.Polygon(self.get_finetuned_trace(idx_),
                                          facecolor="None", edgecolor="C1")
                 pl["ax"].add_patch(p_)
-            
+
+
         # Output
         fig.figout(savefile=savefile, show=show)
         return pl
@@ -547,6 +623,8 @@ class CCD( BaseCCD ):
     def matchedindex(self):
         """ Object containing the relation between the sepindex and the trace index.
         see the methods sepindex_to_traceindex() and traceindex_to_sepindex() """
+        if self._derived_properties["matched_septrace_index"] is None:
+            self._derived_properties["matched_septrace_index"] = {}
         return self._derived_properties["matched_septrace_index"]
     
     def has_matchedindex(self):
@@ -575,6 +653,24 @@ class DomeCCD( ScienceCCD ):
     # ================== #
     #  Main Tools        #
     # ================== #
+    def get_tracematch(self, bound_pixels=None, width="optimal"):
+        """ """
+        x, y, b, theta = self.sepobjects.get(["x","y","b","theta"]).T
+        if bound_pixels is None:
+            from .sedm import DOME_TRACEBOUNDS
+            bound_pixels = DOME_TRACEBOUNDS
+
+        if width is None:
+            width = np.median(b)*2 if width=="median" else \
+              b*2 if width!="optimal" else np.clip(b,np.median(b)-2*np.std(b),np.median(b)+2*np.std(b))*2
+          
+        xlim = np.asarray([x-bound_pixels[0], x+bound_pixels[1]])
+        ylim = np.sin(theta)*np.asarray([[-bound_pixels[0], bound_pixels[1]]]).T + y
+        
+        return  [np.concatenate(v_) for v_ in zip(np.asarray([xlim,ylim+width]).T,np.asarray([xlim[::-1],ylim[::-1]-width]).T)]
+        
+        
+        
     def get_specrectangles(self, length="optimal",height="optimal",theta="optimal",
                                scaleup_red=2.5, scaleup_blue = 7.5, scaleup_heigth=1.5,
                                fixed_pixel_length=None,

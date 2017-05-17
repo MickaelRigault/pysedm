@@ -13,6 +13,13 @@ from .ccd import get_dome, ScienceCCD
 from .utils.tools import kwargs_update
 
 try:
+    from shapely import vectorized, geometry
+    _HAS_SHAPELY = True
+except:
+    warnings.warn("You do not have Shapely. trace masking will be slower.")
+    _HAS_SHAPELY = False
+    
+try:
     from skimage import measure
     _HAS_SKIMAGE = True
 except ImportError:
@@ -31,6 +38,7 @@ EDGES_COLOR  = mpl.cm.binary(0.99,0.5, bytes=True)
 SPECTID_CMAP = mpl.cm.viridis
 BACKCOLOR    = (0,0,0,0)
 ZOOMING      = 5 if _HAS_SKIMAGE else 1
+_BASEPIX     = np.asarray([[0,0],[0,1],[1,1],[1,0]])
 
 __all__ = ["load_specmatcher","get_specmatcher"]
 
@@ -51,32 +59,10 @@ def load_tracematcher(tracematchfile):
     SpectralMatch
     """
     smap = TraceMatch()
-    smap.load(specmatchfile)
+    smap.load(tracematchfile)
     return smap
 
-def load_specmatcher(specmatchfile):
-    """ Build the spectral match object based on the given data.
-
-    Parameters
-    ----------
-    specmatchfile: [string]
-        Path to the .pkl file containing the SpectralMatch data.
-        The data must be a dictionary with the following format:
-           - {vertices: [LIST_OF_SPECTRAL_VERTICES],
-              arclamps: {DICT CONTAINING THE ARCLAMPS INFORMATION IF ANY} -optional-
-              }
-    Returns
-    -------
-    SpectralMatch
-    """
-    smap = SpectralMatch()
-    smap.load(specmatchfile)
-    tmap = TraceMatch()
-    tmap.set_trace_vertices(smap.spectral_vertices, build_masking=False)
-    tmap._side_properties['trace_masks'] = smap.idxmask
-    return tmap
-
-def get_tracematcher(domefile, build_masking=False, **kwargs):
+def get_tracematcher(domefile, build_masking=False, width=None, **kwargs):
     """ build the spectral match object on the domefile data. 
 
     Parameters
@@ -88,18 +74,22 @@ def get_tracematcher(domefile, build_masking=False, **kwargs):
     
     Returns
     --------
-    SpectralMatch
+    TraceMatch
 
     """
+    from .sedm import TRACE_DISPERSION
     # - The Spectral Matcher
     smap = TraceMatch()
     # Dome Data
     dome = get_dome(domefile, background=0)
-    dome.sep_extract(thresh=np.nanstd(dome.rawdata))
+    dome.datadet = dome.data/np.sqrt(np.abs(dome.data))
+    dome.sep_extract(thresh=50., on="datadet")
 
     # - Initial Guess based on the dome flat.
-    prop = kwargs_update( PURE_DOME_ELLIPSE_SCALING, **kwargs)
-    smap.set_trace_vertices( dome.get_specrectangles( **prop), build_masking=build_masking)
+    if width is None:
+        width = 2*TRACE_DISPERSION
+        
+    smap.set_trace_vertices( dome.get_tracematch(width=width), build_masking=build_masking)
     
     return smap
     
@@ -201,6 +191,11 @@ def get_boxing_polygone(x, y, rangex, width,
     pfit.fit(a0_guess=np.median(y))
     
     ymodel = pfit.model.get_model(rangex)
+    if width == 0:
+        if not get_vertices:
+            raise ValueError("A polygon cannot have a width of 0")
+        return zip(rangex,ymodel+width)
+    
     vertices = zip(rangex,ymodel+width) + zip(rangex[::-1],ymodel[::-1]-width)
     if get_vertices:
         return vertices
@@ -314,6 +309,10 @@ class TraceMatch( BaseObject ):
     # --------- #
     #  GETTER   #
     # --------- #
+    def get_trace_xbounds(self, traceindex):
+        """ get the extremal x-ccd coordinates covered by the trace """
+        return np.asarray(np.round(np.percentile(np.asarray(self.trace_vertices[traceindex]).T[0], [0,100])), dtype="int")
+    
     def get_trace_vertices(self, traceindex):
         """ traceindex -> vertices 
         
@@ -325,7 +324,8 @@ class TraceMatch( BaseObject ):
         """
         return self.trace_vertices[traceindex]
 
-    def get_finetuned_trace_vertices(self, traceindex, x, y, width, polydegree=2, **kwargs):
+    def get_finetuned_trace_vertices(self, traceindex, x, y, width,
+                                         polydegree=2, **kwargs):
         """ The builds a fine tuned trace of the given traceindex.
         The tuning uses x, y position and build a polygon around.
         => You must have run match_tracematch_and_sep()
@@ -350,11 +350,40 @@ class TraceMatch( BaseObject ):
 
         **kwargs goes to spectralmatching.get_boxing_polygone() 
         """
-        xbounds = np.percentile(np.asarray(self.trace_vertices[traceindex]).T[0], [0,100])
+        xbounds = self.get_trace_xbounds(traceindex)
         prop = kwargs_update( dict(dy=1), **kwargs )
         return np.asarray(get_boxing_polygone(x, y, rangex=np.linspace(xbounds[0], xbounds[1], polydegree+5),
                                     width= width, polydegree=polydegree, get_vertices=True, **prop))
     
+    def get_finetuned_trace(self, traceindex, x, y, polydegree=2, **kwargs):
+        """ Builds the best guess fine tuning of the trace given the x, y position
+
+        Parameters
+        ----------
+        traceindex: [int]
+            Index of the trace you want to fine tune
+
+        x, y: [array, array]
+            Position around which the polygon will be built.
+            
+        polydegree: [positive-int] -optional-
+            Degree of the polynome that will be used to define the trace.
+            (See 'width' for details on the width of the trace polygon)
+            => If polydegree is higher than the number of sep object detected
+               belonging to this trace, polydegree will the reduced to that number
+            => If polydegree ends up being lower of equal to 0, None is returned
+
+        **kwargs goes to spectralmatching.get_boxing_polygone() [cannot be width, fixed to 0]
+        Returns
+        -------
+        x, y 
+        """
+        xbounds = self.get_trace_xbounds(traceindex)
+        prop = kwargs_update( dict(dy=1), **kwargs )
+        return np.asarray(get_boxing_polygone(x, y, rangex=np.arange(*xbounds),
+                                    width= 0, polydegree=polydegree, get_vertices=True, **prop))
+
+    #  Masking  #  
     def get_trace_mask(self, traceindex, update=True, rebuild=False, updateonly=False):
         """ traceindex -> color 
         get a weight mask for the given trace.
@@ -371,20 +400,51 @@ class TraceMatch( BaseObject ):
             return self.trace_masks[traceindex].toarray()
         
         # - Let's build the mask
+        if _HAS_SHAPELY:
+            mask = self._get_shapely_trace_mask_(traceindex)
+        else:
+            mask = self._get_color_trace_mask_(traceindex)
+            
+        # - Shall we save it?
+        if update:
+            self.set_trace_masks(sparse.csr_matrix(mask), traceindex)
+            if updateonly:
+                del mask
+                return
+            
+        return mask
+
+    def _get_color_trace_mask_(self, traceindex):
+        """ Use the tracebuild colors trick
+        = Time depends on the subpixelization, 5 takes about 1s =
+        """
         r, g, b, a = self._tracecolor[traceindex]
         mask = ((self._rmap==r)*(self._gmap==g)*(self._bmap==b)).reshape(*self._mapshape)
         final_mask = mask if self.subpixelization == 1 else \
-          measure.block_reduce(mask, (self.subpixelization, self.subpixelization) )/float(self.subpixelization**2)
-
-        # - Shall we save it?
-        if update:
-            self.set_trace_masks(sparse.csr_matrix(final_mask), traceindex)
-            if updateonly:
-                del final_mask
-                return
-            
-        return final_mask
-
+              measure.block_reduce(mask, (self.subpixelization, self.subpixelization) )/float(self.subpixelization**2)
+              
+    def _get_shapely_trace_mask_(self, traceindex, width=2047, height=2047):
+        """ Based on Shapely, measure the intersection area between traces and pixels.
+        = Takes about 1s =
+        """
+        
+        verts      = self.trace_vertices[traceindex]
+        xlim, ylim = np.asarray(np.round(np.percentile(verts, [0,100], axis=0)), dtype="int").T + np.asarray([-1,1])
+        polytrace  = geometry.Polygon(verts)
+        
+        sqgrid     = np.asarray([[geometry.Polygon(_BASEPIX + np.asarray([x_,y_]))
+                                    for y_ in np.arange(*ylim)] for x_ in np.arange(*xlim)]
+                                ).ravel()
+        maskfull = np.zeros((width,height))
+        maskfull[xlim[0]:xlim[1],ylim[0]:ylim[1]] = \
+          (np.asarray([polytrace.intersection(sq_).area if polytrace.intersects(sq_) or polytrace.contains(sq_) else 0
+                               for sq_ in sqgrid]).reshape(xlim[1]-xlim[0],ylim[1]-ylim[0]))
+        return maskfull.T
+    
+    def _load_trace_mask_(self, traceindexe ):
+        """ """
+        _ = self.get_trace_mask(traceindexe, updateonly=True)
+    
     def get_notrace_mask(self):
         """ a 2D boolean mask that is True for places in the CCD without trace. """
         if self._maskimage is None:
@@ -395,7 +455,8 @@ class TraceMatch( BaseObject ):
           measure.block_reduce(mask, (self.subpixelization, self.subpixelization) )/float(self.subpixelization**2)
 
         return ~np.asarray(final_mask, dtype="bool")
-    
+
+    # Trace Location #
     def get_trace_source(self, x, y, a=1, b=1, theta=0):
         """ ccdpixels -> traceindex
         
@@ -448,13 +509,6 @@ class TraceMatch( BaseObject ):
         -------
         list of trace indexes
         """
-        try:
-            import shapely
-            _HAS_SHAPELY = True
-        except ImportError:
-            warnings.warn("You do not have Shapely. get_trace_within_polygon() will use matplotlib but Shapely would be faster")
-            _HAS_SHAPELY = False
-
         if _HAS_SHAPELY:
             from shapely.geometry import Polygon
             globalpoly = Polygon(polyverts)
@@ -633,629 +687,3 @@ class TraceMatch( BaseObject ):
         """ (flatten) B map of RGBA image (see _maskimage)  """
         return self._derived_properties['bmap']
     
-
-class SpectralMatch( BaseObject ):
-    """ """
-    PROPERTIES         = ["spectral_vertices","vertices_indexes"]
-    SIDE_PROPERTIES    = ["arclamp", "zooming"]
-    DERIVED_PROPERTIES = ["maskimage","specpoly","spectral_fc",
-                           "rmap", "gmap", "bmap", "amap",
-                           "rmap_flat", "gmap_flat", "bmap_flat", "amap_flat", # To speed up
-                           "idxmasks"]
-    
-    # ================== #
-    #  Main Tools        #
-    # ================== #
-    # ----------- #
-    #  I/O        #
-    # ----------- #
-    def writeto(self, savefile, savearcs=True, savemasks=True):
-        """ dump the current object inside the given file. 
-        This uses the pkl format.
-        
-        Parameters
-        ----------
-        savefile: [string]
-            Fullpath of the filename where the data will be saved.
-            (shoulf be a FILENAME.pkl)
-
-        savearcs: [bool] -optional-
-            shall the arclamps attribute be saved?
-            It is recommended.
-
-        savemasks: [bool] -optional-
-            shall all the currently loaded idx masking be saved?
-
-        Returns
-        -------
-        Void
-        """
-        from .utils.tools import dump_pkl
-        data= {"vertices": self.spectral_vertices,
-               "arclamps": self.arclamps if savearcs else None,
-               "idxmasks": self.idxmask if savemasks else None}
-            
-        dump_pkl(data, savefile)
-
-
-    def load(self, filename):
-        """ Build the spectral match object based on the given data.
-
-        Parameters
-        ----------
-        filename: [string]
-            Path to the .pkl file containing the SpectralMatch data.
-            The data must be a dictionary with the following format:
-            - {vertices: [LIST_OF_SPECTRAL_VERTICES],
-               arclamps: {DICT CONTAINING THE ARCLAMPS INFORMATION IF ANY} -optional-
-               }
-        Returns
-        -------
-        Void
-        """
-        from .utils.tools import load_pkl
-        data = load_pkl(filename)
-        if "vertices" not in data.keys():
-            raise TypeError("The given filename does not have the appropriate format. No 'vertices' entry.")
-
-        self.set_specrectangle(data["vertices"])
-        
-        if "arclamps" in data.keys() and data["arclamps"] is not None:
-            self._side_properties["arclamp"] = data["arclamps"]
-        
-        if "idxmasks" in data.keys():
-            self._derived_properties["idxmasks"] = data["idxmasks"]
-        
-    # ----------- #
-    #  Structure  #
-    # ----------- #
-    def reset(self):
-        """ """
-        self._properties['spectral_vertices'] = None
-        for k in self.DERIVED_PROPERTIES:
-            self._derived_properties[k] = None
-
-    # ----------- #
-    #  Builder    #
-    # ----------- #
-    def set_specrectangle(self, spectral_vertices, indexes=None,
-                              width=2047, height=2047):
-        """ """
-        self.reset()
-        if indexes is None:
-            indexes = np.arange(len(spectral_vertices))
-            
-        self._properties['spectral_vertices'] = np.asarray(spectral_vertices)
-        self._properties['vertices_indexes']  = np.asarray(indexes)
-        
-        self.build_maskimage(width=width, height=height)
-
-    def build_maskimage(self, width=2047, height=2047):
-        """ """
-        self._derived_properties['maskimage'] = \
-          polygon_mask([np.asarray(poly.exterior.xy).T*self._zooming for poly in self.spectral_polygon],
-                           width*self._zooming, height*self._zooming,
-                           facecolor=self.spectral_facecolor,
-                           edgecolor=self.spectral_facecolor,
-                           get_fullcolor=True)
-        
-        self._derived_properties['rmap'],self._derived_properties['gmap'],self._derived_properties['bmap'],self._derived_properties['amap'] = np.asarray(self.maskimage).T
-        
-    def extract_hexgrid(self, usedindex = None, qdistance=None):
-        """ Build the array of neightbords.
-        This is built on a KDTree (scipy)
-
-        Parameters
-        ----------
-        usedindex: [list of indexes] -optional-
-            Select the indexes you want to use. If None [default] all will be.
-
-        """
-        from shapely.geometry import MultiPoint
-        from .utils.hexagrid import get_hexprojection
-        
-        # - Index game
-        all_index = np.arange(self.nspectra)
-        if usedindex is None:
-            usedindex = all_index
-        # Careful until the end of this method
-        # The indexes will be index of 'usedindex'
-        # they will have the sidx_ name
-
-        # - position used to define 1 location of 1 spectral_trace
-        # spectra_ref = [np.asarray(self.spectral_polygon[int(i)].centroid.xy).T[0] for i in usedindex]
-        spectra_ref          = MultiPoint([self.spectral_polygon[int(i)].centroid for i in usedindex]) # shapely format
-        xydata  = np.asarray([np.concatenate(c.xy) for c in spectra_ref]) # array format for kdtree
-        
-        return get_hexprojection(xydata, ids=usedindex)
-
-    # -------------- #
-    #  Fetch Index   #
-    # -------------- #
-    def pixel_to_index(self, x, y, around=1):
-        """ The method get the RGBA values of the `x` and `y` pixels and all the one `around` 
-        (forming a square centered on `x` `y`) and returns the median index value.
-        Returns
-        -------
-        int or None (if the x,y area is not attached to any index)
-        """
-        x,y,around = x*self._zooming, y*self._zooming, around*self._zooming
-        allindex = [i for i in np.concatenate([[self.color_to_index(self._rmap[x_,y_],
-                                                self._gmap[x_,y_],
-                                                self._bmap[x_,y_]) 
-                      for x_ in np.arange(x-around,x+around)]
-                     for y_ in np.arange(y-around,y+around)])
-                     if i is not None]
-            
-        return np.median(allindex) if len(allindex)>0 else np.NaN
-    
-    def color_to_index(self, r,g,b,a=None):
-        """ get the color associated with the given color list.
-        If None is found, this returns None, it returns the index otherwise.
-
-        Returns
-        -------
-        int or None
-        """
-        index = np.argwhere((self.spectral_facecolor.T[0]==r)*(self.spectral_facecolor.T[1]==g)*(self.spectral_facecolor.T[2]==b))
-        return self.trace_indexes[index[0][0]] if len(index)>0 else None
-    
-    # ----------- #
-    #  GETTER     #
-    # ----------- #
-    def get_idx_color(self, index):
-        """ """
-        return self._index_to_(index, "facecolor")
-
-    def get_spectral_mask(self, format="array"):
-        """ General masking of global area.
-        Where are the traces in the CCD
-
-        Parameters
-        ----------
-        format: ["array","sparse"] -optional-
-            how would you like your mask to be returned? 
-            - array: 2D weight array
-            - sparse: Sparse matrix of the array (scipy.sparse.csr_matrix) 
-                      if so simply do '.toarray()' to convert it back to array.
-
-        Returns
-        -------
-        2d-array bool
-        """
-        mask = (self._rmap.T > 0 )
-        mask_= mask if self._zooming == 1 else \
-          measure.block_reduce(mask, (self._zooming, self._zooming) )/float(self._zooming**2)
-
-        if format in ["array"]:
-            return mask_
-        elif format in ["sparse","sparsematrix"]:
-            return sparse.csr_matrix(mask_)
-        
-        raise ValueError("Unknown format %s (use 'array' or 'sparse')"%format)
-    
-    def get_idx_mask(self, index, format="array", rebuild=False):
-        """ Weight mask of the corresponding index trace on the CCD.
-        The weighted will depend on the 'zooming' used. If 1, then the weight mask
-        will only be 0 and 1, if 'zooming'>1 then sub pixelization will be used to 
-        identify the overlap between polygon. In that latter case, weight will be values
-        between 0 and 1 (including 0 and 1). 
-        (See self._zooming for the current zooming)
-
-        Parameters
-        ----------
-        index: [int]
-            Id of the trace.
-
-        format: ["array","sparse"] -optional-
-            how would you like your mask to be returned? 
-            - array: 2D weight array
-            - sparse: Sparse matrix of the array (scipy.sparse.csr_matrix) 
-                      if so simply do '.toarray()' to convert it back to array.
-        rebuild: [bool] -optional-
-            If the mask for the requested index is saved in self.idxmask, shall this use the 
-            saved value (rebuild=False) or shall this rebuild it (rebuild=True)
-        Returns
-        -------
-        2D array or sparse matrix (see format option)
-        """
-        # - Composite mask from multiple indexes
-        if hasattr(index,"__iter__"):
-            return np.asarray(np.sum([ self.get_idx_mask(i_, include=include)
-                                           for i_ in index], axis=0), dtype="bool")
-        # Load existing mask
-        # ------------------
-        if not rebuild and index in self.idxmask.keys():
-            if format in ["array"]:
-                return self.idxmask[index].toarray()
-            elif format in ["sparse","sparsematrix"]:
-                return self.idxmask[index]
-            raise ValueError("Unknown format %s (use 'array' or 'sparse')"%format)
-        
-        # Build the mask
-        # --------------
-        fr, fg, fb, fa = self._index_to_(index, "facecolor")
-        mask = (((self._rmap_flat==fr)*(self._bmap_flat==fb)*(self._gmap_flat==fg))).reshape(self._rmap.shape)
-
-        # Resample it.
-        mask_ = mask if self._zooming == 1 else \
-          measure.block_reduce(mask, (self._zooming, self._zooming) )/float(self._zooming**2)
-        
-        if format in ["array"]:
-            return mask_
-        elif format in ["sparse","sparsematrix"]:
-            return sparse.csr_matrix(mask_)
-        raise ValueError("Unknown format %s (use 'array' or 'sparse')"%format)
-
-    def load_idx_masks(self, indexes=None, show_progress=False):
-        """ Build the 'idx mask' for the given indexes and load them to the `idxmask` attribute
-        
-        Parameters
-        ----------
-        indexes: [None / list of  indexes] -optional-
-            list of indexes to be loaded. If None, all the indexes will be loaded
-            
-        show_progress: [bool] -optional-
-            If you have astropy installed you can show progression bar.
-            If you do n have astropy, this will be forced to False.
-
-
-        Returns
-        -------
-        Void
-        """
-        # Internal Method
-        def load_idx_mask(idx_):
-            self.idxmask[idx_] = self.get_idx_mask(idx_, format="sparse", rebuild=True)
-
-        # Do we use ProgressBar ?
-        if show_progress:
-            try:
-                from astropy.utils.console import ProgressBar
-            except ImportError:
-                warning.warn(ImportError("astropy not installed. No ProgressBar available"))
-                show_progress = False
-
-        # Which index are we going to save?
-        if indexes is None: indexes = np.arange(self.nspectra)
-
-        # -> Let's do it then!
-        if show_progress:
-            ProgressBar.map(load_idx_mask, indexes)
-        else:
-            [load_idx_mask(idx) for idx in indexes]
-            
-    # -------------- #
-    #  Select idx    #
-    # -------------- #
-    def get_idx_within_bounds(self, xbounds, ybounds):
-        """ Returns the list of indexes for which the indexth's polygon 
-        is fully contained within xbounds, ybounds (in CCD index) """
-        from shapely.geometry import Polygon
-        
-        rectangle = Polygon([[xbounds[0],ybounds[0]],[xbounds[0],ybounds[1]],
-                             [xbounds[1],ybounds[1]],[xbounds[1],ybounds[0]]])
-        
-        return self.get_idx_within_polygon(rectangle)
-    
-    def get_idx_within_polygon(self, polygon_):
-        """ Returns the list of indexes for which the indexth's polygon 
-        is fully contained within the given polygon """
-        return np.arange(self.nspectra)[ np.asarray([polygon_.contains(p_)
-                                         for p_ in self.spectral_polygon], dtype="bool") ]
-                      
-    # ----------- #
-    #  Plotting   #
-    # ----------- #
-    def display_polygon(self, ax, idx=None, **kwargs):
-        """ display on the given axis the polygon used to define the spectral match """
-        from astrobject.utils.shape import draw_polygon
-        if idx is None:
-            return ax.draw_polygon(self.spectral_polygon, **kwargs)
-        if not hasattr(idx, "__iter__"):
-            idx = [idx]
-        return [ax.draw_polygon(self.spectral_polygon[i], **kwargs)  for i in idx]
-
-    
-    def show_traces(self, ax=None, savefile=None, show=True, cmap=None,
-                 add_colorbar=True, index=None,
-                 **kwargs):
-        """ """
-        from astrobject.utils.mpladdon import figout
-        if not self.has_maskimage():
-            raise AttributeError("maskimage not set. If you set the `specrectangles` run build_maskimage()")
-        
-        if ax is None:
-            fig = mpl.figure(figsize=[10,7])
-            ax  = fig.add_subplot(1,1,1)
-        else:
-            fig = ax.figure
-
-        # -- Imshow
-        prop = kwargs_update(dict(origin="lower", interpolation="nearest"), **kwargs)
-        if index is None:
-            im   =  ax.imshow(self.maskimage, **prop)
-        else:
-            boolmask = self.get_idx_mask(index)
-            tmp = np.sum(np.asarray(self.maskimage, dtype="float"), axis=2)
-            tmp[~boolmask] *= np.NaN
-            im   =  ax.imshow(tmp, **prop)
-            
-        # -- Output
-        fig.figout(savefile=savefile, show=show)
-
-    def show_index_trace(self, index, ax=None, savefile=None,
-                         show=True, legend=True, draw_polygon=True):
-        """ """
-        from .utils.mpl import get_lamp_color, figout
-        from astrobject.utils.shape import draw_polygon
-        if ax is None:
-            fig = mpl.figure(figsize=[8,6])
-            ax  = fig.add_subplot(1,1,1)
-            ax.set_xlabel("x [ccd pixels]", fontsize="large")
-            ax.set_ylabel("y [ccd pixels]", fontsize="large")
-        else:
-            fig = ax.figure
-
-        for i, name in enumerate(self.arclamps.keys()):
-            x,y = self.get_arcline_positions(name, index)
-            ax.plot(x,y, marker="o", ms=10,
-                        mfc=get_lamp_color(name, 0.5), mew=1,
-                        mec=get_lamp_color(name, 0.9),
-                        ls="None", label=name)
-
-        if draw_polygon:
-            if len(self.arclamps.keys())>0:
-                ax.draw_polygon(self.get_arcbased_polygon(index), ec="0.5")
-                
-            ax.draw_polygon(self.spectral_polygon[index])
-            
-            
-        if legend:
-            ax.legend(loc="upper left", frameon=False, fontsize="medium",
-                        markerscale=0.6)
-            
-        fig.figout(savefile=savefile, show=show)
-
-
-    
-    # --------------- #
-    #  Arc Lines      #
-    # --------------- #
-    def add_arclamp(self, arc, match=False):
-        """ """
-        if type(arc) == str:
-            arc = ScienceCCD(arc, background=0)
-        elif ScienceCCD not in arc.__class__.__mro__:
-            raise TypeError("The given arc must be a string or an ScienceCCD object")
-
-        if not arc.has_sepobjects():
-            arc.sep_extract(thresh=np.nanstd(arc.rawdata))
-            
-        x,y,a,b,t = arc.sepobjects.get(["x","y","a","b","theta"]).T
-        self.arclamps[arc.objname] = {"arcsep":{"x":x,"y":y,"a":a,"b":b,"t":t},
-                                      "index":None}
-        
-        # - shall the matching be done? It takes several seconds.
-        if match:
-            self.match_arc(arc.objname)
-            
-    def match_arc(self, arcname):
-        """ Match the detected (by SEP) arc emission line with 
-        existing spectral features. 
-        """
-        self._test_arc_(arcname, test_matching=False)
-        x= self.arclamps[arcname]["arcsep"]["x"]
-        y= self.arclamps[arcname]["arcsep"]["y"]
-        b= self.arclamps[arcname]["arcsep"]["b"]
-        self.arclamps[arcname]["index"] = \
-          np.asarray([self.pixel_to_index(x_,y_, around=b_*2)
-                        for x_,y_,b_ in zip(x,y,b)])
-    # ---------- #
-    # ARC SETTER #
-    # ---------- #
-    def set_arcbased_specmatch(self, width=2, polydegree=2):
-        """ """
-        if len(self.arclamps.keys())==0:
-            raise AttributeError("No lamp loaded.")
-
-        if not hasattr(width,"__iter__"):  width = np.ones(self.nspectra)*width
-            
-        vertices = []
-        for i in range(self.nspectra):
-            try:
-                newvert = self.get_arcbased_polygon(i, width=width[i],
-                                            polydegree=polydegree, get_vertices=True)
-            except:
-                newvert = self.spectral_vertices[i]
-                warnings.warn("No Vertices changed for %d"%i)
-                
-            vertices.append(newvert)
-            
-        self.set_specrectangle(vertices)
-        
-            
-    # ---------- #
-    # ARC GETTER #
-    # ---------- #
-    def get_arcline_positions(self, arcname, index):
-        """ x and y ccd-coordinates of the detected arclines associated
-        with the given `index`
-
-        Returns
-        -------
-        x,y
-        """
-        arcindex = self.index_to_arcindex(arcname, index)
-        if len(arcindex) == 0 :
-            return None,None
-        return self.arclamps[arcname]["arcsep"]["x"][arcindex],\
-          self.arclamps[arcname]["arcsep"]["y"][arcindex]
-
-    def get_arcbased_polygon(self, index, width=2., polydegree=2,
-                                 xbounds=None, get_vertices=False,
-                                 include_dome=True):
-        """ """
-        arc_pos_x, arc_pos_y = [], []
-        for arc in self.arclamps.keys():
-            x_, y_ = self.get_arcline_positions(arc,index)
-            arc_pos_x.append(x_)
-            arc_pos_y.append(y_)
-
-        if xbounds is None:
-            xbounds = np.percentile(np.asarray(self.spectral_vertices[index]).T[0], [0,100])
-            
-        if xbounds[0] is None: np.percentile(np.asarray(self.spectral_vertices[index]).T[0], 0)
-        if xbounds[1] is None: np.percentile(np.asarray(self.spectral_vertices[index]).T[0], 100)
-        
-        return get_boxing_polygone(np.concatenate(arc_pos_x), np.concatenate(arc_pos_y), 
-                            rangex= np.linspace(xbounds[0],xbounds[1],polydegree+5),
-                            width=width, dy=1, polydegree=polydegree,
-                            get_vertices=get_vertices)
-    
-    # - Index Matching
-    def arcindex_to_index(self, arcname, arcindex):
-        """ """
-        self._test_arc_(arcname, test_matching=True)
-        return self.arclamps[arcname]["index"][arcindex]
-
-    def index_to_arcindex(self, arcname, index):
-        """ """
-        self._test_arc_(arcname, test_matching=True)
-        index = np.argwhere(self.arclamps[arcname]["index"]==index)
-        return np.concatenate(index).tolist() if len(index)>0 else []
-
-    def _test_arc_(self, arcname, test_matching=False):
-        """ """
-        if arcname not in self.arclamps:
-            raise AttributeError("No arclamp loaded named %s"%arcname)
-        if test_matching and self.arclamps[arcname]["index"] is None:
-            raise AttributeError("The matching for %d has not been made. see match_arc()"%arcname)
-        
-    @property
-    def arclamps(self):
-        """ Arc lamp associated to the spectral matcher """
-        if self._side_properties["arclamp"] is None:
-            self._side_properties["arclamp"] = {}
-        return self._side_properties["arclamp"]
-    
-    # ================== #
-    #  Properties        #
-    # ================== #
-    def _index_to_(self, index, what):
-        """ """
-        return eval("self.spectral_%s[index]"%what)
-
-    # ================== #
-    #  Properties        #
-    # ================== #
-    @property
-    def nspectra(self):
-        """ number of spectra loaded """
-        return len(self.spectral_vertices) if self.spectral_vertices is not None else 0
-    
-    # -----------------
-    # - Spectral Info
-    @property
-    def spectral_vertices(self):
-        """ Vertices for the polygon defining the location of the spectra """
-        return self._properties["spectral_vertices"]
-    
-    @property
-    def spectral_polygon(self):
-        """ Shapely Multi Polygon associated to the given vertices """
-        from shapely import geometry
-        if self._derived_properties["specpoly"] is None:
-            self._derived_properties["specpoly"] = geometry.MultiPolygon([ geometry.polygon.Polygon(rect_)
-                                                                            for rect_ in self.spectral_vertices])
-        return self._derived_properties["specpoly"]
-
-    @property
-    def spectral_facecolor(self):
-        """ Random Color Associated to the spectra """
-        if self._derived_properties['spectral_fc'] is None:
-            self._load_random_color_()  
-        return self._derived_properties['spectral_fc']
-    
-
-    def _load_random_color_(self):
-        """ """
-        nonunique_RGBA         = np.random.randint(100,250,size=[self.nspectra*2,4])
-        nonunique_RGBA_ec      = np.random.randint(50,99,size=[self.nspectra*2,4])
-        nonunique_RGBA.T[3]    = 255 # explicit here to avoid PIL / mpl color variation
-        nonunique_RGBA_ec.T[3] = 255 # explicit here to avoid PIL / mpl color variation
-            
-        b = np.ascontiguousarray(nonunique_RGBA).view(np.dtype((np.void,nonunique_RGBA.dtype.itemsize * nonunique_RGBA.shape[1])))
-        b_ec = np.ascontiguousarray(nonunique_RGBA_ec).view(np.dtype((np.void,nonunique_RGBA_ec.dtype.itemsize * nonunique_RGBA_ec.shape[1])))
-        
-        self._derived_properties['spectral_fc'] = \
-          nonunique_RGBA[np.unique(b, return_index=True)[1]][:self.nspectra]
-          
-    @property
-    def maskimage(self):
-        """ Masking image core of the class. """
-        return self._derived_properties['maskimage']
-    
-    def has_maskimage(self):
-        return self.has_maskimage is not None
-
-    @property
-    def idxmask(self):
-        """ dictionary containing the sparse matrix of the (loaded) indexes """
-        if self._derived_properties["idxmasks"] is None:
-            self._derived_properties["idxmasks"] = {}
-        return self._derived_properties["idxmasks"]
-        
-    # ----------
-    # Internal
-    @property
-    def _zooming(self):
-        """ subpixelization of the PIL tools """
-        if self._side_properties["zooming"] is None:
-            self._side_properties["zooming"] = ZOOMING
-        return self._side_properties["zooming"]
-
-    # Image in R
-    @property
-    def _rmap(self):
-        return self._derived_properties["rmap"]
-    
-    @property
-    def _rmap_flat(self):
-        """ Raveled version of _rmap"""
-        if self._derived_properties["rmap_flat"] is None:
-           self._derived_properties["rmap_flat"] = self._rmap.ravel(order='F')
-        return self._derived_properties["rmap_flat"]
-
-    # Image in G
-    @property
-    def _gmap(self):
-        return self._derived_properties["gmap"]
-    @property
-    def _gmap_flat(self):
-        """ Raveled version of _gmap"""
-        if self._derived_properties["gmap_flat"] is None:
-           self._derived_properties["gmap_flat"] = self._gmap.ravel(order='F')
-        return self._derived_properties["gmap_flat"]
-    
-    # Image in B
-    @property
-    def _bmap(self):
-        return self._derived_properties["bmap"]
-    @property
-    def _bmap_flat(self):
-        """ Raveled version of _bmap"""
-        if self._derived_properties["bmap_flat"] is None:
-           self._derived_properties["bmap_flat"] = self._bmap.ravel(order='F')
-        return self._derived_properties["bmap_flat"]
-
-    # Image in A
-    @property
-    def _amap(self):
-        return self._derived_properties["amap"]
-    @property
-    def _amap_flat(self):
-        """ Raveled version of _amap"""
-        if self._derived_properties["amap_flat"] is None:
-           self._derived_properties["amap_flat"] = self._amap.ravel(order='F')
-        return self._derived_properties["amap_flat"]

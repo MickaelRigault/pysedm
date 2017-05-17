@@ -23,7 +23,7 @@ _REFORIGIN = 69
 LINES= {"Hg":{ #5790.66  :  {"ampl":1. ,"mu":202-_REFORIGIN},
                #5769.59  : {"ampl":1. ,"mu":201-_REFORIGIN},
                5778.0   : {"ampl":1. ,"mu":201-_REFORIGIN,
-                           "doublet":True,"info":"merge of 5769.59, 5790.66"},
+                           "doublet":True, "info":"merge of 5769.59, 5790.66"},
                5460.735 : {"ampl":10.,"mu":187-_REFORIGIN},
                4358.32  : {"ampl":5. ,"mu":126-_REFORIGIN},
                4046.563 : {"ampl":2. ,"mu":104.5-_REFORIGIN},
@@ -44,6 +44,7 @@ LINES= {"Hg":{ #5790.66  :  {"ampl":1. ,"mu":202-_REFORIGIN},
                #9000.01  : {"ampl": 0.5,"mu":302-_REFORIGIN,
                #             "doublet":True,"info":"merge of 8945, 9050"},
                 },
+        # Important for Xe. Keep the Bright line, the First one. of change get_line_shift()
         "Xe": {8280.    : {"ampl": 1. ,"mu":280-_REFORIGIN,
                             "doublet":True,"info":"merge of 8230, 8341"},
                8818.5   : {"ampl": 0.8,"mu":295-_REFORIGIN},
@@ -69,21 +70,24 @@ def get_wavesolution(*lamps):
     [wsol.add_lampccd(l) for l in lamps]
     return wsol
 
-def get_arcspectrum(x, y, dy=None, name=None):
+def get_arcspectrum(x, y, databound, dy=None, name=None):
     """ """
     spec = ArcSpectrum(wave=x, flux=y, errors=dy)
     spec.set_arcname(name)
+    spec.set_databounds(*databound)
     return spec
 
-def get_arccollection(specid, lamps):
+def get_arccollection(traceindex, lamps):
     """ """
     sol_ = ArcSpectrumCollection()
     
     for lamp in lamps:
-        spec_ = lamp.get_spectrum(specid, on="data")[::-1]
+        spec_ = lamp.get_spectrum(traceindex, on="data")[::-1]
         lbda_ = np.arange(len(spec_))
-        sol_.add_arcspectrum( get_arcspectrum(x=lbda_, y=spec_, name=lamp.objname))
-        
+        sol_.add_arcspectrum( get_arcspectrum(x=lbda_, y=spec_,
+                                            databound= np.sort(len(spec_) - lamp.tracematch.get_trace_xbounds(traceindex)),
+                                            name=lamp.objname))
+    sol_.set_databounds(*np.sort(len(spec_) - lamp.tracematch.get_trace_xbounds(traceindex)))
     return sol_
 
 ###########################
@@ -119,44 +123,48 @@ class WaveSolution( BaseObject ):
     # -------- #
     # BUILDER  #
     # -------- #
-    def fit_wavelesolution(self, specid, sequential=True, contdegree=3, wavedegree=4,
-                            saveplot=None, plotprop={}):
+    def fit_wavelesolution(self, traceindex, sequential=True, contdegree=3, wavedegree=4,
+                            saveplot=None, show=False, plotprop={}):
         """ """
-        wsol_ = get_arccollection(specid, [self.lampccds[i] for i in self.lampnames]) # <0.1s # with saved masks
-        wsol_.fit_lineposition(contdegree=contdegree, sequential=sequential) # 3s 
-        wsol_.fit_wavelengthsolution(wavedegree, legendre=False) # 0.01s
-        self.wavesolutions[specid] = wsol_.data
-        self._solution[specid]     = SpaxelWaveSolution(wsol_.data["wavesolution"])
+         # <0.1s # with saved masks
+        wsol_ = get_arccollection(traceindex, [self.lampccds[i] for i in self.lampnames])
+        # 3s 
+        wsol_.fit_lineposition(contdegree=contdegree, sequential=sequential)
+        # 0.01s
+        wsol_.fit_wavelengthsolution(wavedegree, legendre=False)
         
-        if saveplot is not None:
-            wsol_.show(specid=specid, xrange=[3600,9500], savefile=saveplot, **plotprop)
+        self.wavesolutions[traceindex] = wsol_.data
+        self._solution[traceindex]     = SpaxelWaveSolution(wsol_.data["wavesolution"])
+        
+        if saveplot is not None or show:
+            wsol_.show(traceindex=traceindex, xrange=[3600,9500], savefile=saveplot, **plotprop)
 
     
     # -------- #
     # GETTER   #
     # -------- #
-    def get_spaxel_wavesolution(self, specid):
+    def get_spaxel_wavesolution(self, traceindex):
         """ """
-        if specid not in self.wavesolutions:
-            raise ValueError("Unknown wavelength solution for the spaxels #%d"%specid)
-        return self._solution[specid]
+        if traceindex not in self.wavesolutions:
+            raise ValueError("Unknown wavelength solution for the spaxels #%d"%traceindex)
+        return self._solution[traceindex]
 
-    def pixels_to_lbda(self, pixel, specid):
+    def pixels_to_lbda(self, pixel, traceindex):
         """ Pick the requested spaxel and get the wavelength [in angstrom] that goes with the given pixel """
-        return self.get_spaxel_wavesolution(specid).pixels_to_lbda(pixel)
+        return self.get_spaxel_wavesolution(traceindex).pixels_to_lbda(pixel)
     
-    def lbda_to_pixels(self, lbda, specid):
+    def lbda_to_pixels(self, lbda, traceindex):
         """ Pick the requested spaxel and get the pixel that goes with the given wavelength [in angstrom] """
-        return self.get_spaxel_wavesolution(specid).lbda_to_pixels(lbda)
+        return self.get_spaxel_wavesolution(traceindex).lbda_to_pixels(lbda)
     
     # -------- #
     #  I/O     #
     # -------- #
     def set_wavesolutions(self, wavesolutions):
         """ Load a dictionary containing the wavelength solution of individual spaxels """
-        for specid,data in wavesolutions.items():
-            self.wavesolutions[specid] = data
-            self._solution[specid]     = SpaxelWaveSolution(data["wavesolution"])
+        for traceindex,data in wavesolutions.items():
+            self.wavesolutions[traceindex] = data
+            self._solution[traceindex]     = SpaxelWaveSolution(data["wavesolution"])
             
     def add_lampccd(self, lampccd, name=None):
         """ """
@@ -336,7 +344,8 @@ class VirtualArcSpectrum( BaseObject ):
     # --------- #
     def get_line_shift(self):
         """ Shift of the central line value based on the considered spaxel """
-        wavemax = self.wave[self.get_arg_maxflux(1)]
+        wavemax = self.wave[self.get_arg_maxflux(1)] if self.arcname not in ["Xe"] else\
+          self.wave[self.get_arg_maxflux(2)][0]
         wavemax_expected = self.arclines[self.expected_brightesline]["mu"]
         return wavemax-wavemax_expected
     
@@ -513,10 +522,15 @@ class VirtualArcSpectrum( BaseObject ):
                 "wavesolution": self.wavesolution.data if self.has_wavesolution() else None,
                 "line_fitvalues":fitvalue
                     }
+
+    def set_databounds(self, xmin, xmax):
+        """ """
+        self._properties["databounds"] = [xmin, xmax]
+        
     @property
     def databounds(self):
         """ limits of the effective spectrum """
-        return np.min(np.where(self.flux!=0)), np.max(np.where(self.flux!=0))
+        return self._properties["databounds"]
 
     # -----------
     # - Lines
@@ -775,7 +789,7 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
             raise AttributeError("No SpaxelWaveSolution, Not LineFitter. Nothing to show")
 
     def _show_full_(self, savefile=None, show=True,
-                    fig=None, stampsloc="right", specid=None,
+                    fig=None, stampsloc="right", traceindex=None,
                         show_guesses=False, **kwargs):
         """ """
         from astrobject.utils.mpladdon import figout
@@ -798,8 +812,8 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
             axwave.set_xlabel(r"Wavelength [$\mathrm{\AA}$]", fontsize="large")
             axwave.set_ylabel(r"Pixels (ccd-row)", fontsize="large")
             axstamps[0].set_xlabel(r"Pixels (ccd-row)", fontsize="medium")
-            if specid is not None:
-                fig.text(0.01,0.99,"Spectrum #%d"%specid,
+            if traceindex is not None:
+                fig.text(0.01,0.99,"Spectrum #%d"%traceindex,
                         va="top",ha="left", fontsize="small")
 
         fig.figout(savefile=savefile, show=show)

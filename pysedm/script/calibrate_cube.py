@@ -15,6 +15,7 @@ def flat_cubes(date, lbda_min=7000, lbda_max=9000, ref="dome"):
     # The Reference  #
     # -------------- #
     reffile = io.get_night_cubes(date, kind="cube", target=ref)
+
     if len(reffile)==0:
         raise ValueError("No cube reference for target %s in night %s"%(ref,date))
     
@@ -26,11 +27,14 @@ def flat_cubes(date, lbda_min=7000, lbda_max=9000, ref="dome"):
     # ----------------- #
     def build_flat_cube(cubefile):
         cube_       = get_sedmcube(cubefile)
+        print(cubefile)
         cube_.scale_by(flatfied)
         cube_.writeto(cube_.filename.replace(baseroot,newroot))
         
     from astropy.utils.console import ProgressBar
-    ProgressBar.map(build_flat_cube, io.get_night_cubes(date, kind="cube"))
+    cubefiles = io.get_night_cubes(date, kind="cube")
+    print(cubefiles)
+    ProgressBar.map(build_flat_cube, cubefiles)
     
     
     

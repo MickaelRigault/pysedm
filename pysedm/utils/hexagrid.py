@@ -227,10 +227,14 @@ class HexagoneProjection( BaseObject ):
 
     def index_to_xy(self, index, invert_rotation=True):
         """ """
-        qr = np.asarray([self.index_to_qr(i) for i in index]).T\
-          if hasattr(index,"__iter__") else self.index_to_qr(index)
-          
-        q,r = qr if qr is not None else [np.NaN, np.NaN]
+        qr = np.asarray(self.index_to_qr(index)).T
+
+        if not hasattr(index,"__iter__"):
+            q,r = qr if qr is not None else [np.NaN, np.NaN]
+        else:
+            q,r = np.asarray([qr_ if qr_ is not None else [np.NaN, np.NaN]
+                                  for qr_ in qr]).T
+            
         return self.qr_to_xy(q,r, invert_rotation=invert_rotation)
     
     def qr_to_xy(self, q,r, invert_rotation=True):

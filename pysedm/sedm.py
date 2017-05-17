@@ -10,9 +10,18 @@ from pyifu.spectroscopy import Cube
 from pyifu.mplinteractive import InteractiveCube
 from .utils.tools       import kwargs_update
 
+DOME_TRACEBOUNDS = [70,220]
+TRACE_DISPERSION = 1.3 # PSF (sigma assuming gaussian) of the traces on the CCD. 
 SEDMSPAXELS = np.asarray([[ np.sqrt(3.)/2., 1./2],[0, 1],[-np.sqrt(3.)/2., 1./2],
                           [-np.sqrt(3.)/2.,-1./2],[0,-1],[ np.sqrt(3.)/2.,-1./2]])*2/3.
 
+_EDGES_Y = 20
+_EDGES_X = 100
+INDEX_CCD_CONTOURS = [[_EDGES_X,_EDGES_Y],[_EDGES_X,1700],
+                      [300,2040-_EDGES_Y],[2040-_EDGES_X,2040-_EDGES_Y],
+                        [2040-_EDGES_X,_EDGES_Y]]
+
+    
 
 def get_sedmcube(filename, **kwargs):
     """ Load a Cube from the given filename 
@@ -183,7 +192,7 @@ class SEDMCube( Cube ):
         Void
         """
         if not interactive or ccd is None:
-            return super(SEDMCube, self).show(toshow=toshow, interactive=interactive, ccd=ccd,
+            return super(SEDMCube, self).show(toshow=toshow, interactive=interactive,
                                            savefile=savefile, ax=ax, show=show,
                                            show_meanspectrum=show_meanspectrum, cmap=cmap,
                                            vmin=vmin, vmax=vmax, **kwargs)
@@ -201,10 +210,7 @@ class InteractiveCubeandCCD( InteractiveCube ):
     def launch(self, *args, **kwargs):
         """ """
         
-        self._ccdshow = self.ccdimage.show(ax = self.axccd, aspect="auto", show=False,
-                                               vmin=kwargs.pop("vmin",None),
-                                               vmax=kwargs.pop("vmax",None),
-                                               )["imshow"]
+        self._ccdshow = self.ccdimage.show(ax = self.axccd, aspect="auto", show=False)["imshow"]
         super(InteractiveCubeandCCD, self).launch(*args, **kwargs)
 
     def set_to_origin(self):

@@ -11,6 +11,7 @@ import numpy as np
 import matplotlib.pyplot as mpl
 from propobject import BaseObject
 from astrobject.photometry import Image
+from scipy.interpolate     import interp1d
 try:
     import shapely # to be removed
     _HAS_SHAPELY = True
@@ -93,6 +94,7 @@ def get_dome(domefile, tracematch=None,  **kwargs):
     dome.set_tracematch(tracematch)
     dome.set_background(dome._get_default_background_(**kwargs), force_it=True)
     return dome
+
 
 #####################################
 #                                   #
@@ -347,10 +349,20 @@ class CCD( BaseCCD ):
         maskidx  = self.get_trace_mask(traceindex, finetune=finetune)
         return np.sum(eval("self.%s"%on)*maskidx, axis=0)
 
-    def extract_spectrum(self, traceindex, cubesolution, get_spectrum=True,
-                             finetune=False):
+    def extract_spectrum(self, traceindex, cubesolution, lbda=None, kind="cubic",
+                             get_spectrum=True, finetune=False):
         """ Build the `traceindex` spectrum based on the given wavelength solution.
         The returned object could be an pyifu's Spectrum or three arrays, lbda, flux, variance.
+        
+        The method works as follow for the given traceindex:
+        1) Get the flux per pixels [using the get_spectrum() method]
+           (Get the variance the same way if any)
+        2) Convert the given lbda into pixels 
+           [using the lbda_to_pixels() method from wavesolution]
+        3) Interpolate the flux per pixels into flux per lbda 
+           (Interpolate the variance the same way)
+           [using interp1d from scipy.interpolate]
+
 
         Parameters
         ----------
@@ -360,45 +372,111 @@ class CCD( BaseCCD ):
         cubesolution: [CubeSolution]
             Object containing the method to go fromn pixels to lbda
 
+        lbda: [array] -optional-
+            Shape of the lbda array you want the spectrum to have.
+
+        kind: [str or int] -optional-
+            Specifies the kind of interpolation as a string
+            ('linear', 'nearest', 'zero', 'slinear', 'quadratic, 'cubic'
+            where 'slinear', 'quadratic' and 'cubic' refer to a spline
+            interpolation of first, second or third order) or as an integer
+            specifying the order of the spline interpolator to use.
+            
         get_spectrum: [bool] -optional-
             Which form the returned data should have?
-
+            
         finetune: [bool] -optional-
             Should the trace masking come from finetunning of spectral trace?
-            (Remark: The spectral match loaded might already be finetuned ones.)
+            (Remark: The spectral match loaded might already be a finetuned ones.)
 
         Returns
         -------
         Spectrum or
-        array, array, array/None (lbda, flux, varirance)
+        array, array, array/None (lbda, flux, variance)
         """
-        
         f = self.get_spectrum(traceindex, finetune=finetune)
+        v = self.get_spectrum(traceindex, finetune=finetune, on="var") if self.has_var() else None
         pixs = np.arange(len(f))[::-1]
-        # Black magic, but it works.
-        # - Faster with masking
         minpix, maxpix = self.tracematch.get_trace_xbounds(traceindex)
         mask = pixs[(pixs>minpix)* (pixs<maxpix)][::-1]
-        
-        lbda = cubesolution.pixels_to_lbda(pixs[mask], traceindex)
-        variance = self.get_spectrum(traceindex, on="var")[mask] if self.has_var() else None
+        if lbda is not None:
+            pxl_wanted = cubesolution.lbda_to_pixels(lbda, traceindex)
+            flux = interp1d(pixs[mask], f[mask], kind=kind)(pxl_wanted)
+            var  = interp1d(pixs[mask], v[mask], kind=kind)(pxl_wanted) if v is not None else v
+        else:
+            
+            lbda = cubesolution.pixels_to_lbda(pixs[mask], traceindex)
+            flux = f[mask]
+            var  = v[mask]
         
         if get_spectrum:
             from pyifu.spectroscopy import Spectrum
             spec = Spectrum(None)
-            spec.create(f[mask],variance=variance,lbda=lbda)
+            spec.create(flux,variance=var,lbda=lbda)
             return spec
         
-        return lbda, f[mask], variance
+        return lbda, flux, var
         
     # --------------- #
     #  Extract Cube   #
     # --------------- #
-    def extract_cube(self, wavesolution, lbda, finetune_trace=False,
-                    hexagrid=None, traceindexes=None, show_progress=False):
-        """ """
+    def extract_cube(self, wavesolution, lbda,
+                         hexagrid=None, traceindexes=None,
+                         finetune_trace=False, show_progress=False):
+        """ Create a cube from the ccd.
+
+        ------------------------------------
+        | Central method of the ccd object | 
+        ------------------------------------
+
+        The method works as follow (see the extract_spectrum() method):
+        for each trace (loop object traceindexes)
+        1) Get the flux per pixels [using the get_spectrum() method]
+           (Get the variance the same way if any)
+        2) Convert the given lbda into pixels 
+           [using the lbda_to_pixels() method from wavesolution]
+        3) Interpolate the flux per pixels into flux per lbda 
+           (Interpolate the variance the same way)
+           [using interp1d from scipy.interpolate]
+        4) Get the x,y position of the traceindex
+           [using the ids_to_index() and index_to_xy() methods from hexagrid]
+           
+        If anything false (most likely the interpolation because of wavelength matching) 
+        the flux (or variance) per lbda will be set to an array of NaNs
+
+        All the spaxels fluxes will be set to a cube (SEDMCube see .sedm)
+
+        Parameters
+        ----------
+        wavesolution: [WaveSolution]
+            The object containing the pixels<->wavelength relation of the night.
+            
+        lbda: [float array]
+            wavelength array of the cube to be created (in Angstrom) 
+            
+        hexagrid: [HexagoneProjection] -optional-
+            object containing the x,y position of the traces.
+            If not given, this will be created based on the instance's TraceMatch.
+            (it is advised to give the night hexagrid.)
+
+        traceindexes: [list of int] -optional-
+            Which trace should be extracted to build the cube?
+            If not given (None) this will used all the traceindexes for which there 
+            is a wavelength solution (wavesolution)
+        
+        finetune_trace: [bool] -optional-
+            DECREPEATED
+            Should this use the finetuning traces for the masking of the ccd.
+
+        show_progress: [bool] -optional-
+            Should the progress within the loop over traceindexes should be 
+            shown (using astropy's ProgressBar)
+
+        Returns
+        -------
+        SEDMCube (child of pyifu's Cube)
+        """
         from .sedm import SEDMSPAXELS, SEDMCube
-        from scipy.interpolate import interp1d
         
         # - index check
         if traceindexes is None:
@@ -420,23 +498,20 @@ class CCD( BaseCCD ):
         # MultiProcess #
         # ------------ #
         def _build_ith_flux_(i_):
-            lbda_, flux_, variance_ = self.extract_spectrum(i_, wavesolution, get_spectrum=False,
-                                                            finetune=finetune_trace)
             try:
-                cubeflux_[i_] = interp1d(lbda_, flux_, kind="cubic")(lbda)
+                lbda_, flux_, variance_ = self.extract_spectrum(i_, wavesolution, lbda=lbda,
+                                                                get_spectrum=False, finetune=finetune_trace)
+                cubeflux_[i_] = flux_
+                if cubevar_ is not None:
+                    cubevar_[i_] = variance_
             except:
-                print("FAILED FOR %s"%i_)
-                print("lbda range %.1f %.1f"%(np.nanmin(lbda_),np.nanmax(lbda_)))
+                warnings.warn("FAILED FOR %s. Most likely, the requested wavelength are not fully covered by the trace"%i_)
                 cubeflux_[i_] = np.zeros(len(lbda))*np.NaN
-                
                 if cubevar_ is not None:
                     cubevar_[i_] = np.zeros(len(lbda))*np.NaN
-                return
-            
-            if cubevar_ is not None:
-                cubevar_[i_] = interp1d(lbda_, variance_, kind="cubic")(lbda)
-
-        # -- MultiThreading to speed this up
+                    
+        # ------------ #
+        # - MultiThreading to speed this up
         if show_progress:
             from astropy.utils.console import ProgressBar
             ProgressBar.map(_build_ith_flux_, used_indexes)
@@ -482,7 +557,9 @@ class CCD( BaseCCD ):
             - None: The default will be used (percentile 0.5 and 99.5 percent respectively).
             (NB: vmin and vmax are independent, i.e. one can be None and the other '98' for instance)
 
-    
+        Returns
+        -------
+        dict ({ax, fig, imshow's output})
         """
         from .utils.mpl import figout
 

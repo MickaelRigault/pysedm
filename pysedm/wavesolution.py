@@ -17,7 +17,12 @@ from .ccd import CCD
 # Vacuum wavelength
 # from KECK https://www2.keck.hawaii.edu/inst/lris/arc_calibrations.html
 # Cadmium http://www.avantes.com/images/stories/applications/pagina_93-94_cadmium.jpg
-# Xenon from SNIFS 
+# Xenon from SNIFS
+#
+#
+# http://www.astrosurf.com/buil/us/spe2/hresol4.htm
+#
+
 _REFORIGIN = 69
 
 LINES= {"Hg":{ #5790.66  :  {"ampl":1. ,"mu":202-_REFORIGIN},
@@ -37,7 +42,7 @@ LINES= {"Hg":{ #5790.66  :  {"ampl":1. ,"mu":202-_REFORIGIN},
                6438.5   : {"ampl":5. ,"mu":227-_REFORIGIN}, # Exact Value To be confirmed
                # - Cd and Xe seems to have the same lines
                # Almost same wavelength but diffent enough to save the code
-               8280.01  : {"ampl": 1. ,"mu":280-_REFORIGIN,
+               8280.01  : {"ampl": 1. ,"mu":275-_REFORIGIN,
                             "backup":"Xe", # used only if Xe is not there
                             "doublet":True,"info":"merge of 8230, 8341"},
                #8818.51  : {"ampl": 0.8,"mu":295-_REFORIGIN},
@@ -107,12 +112,16 @@ class WaveSolution( BaseObject ):
     #  I/O     #
     # -------- #
     def writeto(self, filename):
-        """ """
+        """ save the object into the given filename (.pkl). 
+        Load it the using the load() method.
+        """
         from .utils.tools import dump_pkl
         dump_pkl(self.wavesolutions, filename)
 
     def load(self, filename):
-        """ """
+        """ Load the object from the given filename (.pkl).
+        object created by the writeto() method can be opened this way.
+        """
         from .utils.tools import load_pkl
         data = load_pkl(filename)
         if "wavesolution" not in data.values()[0]:
@@ -125,21 +134,52 @@ class WaveSolution( BaseObject ):
     # -------- #
     def fit_wavelesolution(self, traceindex, sequential=True, contdegree=3, wavedegree=4,
                             saveplot=None, show=False, plotprop={}):
-        """ """
+        """ Fit the wavelength solution of the given trace.
+
+        This matching is made in two steps:
+        1) fit the central positions of the loaded arcspectrum emission lines.
+           This fit is based on linear combination of gaussian lines + polynomial continuum.
+        2) Fit a polynomial degree to modelize the relation between the 
+           fitted central positions (c.f. step 1) with the corresponding wavelengths
+           of these lines.
+
+        Parameters
+        ----------
+        traceindex: [int]
+            index of the trace for which you want to fit the wavelength solution
+            
+        sequential: [bool] -optional-
+            How the gaussian line profiles (central positions) should be fitted:
+            - False: All at once (as if it was a unique spectrum)
+            - True:  Once at the time (each arcspectrum fitted independently)
+
+        contdegree: [int] -optional-
+            The degree of the polynom underlying the gaussian lines
+            
+        wavedegree: [int] -optional-
+            The degree of the polynom modelizing the pixel<->wavelength relation
+            
+        saveplot: [None or string] -optional-
+            Save the wavelength solution figure. If None, nothing will be saved.
+            
+        show: [bool] -optional-
+            Should the wavelength solution figure be shown?
+        
+        Returns
+        -------
+        None
+        """
          # <0.1s # with saved masks
         wsol_ = get_arccollection(traceindex, [self.lampccds[i] for i in self.lampnames])
         # 3s 
         wsol_.fit_lineposition(contdegree=contdegree, sequential=sequential)
         # 0.01s
         wsol_.fit_wavelengthsolution(wavedegree, legendre=False)
-        
         self.wavesolutions[traceindex] = wsol_.data
-        self._solution[traceindex]     = SpaxelWaveSolution(wsol_.data["wavesolution"])
         
         if saveplot is not None or show:
             wsol_.show(traceindex=traceindex, xrange=[3600,9500], savefile=saveplot, **plotprop)
 
-    
     # -------- #
     # GETTER   #
     # -------- #
@@ -147,6 +187,10 @@ class WaveSolution( BaseObject ):
         """ """
         if traceindex not in self.wavesolutions:
             raise ValueError("Unknown wavelength solution for the spaxels #%d"%traceindex)
+        
+        if traceindex not in self._solution:
+            self._solution[traceindex] = SpaxelWaveSolution(wavesolutions[traceindex]["wavesolution"])
+            
         return self._solution[traceindex]
 
     def pixels_to_lbda(self, pixel, traceindex):
@@ -210,7 +254,8 @@ class WaveSolution( BaseObject ):
         if self._derived_properties["solutions"] is None:
             self._derived_properties["solutions"] = {}
         return self._derived_properties["solutions"]
-    
+
+
 class SpaxelWaveSolution( BaseObject ):
     """ """
     PROPERTIES = ["wavesolution","inverse_wavesolution"]
@@ -344,8 +389,9 @@ class VirtualArcSpectrum( BaseObject ):
     # --------- #
     def get_line_shift(self):
         """ Shift of the central line value based on the considered spaxel """
-        wavemax = self.wave[self.get_arg_maxflux(1)] if self.arcname not in ["Xe"] else\
-          self.wave[self.get_arg_maxflux(2)][0]
+        wavemax = self.wave[self.get_arg_maxflux(1)] if self.arcname not in ["Xe"] else \
+          np.min(self.wave[self.get_arg_maxflux(2)])
+          
         wavemax_expected = self.arclines[self.expected_brightesline]["mu"]
         return wavemax-wavemax_expected
     

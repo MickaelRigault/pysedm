@@ -141,7 +141,7 @@ def build_wavesolution(date, verbose=False, ntest=None,
 
     Parameters
     ----------
-
+    
     Returns
     -------
 
@@ -184,7 +184,7 @@ def build_wavesolution(date, verbose=False, ntest=None,
     def fitsolution(idx_):
         saveplot = None if not savefig else \
           timedir+"ProdPlots/%s_wavesolution_spec%d.pdf"%(date,idx_)
-        csolution.fit_wavelesolution(specid=idx_, saveplot=saveplot,
+        csolution.fit_wavelesolution(traceindex=idx_, saveplot=saveplot,
                     contdegree=2, plotprop={"show_guesses":True})
         if saveplot is not None:
             mpl.close("all") # just to be sure

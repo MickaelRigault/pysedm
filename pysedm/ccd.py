@@ -8,8 +8,8 @@
 import warnings
 import numpy as np
 
-import matplotlib.pyplot as mpl
-from propobject import BaseObject
+import matplotlib.pyplot       as mpl
+from propobject            import BaseObject
 from astrobject.photometry import Image
 from scipy.interpolate     import interp1d
 try:
@@ -144,8 +144,10 @@ class BaseCCD( Image ):
 # ============================== #
 class CCD( BaseCCD ):
     """ Virtual Class For CCD images that have input light """
+    
     PROPERTIES         = ["tracematch"]
     DERIVED_PROPERTIES = ["matched_septrace_index"]
+    
     # ------------------- #
     # Tracematch <-> CCD   #
     # ------------------- #

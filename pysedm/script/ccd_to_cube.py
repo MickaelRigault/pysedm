@@ -78,8 +78,6 @@ def build_tracematcher(date, verbose=True, width=None, rebuild_nightly_trace=Fal
     if not build_finetuned_tracematcher:
         return
 
-    
-        
     ccdfiles = io.get_night_ccdfiles(date, skip_calib=True) + glob(timedir+"Hg.fits") + glob(timedir+"Cd.fits") + glob(timedir+"Xe.fits")
     def build_finetubed_trace(ccdfile_):
         """ Buid the individual object. 
@@ -94,7 +92,7 @@ def build_tracematcher(date, verbose=True, width=None, rebuild_nightly_trace=Fal
             thresh = np.nanstd(ccd_.rawdata)*coef
             
         ccd_.sep_extract(thresh=thresh) # takes about 1min
-        ccd_.match_trace_and_sep()
+        ccd_.match_trace_to_sep()
         
         # - Which Trace to use
         indexes = ccd_.tracematch.get_traces_within_polygon(INDEX_CCD_CONTOURS)

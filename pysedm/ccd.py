@@ -12,6 +12,8 @@ import matplotlib.pyplot       as mpl
 from propobject            import BaseObject
 from astrobject.photometry import Image
 from scipy.interpolate     import interp1d
+
+from pyifu.spectroscopy import Spectrum
 try:
     import shapely # to be removed
     _HAS_SHAPELY = True
@@ -39,8 +41,7 @@ __all__ = ["get_dome","get_ccd"]
 #                                #
 ##################################
 def get_ccd(lampfile, ccdspec_mask=None,
-            tracematch=None, specmatch=None,
-                background=None, **kwargs):
+            tracematch=None, background=None, **kwargs):
     """ Load a SEDmachine ccd image. 
 
     Parameters
@@ -103,8 +104,8 @@ def get_dome(domefile, tracematch=None,  **kwargs):
 #####################################
 class BaseCCD( Image ):
     """ """
-    def __build__(self,bw=15, bh=15,
-                      fw=10, fh=10,**kwargs):
+    def __build__(self,bw=64, bh=64,
+                      fw=3, fh=3,**kwargs):
         """ build the structure of the class
 
         // Doc from SEP
@@ -159,33 +160,33 @@ class CCD( BaseCCD ):
         
         self._properties["tracematch"] = tracematch
 
-    def match_trace_and_sep(self):
-        """ SEP extracted object will be matched with trace indexes
-        (This might time a bit of time)
-
+    def match_trace_to_sep(self):
+        """ matches the SEP ellipse with the current trace vertices. 
+        You must have ran sep_extract() to be able to use this method.
+        
+        (This method need Shapely.)
+            
         You can then use the methods:
         - sepindex_to_traceindex()
         - traceindex_to_sepindex()
         
+        Returns
+        -------
+        Void
         """
         if not self.has_sepobjects():
-            raise AttributeError("Sep extract has not been run. This is needed to match the traces with detected lines.")
+            raise AttributeError("sep has not been ran. Do so to be able to match sep output with traces")
 
-        
+        if not _HAS_SHAPELY:
+            raise AttributeError("Matching traces to sep requires Shapely. pip install Shapely")
+
         x,y,a,b,theta = self.sepobjects.get(["x","y","a","b","theta"]).T
-        if _HAS_SHAPELY:
-            from shapely import geometry, vectorized
-            self._derived_properties["matched_septrace_index"] =\
-              {idx: np.argwhere(vectorized.contains( geometry.Polygon(self.tracematch.get_trace_vertices(idx)), x,y)).ravel()
-                   for idx in self.tracematch.trace_indexes}
-        else:
-            print("DECREPATED, Install Shapely")
-            septrace_index = [self.tracematch.get_trace_source(x_, y_, a=a_*2, b=b_*2, theta=theta_ )
-                              for x_,y_,a_,b_,theta_ in zip(x,y,a,b,theta)]
         
-            self._derived_properties["matched_septrace_index"] = np.asarray([s[0] if len(s)==1 else np.NaN
-                                                                             for s in septrace_index])
-
+        from shapely import geometry, vectorized
+        self._derived_properties["matched_septrace_index"] =\
+          {idx: np.argwhere(vectorized.contains( geometry.Polygon(self.tracematch.get_trace_vertices(idx)), x,y)).ravel()
+               for idx in self.tracematch.trace_indexes}
+        
     def sepindex_to_traceindex(self, sepindex):
         """ Give the index of an sep entry. This will give the corresponding trace index """
         if not self.has_matchedindex():
@@ -195,14 +196,11 @@ class CCD( BaseCCD ):
     def traceindex_to_sepindex(self, traceindex):
         """ Give the index of an sep entry. This will give the corresponding trace index """
         if not self.has_matchedindex():
-            if not _HAS_SHAPELY:
-                raise AttributeError("spectral match traces has not been matched with sep indexes. Run match_tracematch_and_sep() or install shapely for onflight tools")
-            from shapely import geometry, vectorized
-            x,y,a,b,theta = self.sepobjects.get(["x","y","a","b",",theta"]).T
-            self.matchedindex[traceindex] = np.argwhere(vectorized.contains( geometry.Polygon(self.tracematch.get_trace_vertices(traceindex)), x,y)).ravel()
-        
+            self.match_trace_to_sep()
+            
         return self.matchedindex[traceindex]
 
+            
     def get_finetuned_trace(self, traceindex, polydegree=2,
                             width=None, trace_position=False, **kwargs):
         """ The builds a fine tuned trace of the given traceindex.
@@ -239,6 +237,10 @@ class CCD( BaseCCD ):
           - array (vertices) 
           - array (x,y if trace_position=True)
         """
+        if not self.has_sepobjects():
+            warnings.warn("No SEP object loaded. run sep_extract() to enable finetuning. Original vertices returned")
+            return self.tracematch.copy()
+        
         _cannot_finetune = False
         try:
             x, y, b = self.sepobjects.get(["x","y","b"], self.traceindex_to_sepindex(traceindex)).T
@@ -412,7 +414,6 @@ class CCD( BaseCCD ):
             var  = v[mask]
         
         if get_spectrum:
-            from pyifu.spectroscopy import Spectrum
             spec = Spectrum(None)
             spec.create(flux,variance=var,lbda=lbda)
             return spec
@@ -636,6 +637,29 @@ class CCD( BaseCCD ):
         fig.figout(savefile=savefile, show=show)
         return pl
 
+    def show_xslice(self, xpixel, toshow="data", savefile=None, ax=None, show=True,
+                        ls="-", color=None, lw=1,
+                        show_tracebounds=True, 
+                        bandalpha=0.5, bandfacecolor="0.7", bandedgecolor="None",bandedgewidth=0,
+                        **kwargs):
+        """ """
+        from .utils.mpl import figout
+        
+        if ax is None:
+            fig = mpl.figure(figsize=[9,5])
+            ax  = fig.add_subplot(111)
+        else:
+            fig = ax.figure
+            
+        # This plot
+        ax.plot( eval("self.%s.T[xpixel]"%toshow), ls=ls, color=color, lw=lw,**kwargs)
+        if show_tracebounds:
+            [ax.axvspan(*y_, alpha=bandalpha, facecolor=bandfacecolor,
+                            edgecolor=bandedgecolor,linewidth=bandedgewidth)
+                 for y_ in self.tracematch.get_traces_crossing_x_ybounds(xpixel)]
+            
+        fig.figout(savefile=savefile, show=show)
+    
     def display_traces(self, ax, traceindex, facecolors="None", edgecolors="k",
                              update_limits=True):
         """ """
@@ -651,8 +675,6 @@ class CCD( BaseCCD ):
             ax.set_ylim(ymin-5, ymax+5)
             
         return pl
-
-
     
     # ================== #
     #  Internal Tools    #
@@ -708,7 +730,7 @@ class CCD( BaseCCD ):
     
     def has_matchedindex(self):
         """ Is the sep<-> trace index matching done? """
-        return self.matchedindex is not None
+        return self.matchedindex is not None and len(self.matchedindex.keys())>0
 
     # - Generic properties
     @property
@@ -836,3 +858,114 @@ class DomeCCD( ScienceCCD ):
         return self._sepbackground.globalrms*2
 
     
+# ============================== #
+#                                #
+#  Main CCD Object               #
+#  Tracing <-> CCD <-> Cube      #
+#                                #
+# ============================== #
+class CCDSlice( Spectrum ):
+    """ Flux per Pixel Spectrum based on CCD Slicing"""
+    PROPERTIES = ["tracebounds"]
+    DERIVED_PROPERTIES = ["tracemasks", "contmodel"]
+
+    def fit_continuum(self, degree=5, legendre=True):
+        """ """
+        from modefit import get_polyfit
+        self._derived_properties["contmodel"] = \
+          get_polyfit(self.lbda[self.tracemaskout], self.data[self.tracemaskout],
+                           np.sqrt(self.variance[self.tracemaskout]), degree, legendre=legendre)
+        
+        self.contmodel.fit(a0_guess=np.nanmedian(self.data[self.tracemaskout]))
+        
+        
+
+    def show_continuum(self, ax=None, savefile=None, show=True, show_model=True):
+        """ """
+        from .utils.mpl  import figout
+        from pyifu.tools import specplot
+
+        if ax is None:
+            fig = mpl.figure(figsize=[8,4])
+            ax  = fig.add_subplot(111)
+            ax.set_xlabel(r"$\mathrm{x\ [ccd]}$",fontsize = "large")
+            ax.set_ylabel(r"$\mathrm{y\ [ccd]}$",fontsize = "large")
+        else:
+            fig = ax.figure
+
+        ax.specplot(self.lbda, self.data, var=self.variance, color="0.7")
+        dataout = self.data.copy()
+        dataout[~self.tracemaskout] = np.NaN
+        ax.specplot(self.lbda, dataout, var=None, color="C1")
+
+        if show_model and self.contmodel is not None:
+            ax.plot(self.lbda[self.tracemaskout], self.contmodel.model.get_model(),
+                        color="C0", zorder=6)
+            
+        fig.figout(savefile=savefile, show=show)
+
+    def get_fit_contrains(self, fixed_pos=True,
+                              sigma_guess=1.5,
+                              pos_bounds=[1,1], sigma_bounds=[1.2,1.8], **kwargs):
+        """ """
+        expected_lines = self.get_expected_lines()
+        
+        fitprop = {}
+        for i in range(self.ntraces):
+            fitprop["mu%d_guess"%i]         = expected_lines[i]
+            fitprop["mu%d_fixed"%i]         = fixed_pos
+            fitprop["mu%d_boundaries"%i]    = [expected_lines[i]-pos_bounds[0],expected_lines[i]+pos_bounds[0]]
+            fitprop["sig%d_guess"%i]        = sigma_guess
+            fitprop["sig%d_fixed"%i]        = self.data[int(expected_lines[i])]*sigma_guess*2.5 < 200
+            fitprop["sig%d_boundaries"%i]   = sigma_bounds
+            fitprop["ampl%d_guess"%i]       = np.max([0,self.data[int(expected_lines[i])]*sigma_guess*2.5])
+            fitprop["ampl%d_fixed"%i]       = False
+            fitprop["ampl%d_boundaries"%i]  = [0,fitprop["ampl%d_guess"%i]*2 if fitprop["ampl%d_guess"%i] > 0 else 1e-4]
+            
+        return fitprop
+    
+    def get_expected_lines(self):
+        """ """
+        return np.mean(self.tracebounds, axis=1)
+    
+    # =================== #
+    #   Properties        #
+    # =================== #
+    @property
+    def tracebounds(self):
+        """ boundaries of each traces overlapping with the selected ccd-slice """
+        return self._properties["tracebounds"]
+    
+    def set_tracebounds(self, tracebounds):
+        """ attach to this spectrum boundaries of each traces overlapping with the selected ccd-slice """
+        self._properties["tracebounds"] = np.asarray(tracebounds, dtype="float")
+        self._derived_properties["tracemasks"] = [(b[0]<self.lbda) * (self.lbda<b[1]) for b in tracebounds]
+
+    @property
+    def ntraces(self):
+        """ number of traces the Slice is overlapping """
+        return len(self.tracebounds)
+    
+    @property
+    def tracemasks(self):
+        """ boolean arrays indicating pixels overlaping spaxel traces """
+        return self._derived_properties["tracemasks"]
+    
+    @property
+    def tracemaskout(self):
+        """ Boolean array been True for pixels not within any trace """
+        return ~np.asarray(np.sum(self.tracemasks, axis=0), dtype="bool")
+
+    # Model
+    @property
+    def contmodel(self):
+        """ Continuum model measured when running fit_continuum """
+        return self._derived_properties["contmodel"]
+        
+
+    
+# ============================ #
+#
+# Models                       #
+#
+# ============================ #

@@ -200,7 +200,7 @@ def get_boxing_polygone(x, y, rangex, width,
     if get_vertices:
         return vertices
     
-    return  geometry.polygon.Polygon(vertices)
+    return  geometry.Polygon(vertices)
 
 
 #####################################
@@ -217,7 +217,8 @@ class TraceMatch( BaseObject ):
     """
     PROPERTIES         = ["trace_vertices","subpixelization"]
     SIDE_PROPERTIES    = ["trace_masks"]
-    DERIVED_PROPERTIES = ["tracecolor", "facecolor","maskimage","rmap","gmap","bmap"]
+    DERIVED_PROPERTIES = ["tracecolor", "facecolor","maskimage","rmap","gmap","bmap",
+                              "trace_polygons"]
 
 
     # ===================== #
@@ -291,7 +292,10 @@ class TraceMatch( BaseObject ):
             self._properties["trace_vertices"] = {i:np.asarray(v) for i,v in zip(traceindexes, vertices)}
         else:
             self._properties["trace_vertices"] = vertices
-        
+            
+        if _HAS_SHAPELY:
+            self._derived_properties["trace_polygons"] = {i:geometry.Polygon(self.trace_vertices[i]) for i in self.trace_indexes}
+            
         if build_masking:
             self.build_tracemasking(**kwargs)
 
@@ -305,10 +309,62 @@ class TraceMatch( BaseObject ):
                 self.trace_masks[i] = v
         else:
             self.trace_masks[traceindexes] = masks
-        
+
     # --------- #
     #  GETTER   #
     # --------- #
+
+    # Trace crossing 
+    def get_traces_crossing_x(self, xpixel, ymin=-1, ymax=1e5):
+        """ traceindexes of the traces crossing the 'xpixel' vertical line
+        
+        Returns
+        -------
+        list of indexes
+        """
+        return self.get_traces_crossing_line([xpixel,ymin],[xpixel,ymax])
+
+    def get_traces_crossing_x_ybounds(self, xpixel, ymin=-1, ymax=1e5):
+        """ traceindexes of the traces crossing the 'xpixel' vertical line
+        
+        Returns
+        -------
+        list of indexes
+        """
+        line = geometry.LineString([[xpixel,ymin],[xpixel,ymax]])
+        mpoly = geometry.MultiPolygon([self.trace_polygons[i_]
+                            for i_ in self.get_traces_crossing_x(xpixel, ymin=ymin, ymax=ymax) ])
+        
+        return np.asarray([m.intersection(line).xy[1]for m in mpoly])
+            
+        
+    def get_traces_crossing_y(self, ypixel, xmin=-1, xmax=1e5):
+        """ traceindexes of the traces crossing the 'ypixel' horizonthal line
+        
+        Returns
+        -------
+        list of indexes
+        """
+        return self.get_traces_crossing_line([xmin,ypixel],[xmax,ypixel])
+        
+    def get_traces_crossing_line(self, pointa, pointb):
+        """ traceindexes of traces crossing the vertival line formed by the [a,b] vector 
+        Parameters
+        ----------
+        pointa, pointb: [xcoord, ycoord]
+            coordinates of the 2 points defining the line
+
+        Returns
+        -------
+        list of indexes
+        """
+        line = geometry.LineString([pointa,pointb])
+        return [idx for idx in self.trace_indexes if self.trace_polygons[idx].crosses(line)]
+
+
+
+        
+    # Boundaries
     def get_trace_xbounds(self, traceindex):
         """ get the extremal x-ccd coordinates covered by the trace """
         return np.asarray(np.round(np.percentile(np.asarray(self.trace_vertices[traceindex]).T[0], [0,100])), dtype="int")
@@ -510,9 +566,8 @@ class TraceMatch( BaseObject ):
         list of trace indexes
         """
         if _HAS_SHAPELY:
-            from shapely.geometry import Polygon
-            globalpoly = Polygon(polyverts)
-            return [idx_ for idx_ in self.trace_indexes if globalpoly.contains(Polygon(self.trace_vertices[idx_]))]
+            globalpoly = geometry.Polygon(polyverts)
+            return [idx_ for idx_ in self.trace_indexes if globalpoly.contains(geometry.Polygon(self.trace_vertices[idx_]))]
         else:
             from matplotlib import patches
             globalpoly = patches.Polygon(polyverts)
@@ -628,7 +683,13 @@ class TraceMatch( BaseObject ):
     def ntraces(self):
         """ Number of traces loaded """
         return len(self.trace_indexes)
-    
+
+    @property
+    def trace_polygons(self):
+        """ Shapely polygon of the traces based on their vertices"""
+        if not _HAS_SHAPELY:
+            raise ImportError("You do not have shapely. this porpoerty needs it. pip install Shapely")
+        return self._derived_properties["trace_polygons"]
     # ------------ #
     #  Masks       #
     # ------------ #

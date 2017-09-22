@@ -17,7 +17,7 @@ CUBE_PROD_ROOTS = {"cube":{"root":"e3d",
     
 def get_datapath(YYYYMMDD):
     """ Return the full path of the current date """
-    return REDUXPATH+"%s/"%YYYYMMDD
+    return REDUXPATH+"/%s/"%YYYYMMDD
 
 def get_night_ccdfiles(YYYYMMDD, skip_calib=False, starts_with="crr_b_", contains="*"):
     """ Return the ccdfile associated to the given night (ccr_b_....fits)

@@ -93,7 +93,7 @@ def get_tracematcher(domefile, build_masking=False, width=None, **kwargs):
     
     return smap
     
-def polygon_mask(vertices, width=2047, height=2047,
+def polygon_mask(vertices, width=2048, height=2048,
                  facecolor=None, edgecolor=EDGES_COLOR,
                  get_fullcolor=False):
     """ """
@@ -479,7 +479,7 @@ class TraceMatch( BaseObject ):
         final_mask = mask if self.subpixelization == 1 else \
               measure.block_reduce(mask, (self.subpixelization, self.subpixelization) )/float(self.subpixelization**2)
               
-    def _get_shapely_trace_mask_(self, traceindex, width=2047, height=2047):
+    def _get_shapely_trace_mask_(self, traceindex, width=2048, height=2048):
         """ Based on Shapely, measure the intersection area between traces and pixels.
         = Takes about 1s =
         """
@@ -607,7 +607,7 @@ class TraceMatch( BaseObject ):
     # ------------ #
     #  Methods     #
     # ------------ #
-    def build_tracemasking(self, subpixelization=1, width=2047, height=2047):
+    def build_tracemasking(self, subpixelization=1, width=2048, height=2048):
         """ 
         This will build the internal tools to identify the connections between
         traceindex and ccd-pixels

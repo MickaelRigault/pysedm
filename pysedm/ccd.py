@@ -249,7 +249,7 @@ class CCD( BaseCCD ):
             x,y,b = [],[],[]
         
         if len(x) < polydegree:
-            warnings.warn("less sep-points than plynom degree. Degree reduced ")
+            warnings.warn("less sep-points than polynom degree. Degree reduced ")
             polydegree = len(x)-1
             
         if polydegree <=0:

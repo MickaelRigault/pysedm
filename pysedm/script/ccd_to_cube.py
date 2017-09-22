@@ -131,7 +131,7 @@ def build_hexagonalgrid(date, xybounds=None):
 #  Wavelength Solution     #
 #                          #
 ############################
-def build_wavesolution(date, verbose=False, ntest=None,
+def build_wavesolution(date, verbose=False, ntest=None, use_fine_tuned_traces=False,
                        lamps=["Hg","Cd","Xe"], savefig=True,
                        xybounds=None):
     """ Create the wavelength solution for the given night.
@@ -162,7 +162,7 @@ def build_wavesolution(date, verbose=False, ntest=None,
     smap = load_nightly_tracematch(date)
         
     # - lamps 
-    lamps = [get_ccd(timedir+"%s.fits"%s_, tracematch= get_file_tracematch(date, s_) )
+    lamps = [get_ccd(timedir+"%s.fits"%s_, tracematch= get_file_tracematch(date, s_) if use_fine_tuned_traces else smap)
                  for s_ in lamps ]
     if verbose: print "Cd, Hg and Xe lamp loaded"
     # - The CubeSolution
@@ -197,12 +197,13 @@ def build_wavesolution(date, verbose=False, ntest=None,
 #  Build Cubes             #
 #                          #
 ############################
-def build_night_cubes(date, finetune_trace=False,
+def build_night_cubes(date, use_fine_tuned_traces=False,
                       lbda_min=3700, lbda_max=9200, lbda_npix=260,
-                      only_calib=False, no_calib=False,
+                      only_calib=False, no_calib=False, no_bkgd_sub=False,
                       contains=None,test=None):
     """ """
     from .. import io
+    
     # - The Files
     timedir  = get_datapath(date)
     calibkeys = ["Hg.fits","Cd.fits","Xe.fits","dome.fits"]
@@ -217,25 +218,32 @@ def build_night_cubes(date, finetune_trace=False,
         fileccds = calib_files
         
     # - The tools to build the cubes
-
+    smap     = io.load_nightly_tracematch(date)
     hgrid    = io.load_nightly_hexagonalgrid(date)
     wcol     = io.load_nightly_wavesolution(date)
     lbda     = np.linspace(lbda_min,lbda_max,lbda_npix)
     root     = io.CUBE_PROD_ROOTS["cube"]["root"]
 
     def build_cube(ccdfile):
-        if np.any([calibkey_ in ccdfile for calibkey_ in calibkeys]):
-            ccd_    = get_ccd(ccdfile, tracematch= io.get_file_tracematch(date, ccdfile.split("/")[-1].split(".")[0]))
-        else:
-            ccd_    = get_ccd(ccdfile, tracematch= io.get_file_tracematch(date, ccdfile.split(date)[-1].split(".")[0]))
+        tmatch = smap if not use_fine_tuned_traces else \
+          io.get_file_tracematch(date, ccdfile.split("/")[-1].split(".")[0]) \
+          if np.any([calibkey_ in ccdfile for calibkey_ in calibkeys]) else\
+          io.get_file_tracematch(date, ccdfile.split(date)[-1].split(".")[0])
+          
+        ccd_    = get_ccd(ccdfile, tracematch = tmatch, background = 0 if no_bkgd_sub else None)
+        if not ccd_.has_var():
+            ccd_._properties["var"] = np.sqrt(ccd_.rawdata)
             
         indexes = ccd_.tracematch.get_traces_within_polygon(INDEX_CCD_CONTOURS)
-        cube_  = ccd_.extract_cube(wcol, lbda, hexagrid=hgrid, show_progress=True)
+        cube_   = ccd_.extract_cube(wcol, lbda, hexagrid=hgrid, show_progress=True)
         if np.any([calibkey_ in ccdfile for calibkey_ in calibkeys]):
             filout = "%s"%(ccdfile.split("/")[-1].split(".fits")[0])
         else:
             filout = "%s_%s"%(ccdfile.split("/")[-1].split(".fits")[0], ccd_.objname)
-        cube_.writeto(timedir+"%s_%s.fits"%(root,filout))
+        if not no_bkgd_sub:
+            cube_.writeto(timedir+"%s_%s.fits"%(root,filout))
+        else:
+            cube_.writeto(timedir+"%s_nobkgdsub_%s.fits"%(root,filout))
 
     from astropy.utils.console import ProgressBar
     ProgressBar.map(build_cube, [fileccds[test]] if test is not None else fileccds)

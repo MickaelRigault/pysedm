@@ -176,7 +176,7 @@ class WaveSolution( BaseObject ):
         # 0.01s
         wsol_.fit_wavelengthsolution(wavedegree, legendre=False)
         self.wavesolutions[traceindex] = wsol_.data
-        
+        self._wsol = wsol_
         if saveplot is not None or show:
             wsol_.show(traceindex=traceindex, xrange=[3600,9500], savefile=saveplot, **plotprop)
 
@@ -425,11 +425,44 @@ class VirtualArcSpectrum( BaseObject ):
     #  FITTER   #
     # --------- #
     def fit_wavelengthsolution(self, wavesolution_degree=3, legendre=False,**kwargs):
-        """ """
+        """ fit the 'pixel<->wavelength' solution 
+        
+        Parameters
+        ----------
+        wavesolution_degree: [degree] -optional-
+            degree of the polynom used to fit the 'pixel<->wavelength' solution
+
+        legendre: [bool] -optional-
+            should the fitted polynom be based on Legendre polynoms?
+
+        **kwargs goes to fit_lineposition()
+            
+            contdegree: [int] -optional-
+                Degree of the (Legendre) polynom used as continuum
+
+            line_shift: [float] -optional-
+                Force the expected line pixel shift used as first guesses. 
+                If not provided an internal procedure based on expected and observed 
+                brightest emission position will be used. 
+                (see `get_line_shift()`)
+        
+            exclude_reddest_part: [bool] -optional-
+                If True, wavelengths that are more than *red_buffer* [wave units] redder
+                than the reddest 'usedline' will be excluded from the fit.
+                If activated, this option raises a warning.
+
+            red_buffer: [float] -optional-
+                How much redder than the reddest emission line should the fit conserve.
+                This is ignored if *exclude_reddest_part* is False
+
+        Returns
+        -------
+        Void
+        """
         from modefit import get_polyfit
         
         if not self.has_linefitter():
-            self.setup_linefitter(**kwargs)
+            self.fit_lineposition(**kwargs)
             
         mus, emus = self._linefit_to_mus_()
         self._derived_properties["solutionfitter"] = get_polyfit( self.usedlines, mus, emus, wavesolution_degree,
@@ -462,9 +495,9 @@ class VirtualArcSpectrum( BaseObject ):
             Degree of the (Legendre) polynom used as continuum
 
         line_shift: [float] -optional-
-            Force the expected shift of the lines that are used as first guesses 
-            for the fit. If not provided, an internal automatic procedure based
-            of the expected and observed brightest emission position is used.
+            Force the expected line pixel shift used as first guesses. 
+            If not provided an internal procedure based on expected and observed 
+            brightest emission position will be used. 
             (see `get_line_shift()`)
         
         exclude_reddest_part: [bool] -optional-
@@ -489,6 +522,7 @@ class VirtualArcSpectrum( BaseObject ):
         guesses = {}
         if line_shift is None:
             lines_shift = self.get_line_shift()
+            
         for i,l in enumerate(self.usedlines):
             guesses["ampl%d_guess"%i]      = self.arclines[l]["ampl"]
             guesses["mu%d_guess"%i]        = self.arclines[l]["mu"]+lines_shift
@@ -510,8 +544,10 @@ class VirtualArcSpectrum( BaseObject ):
 
         # Setup the linefitter (3ms)
         norm = np.nanmean(self.flux[flagin])
+        waves = self.wave[flagin].copy()
+
         self._derived_properties["linefitter"] = \
-          get_normpolyfit(self.wave[flagin],self.flux[flagin]/norm,
+          get_normpolyfit(waves,self.flux[flagin]/norm,
                               self.errors[flagin]/norm if self.has_errors() else
                               np.nanstd(self.flux[flagin])/norm/5.,
                               contdegree, ngauss=len(self.usedlines), legendre=True)

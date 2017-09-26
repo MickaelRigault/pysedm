@@ -200,6 +200,25 @@ class CCD( BaseCCD ):
             
         return self.matchedindex[traceindex]
 
+    
+    def set_default_variance(self, force_it=False):
+        """ define a default variance using the following formula:
+        
+        rawdata + ( median(data) - percentile(data, 16) )**2,
+        
+        it supposed to account for poisson noise + potential additional variance. 
+        This is a really poor's man tools...
+        
+        Returns
+        -------
+        Void
+        """
+        if self.has_var() and not force_it:
+            raise AttributeError("Cannot reset the variance. Set force_it to True to allow overwritting of the variance.")
+        delta_sigma = np.percentile(self.data, [16,50])
+        
+        self._properties['var'] = self.rawdata+(delta_sigma[1]-delta_sigma[0])**2
+        
             
     def get_finetuned_trace(self, traceindex, polydegree=2,
                             width=None, trace_position=False, **kwargs):
@@ -352,6 +371,30 @@ class CCD( BaseCCD ):
 
         maskidx  = self.get_trace_mask(traceindex, finetune=finetune)
         return np.sum(eval("self.%s"%on)*maskidx, axis=0)
+
+    def get_xslice(self, i):
+        """ build a `CCDSlice` based on the ith-column.
+
+        Returns
+        -------
+        CCDSlice (child of Spectrum)
+        """
+        if not self.has_var():
+            warnings.warn("Setting the default variance for 'get_xslice' ")
+            self.set_default_variance()
+            
+        slice_ = CCDSlice(None)
+        slice_.create(self.data.T[i], variance = self.var.T[i],
+                    lbda = np.arange(len(self.data.T[i])), logwave=False)
+        
+        slice_.set_tracebounds(self.tracematch.get_traces_crossing_x_ybounds(i))
+        
+        return slice_
+
+    def fit_background(self, jump=30, multiprocess=True):
+        """ """
+        from .background import fit_background
+        return fit_background(self, jump=jump, multiprocess=multiprocess)
 
     def extract_spectrum(self, traceindex, cubesolution, lbda=None, kind="cubic",
                              get_spectrum=True, finetune=False):
@@ -828,9 +871,7 @@ class DomeCCD( ScienceCCD ):
         return np.asarray([[left_lim[0],left_lim[0],right_lim[0],right_lim[0]],
                                [left_lim[1]-height,left_lim[1]+height,right_lim[1]+height,right_lim[1]-height]]).T
 
-    
-
-
+            
     # ================== #
     #   Internal         #
     # ================== #
@@ -965,7 +1006,7 @@ class CCDSlice( Spectrum ):
 
     
 # ============================ #
-#
-# Models                       #
-#
+#                              #
+#    Background                #
+#                              #
 # ============================ #

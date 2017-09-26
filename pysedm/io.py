@@ -19,6 +19,15 @@ def get_datapath(YYYYMMDD):
     """ Return the full path of the current date """
     return REDUXPATH+"/%s/"%YYYYMMDD
 
+def get_night_schedule(YYYYMMDD):
+    """ Return the list of observations (the what.list) """
+    from glob import glob
+    schedule_file = glob(get_datapath(YYYYMMDD)+"what*")
+    if len(schedule_file)==0:
+        warnings.warn("No 'what list' for the given night ")
+        return None
+    return open(schedule_file[0]).read().splitlines()
+
 def get_night_ccdfiles(YYYYMMDD, skip_calib=False, starts_with="crr_b_", contains="*"):
     """ Return the ccdfile associated to the given night (ccr_b_....fits)
 
@@ -95,13 +104,6 @@ def load_nightly_tracematch(YYYYMMDD):
     """
     from .spectralmatching import load_tracematcher
     return load_tracematcher(get_datapath(YYYYMMDD)+"%s_TraceMatch.pkl"%(YYYYMMDD))
-
-def load_nightly_spectralmatch(YYYYMMDD):
-    """ Load the spectral matcher.
-    This object must have been created. 
-    """
-    from .spectralmatching import load_specmatcher
-    return load_specmatcher(get_datapath(YYYYMMDD)+"%s_SpectralMatch.pkl"%(YYYYMMDD))
 
 def load_nightly_hexagonalgrid(YYYYMMDD):
     """ Load the Grid id <-> QR<->XY position

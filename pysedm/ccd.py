@@ -372,30 +372,46 @@ class CCD( BaseCCD ):
         maskidx  = self.get_trace_mask(traceindex, finetune=finetune)
         return np.sum(eval("self.%s"%on)*maskidx, axis=0)
 
-    def get_xslice(self, i):
+    def get_xslice(self, i, on="data"):
         """ build a `CCDSlice` based on the ith-column.
 
         Returns
         -------
         CCDSlice (child of Spectrum)
         """
-        if not self.has_var():
+        
+            
+        slice_ = CCDSlice(None)
+        if "data" in on and not self.has_var():
             warnings.warn("Setting the default variance for 'get_xslice' ")
             self.set_default_variance()
             
-        slice_ = CCDSlice(None)
-        slice_.create(self.data.T[i], variance = self.var.T[i],
+        var = self.var.T[i] if 'data' in on else np.ones(np.shape("self.%s"%on))*np.nanstd("self.%s"%on)
+           
+        slice_.create(eval("self.%s.T[i]"%on), variance = var,
                     lbda = np.arange(len(self.data.T[i])), logwave=False)
         
         slice_.set_tracebounds(self.tracematch.get_traces_crossing_x_ybounds(i))
         
         return slice_
 
-    def fit_background(self, jump=30, multiprocess=True):
+    def fit_background(self, start=2, jump=10, multiprocess=True, set_it=True, smoothing=[0,2], **kwargs):
         """ """
-        from .background import fit_background
-        return fit_background(self, jump=jump, multiprocess=multiprocess)
+        from .background import get_background, fit_background 
+        self._background = get_background( fit_background(self, start=start, jump=jump, multiprocess=multiprocess, **kwargs),
+                                               smoothing=smoothing )
+        if set_it:
+            self.set_background(self._background.background, force_it=True)
 
+
+    def fetch_background(self, set_it=True):
+        """ """
+        from .background import load_background
+        from .io import filename_to_background_name
+        self._background = load_background( filename_to_background_name(self.filename) )
+        if set_it:
+            self.set_background( self._background.background, force_it=True)
+            
     def extract_spectrum(self, traceindex, cubesolution, lbda=None, kind="cubic",
                              get_spectrum=True, finetune=False):
         """ Build the `traceindex` spectrum based on the given wavelength solution.
@@ -908,17 +924,35 @@ class DomeCCD( ScienceCCD ):
 class CCDSlice( Spectrum ):
     """ Flux per Pixel Spectrum based on CCD Slicing"""
     PROPERTIES = ["tracebounds"]
-    DERIVED_PROPERTIES = ["tracemasks", "contmodel"]
+    DERIVED_PROPERTIES = ["tracemasks", "contmodel", "flagin"]
 
-    def fit_continuum(self, degree=5, legendre=True):
+    def fit_continuum(self, degree=5, legendre=True, clipping=[5,5],
+                          ngauss=0):
         """ """
-        from modefit import get_polyfit
-        self._derived_properties["contmodel"] = \
-          get_polyfit(self.lbda[self.tracemaskout], self.data[self.tracemaskout],
-                           np.sqrt(self.variance[self.tracemaskout]), degree, legendre=legendre)
+        from modefit import get_polyfit, get_normpolyfit
+        y = self.data[self.tracemaskout]
         
-        self.contmodel.fit(a0_guess=np.nanmedian(self.data[self.tracemaskout]))
+        self._derived_properties["flagin"] = ((np.nanmean(y) - clipping[0] * np.nanstd(y)) < y) *  (y< (np.nanmean(y) + clipping[1] * np.nanstd(y)))
+
+        guesses = dict(a0_guess=np.nanmedian(self.data[self.tracemaskout][self.flagin]))
+        if ngauss > 0:
+            self._derived_properties["contmodel"] = \
+              get_normpolyfit(self.lbda[self.tracemaskout][self.flagin], self.data[self.tracemaskout][self.flagin],
+                            np.sqrt(self.variance[self.tracemaskout][self.flagin]), degree, ngauss=ngauss, legendre=legendre)
+            for ni in range(ngauss):
+                guesses['mu%d_guess'%ni]       = np.argmax(self.data)
+                guesses['mu%d_boundaries'%ni]  = [0, len(self.data)]
+                guesses['sig%d_guess'%ni]      = 150
+                guesses['sig%d_boundaries'%ni] = [100,200]
+                guesses['ampl%d_guess'%ni]     = np.nanmax(self.data)
+                guesses['ampl%d_boundaries'%ni]= [0,None]
+        else:
+            self._derived_properties["contmodel"] = \
+              get_polyfit(self.lbda[self.tracemaskout][self.flagin], self.data[self.tracemaskout][self.flagin],
+                           np.sqrt(self.variance[self.tracemaskout][self.flagin]), degree, legendre=legendre)
         
+        self.contmodel.use_minuit = True
+        self.contmodel.fit(**guesses)
         
 
     def show_continuum(self, ax=None, savefile=None, show=True, show_model=True):
@@ -940,7 +974,7 @@ class CCDSlice( Spectrum ):
         ax.specplot(self.lbda, dataout, var=None, color="C1")
 
         if show_model and self.contmodel is not None:
-            ax.plot(self.lbda[self.tracemaskout], self.contmodel.model.get_model(),
+            ax.plot(self.lbda[self.tracemaskout][self.flagin], self.contmodel.model.get_model(),
                         color="C0", zorder=6)
             
         fig.figout(savefile=savefile, show=show)
@@ -997,6 +1031,11 @@ class CCDSlice( Spectrum ):
         """ Boolean array been True for pixels not within any trace """
         return ~np.asarray(np.sum(self.tracemasks, axis=0), dtype="bool")
 
+    @property
+    def flagin(self):
+        """ boolean array indicating the data point used for the fit. """
+        return self._derived_properties["flagin"]
+    
     # Model
     @property
     def contmodel(self):

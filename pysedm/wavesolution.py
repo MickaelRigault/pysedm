@@ -8,9 +8,11 @@ import numpy as np
 import matplotlib.pyplot as mpl
 from scipy         import optimize
 
+from pynverse import inversefunc
 # - External Modules
 from propobject              import BaseObject
 from astrobject.spectroscopy import BaseSpectrum
+
 # - Internal Modules
 from .ccd import CCD
 
@@ -95,6 +97,10 @@ def get_arccollection(traceindex, lamps):
     sol_.set_databounds(*np.sort(len(spec_) - lamp.tracematch.get_trace_xbounds(traceindex)))
     return sol_
 
+
+
+
+    
 ###########################
 #                         #
 #  WaveSolution           #
@@ -193,6 +199,15 @@ class WaveSolution( BaseObject ):
             
         return self._solution[traceindex]
 
+    def _load_full_solutions_(self):
+        """ """
+        for traceindex in self.wavesolutions.keys():
+            if traceindex not in self._solution:
+                self._solution[traceindex] = SpaxelWaveSolution(wavesolutions[traceindex]["wavesolution"])
+                
+            self._solution[traceindex].load_pixel_to_lbda_solution()
+            
+    
     def pixels_to_lbda(self, pixel, traceindex):
         """ Pick the requested spaxel and get the wavelength [in angstrom] that goes with the given pixel """
         return self.get_spaxel_wavesolution(traceindex).pixels_to_lbda(pixel)
@@ -340,6 +355,10 @@ class SpaxelWaveSolution( BaseObject ):
         """
         return self._properties["wavesolution"]
 
+    def load_pixel_to_lbda_solution(self):
+        """ """
+        self._properties["inverse_wavesolution"] = inversefunc(self.lbda_to_pixels)
+            
     @property
     def pixels_to_lbda(self):
         """ Convert Pixels to Lambda 
@@ -350,23 +369,7 @@ class SpaxelWaveSolution( BaseObject ):
         corresponding to the 1880th pixel
         """
         if self._properties["inverse_wavesolution"] is None:
-            if not self.has_wavesolution():
-                return None
-            try:
-                from pynverse import inversefunc
-                _HASpynverse = True
-            except ImportError:
-                warnings.warn("You do not have pynverse. Install it to fasten the pixels_to_lbda conversion (pip install pynverse")
-                _HASpynverse = False
-                
-            if _HASpynverse:
-                self._properties["inverse_wavesolution"] = inversefunc(self.lbda_to_pixels)
-            else:
-                def get_root(f):
-                    def _min_(p_):
-                        return (r(p_)-f)**2
-                    return optimize.fmin(_min_,f, disp=False)
-                self._properties["inverse_wavesolution"] = get_root
+            self.load_pixel_to_lbda_solution()
 
         return self._properties["inverse_wavesolution"]
 

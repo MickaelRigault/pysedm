@@ -4,6 +4,9 @@
 """ Module to I/O the data """
 
 import os
+import warnings
+import numpy as np
+from astropy.io import fits as pf
 
 REDUXPATH   = os.getenv('SEDMREDUXPATH',default="~/redux/")
 
@@ -18,6 +21,13 @@ CUBE_PROD_ROOTS = {"cube":{"root":"e3d",
 def get_datapath(YYYYMMDD):
     """ Return the full path of the current date """
     return REDUXPATH+"/%s/"%YYYYMMDD
+
+
+def filename_to_background_name(filename):
+    """ predefined structure for background naming """
+    last = filename.split("/")[-1]
+    return "".join([filename.split(last)[0],"bkgd_"+last])
+
 
 def get_night_schedule(YYYYMMDD):
     """ Return the list of observations (the what.list) """
@@ -48,7 +58,6 @@ def get_night_ccdfiles(YYYYMMDD, skip_calib=False, starts_with="crr_b_", contain
     list of fullpathes
     """
     from glob import glob
-    from astropy.io import fits as pf
     
     timedir = get_datapath(YYYYMMDD)
     basefile = timedir+"%s*%s*.fits*"%(starts_with,contains)
@@ -95,15 +104,52 @@ def get_file_tracematch(YYYYMMDD, contains):
 
 #########################
 #                       #
+#   File Information    #
+#                       #
+#########################
+def is_file_stdstars(filename):
+    """ Tests if the 'OBJECT' entry of the file header is associated with a Standard star exposure. (True / False)
+    None is returned if the header do not contain an 'OBJECT' entry 
+    (see `is_stdstars`)
+    Returns
+    -------
+    bool or None
+    """
+    return is_stdstars(pf.getheader(filename))
+
+def is_stdstars(header):
+    """ Tests if the 'OBJECT' of the given header is associated with a Standard star exposure. (True / False)
+    None is returned if the header do not contain an 'OBJECT' entry 
+
+    Returns
+    -------
+    bool or None
+    """
+    obj = header.get("OBJECT",None)
+    if obj is None:
+        return None
+
+    stdnames = ["STD","Feige", "Hitlner", "LTT"]
+    return np.any([s_ in obj for s_ in stdnames])
+
+#########################
+#                       #
 #   NIGHT SOLUTION      #
 #                       #
 #########################
-def load_nightly_tracematch(YYYYMMDD):
+def load_nightly_tracematch(YYYYMMDD, withmask=False):
     """ Load the spectral matcher.
     This object must have been created. 
     """
     from .spectralmatching import load_tracematcher
-    return load_tracematcher(get_datapath(YYYYMMDD)+"%s_TraceMatch.pkl"%(YYYYMMDD))
+    if not withmask:
+        return load_tracematcher(get_datapath(YYYYMMDD)+"%s_TraceMatch.pkl"%(YYYYMMDD))
+    else:
+        try:
+            return load_tracematcher(get_datapath(YYYYMMDD)+"%s_TraceMatch_WithMasks.pkl"%(YYYYMMDD))
+        except:
+            warnings.warn("No TraceMatch_WithMasks found. returns the usual TraceMatch")
+            return load_nightly_tracematch(YYYYMMDD, withmask=False)
 
 def load_nightly_hexagonalgrid(YYYYMMDD):
     """ Load the Grid id <-> QR<->XY position

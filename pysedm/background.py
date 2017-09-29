@@ -2,25 +2,56 @@
 # -*- coding: utf-8 -*-
 
 """  """
-
+import warnings
 import numpy as np
 import matplotlib.pyplot as mpl
 
+from astropy.io import fits as pf
 from astropy.utils.console import ProgressBar
 
 
-from propobject            import BaseObject
+from propobject   import BaseObject
 from .utils.tools import kwargs_update, load_pkl, dump_pkl
-
+from .sedm        import SEDM_CCD_SIZE
 
 DEGREE = 10
 LEGENDRE = True
 
+NGAUSS = 1
+CONTDEGREE_GAUSS = 4
+LEGENDRE_GAUSS= False
+
+
+
+def get_background(contvalues, size=SEDM_CCD_SIZE, smoothing=[0,2]):
+    """ """
+    back = Background()
+    back.create(contvalues)
+    back.build(size[0],size[1], smoothing=smoothing)
+    return back
+
+def load_background(filename):
+    """ """
+    back = Background()
+    back.load(filename)
+    return back
+
+
+# ------------------- #
+#   MultiProcessing   #
+# ------------------- #
 def get_contvalue(spec):
+    """ """
     spec.fit_continuum(DEGREE, legendre=LEGENDRE)
     return spec.contmodel.fitvalues
 
-def fit_background(ccd, jump=50, multiprocess=True):
+def get_contvalue_sdt(spec):
+    """ """
+    spec.fit_continuum(CONTDEGREE_GAUSS, legendre=LEGENDRE_GAUSS, ngauss=NGAUSS)
+    return spec.contmodel.fitvalues
+
+def fit_background(ccd, start=2, jump=10, multiprocess=True,
+                       notebook=True, is_std=False):
     """ calling `get_contvalue` for each ccd column (xslice).
     This uses astropy's ProgressBar.map 
 
@@ -28,50 +59,213 @@ def fit_background(ccd, jump=50, multiprocess=True):
     -------
     dictionary 
     """
-    index_column = range(ccd.width)[::jump]
-    contval =  ProgressBar.map(get_contvalue, [ccd.get_xslice(i) for i in index_column],
-                               multiprocess=multiprocess, step=2)
-    
-    return {i:c for i,c in zip(index_column, contval)}
+    # Running from ipython notebook
+    if notebook:
+        print("RUNNING FROM NOTEBOOK")
+        try:
+            return _fit_background_notebook_(ccd, start=start, jump=jump, multiprocess=multiprocess,
+                                                 is_std=is_std)
+        except:
+            warnings.warn("FAILING fit_background for notebooks")
+            
+    # Running from ipython/python    
+    index_column = range(ccd.width)[start::jump]
 
+    contval =  ProgressBar.map(get_contvalue if not is_std else get_contvalue_sdt,
+                                   [ccd.get_xslice(i_) for i_ in index_column],
+                                    multiprocess=multiprocess, step=2)
+        
+    return {i_:c for i_,c in zip(index_column, contval)}
+
+
+def _fit_background_notebook_(ccd, start=2, jump=10, multiprocess=True,
+                                  is_std=False,
+                                  ipython_widget=True):
+    """ calling `get_contvalue` for each ccd column (xslice).
+    This uses astropy's ProgressBar.map 
+
+    ===
+    This version of the code is made to be called from fit_background
+    when this software detects that ipython is running from an notebook
+    ===
+
+    Returns 
+    -------
+    dictionary 
+    """
+    index_column = range(ccd.width)[start::jump]
+    bar = ProgressBar( len(index_column), ipython_widget=ipython_widget)
+
+    # - Multiprocessing 
+    if multiprocess:
+        import multiprocessing
+        p = multiprocessing.Pool()
+        res = {}
+        for j, result in enumerate( p.imap(get_contvalue if not is_std else get_contvalue_sdt,
+                                                         [ccd.get_xslice(i_) for i_ in index_column])):
+            res[index_column[j]] = result
+            bar.update(j)
+        bar.update(len(index_column))
+        return res
+    
+    # - No multiprocessing 
+    return {index_column[i_]: get_contvalue(spec) if not is_std else get_contvalue_sdt(spec) for i_,spec in enumerate(bar)}
+
+def _get_xaxis_polynomial_(xyv, degree=DEGREE, legendre=LEGENDRE,
+                         xmodel=None, clipping = [5,5]):
+    """ """
+    from modefit.basics import get_polyfit
+    x,y,v = xyv
+    flagin = ((np.nanmean(y) - clipping[0] * np.nanstd(y)) < y) *  (y< (np.nanmean(y) + clipping[1] * np.nanstd(y)))
+    
+    contmodel = get_polyfit(x[flagin], y[flagin], v[flagin], degree=degree, legendre=legendre)
+    contmodel.fit(a0_guess=np.nanmedian(y[flagin]))
+    
+    if xmodel is not None:
+        return contmodel.fitvalues, contmodel.model.get_model(x=xmodel)#, contmodel
+    return contmodel.fitvalues#, None, contmodel
+
+        
 class Background( BaseObject ):
     """ """
-    PROPERTIES      = ["contvalues", "y"]
-    SIDE_PROPERTIES = ['filename']
-    DERIVED_PROPERTIES = ['input_columns', "input_background"]
+    PROPERTIES      = ["contvalues" ]
+    SIDE_PROPERTIES = ['filename',"header","y"]
+    DERIVED_PROPERTIES = ['input_columns', "input_background","background"]
     
     def load(self, filename):
         """ """
-        self.create(load_pkl(filename))
-        self._side_properties['filename'] = filename
+        data_ = pf.open(filename)
+        
+        # - background
+        self._derived_properties['background'] = data_[0].data
+        self._side_properties['header'] = data_[0].header
+        # - contvalues
+        contheader = data_["POLYVALUES"].header
+        params = [int(k.replace("VALUE","")) for k,v in contheader.items() if "VALUE" in k]
+        columns = data_["COLUMNS"].data
+        convalues = {col:{contheader['VALUE%d'%i]: c_ for i,c_ in zip(params, cval_i)}
+                         for col, cval_i in zip(columns, data_["POLYVALUES"].data)}
+        self.create(convalues) 
         
     def create(self, contvalues):
         """ setup the instance based on the input 'contvalue' """
         self._properties['contvalues']    = contvalues
         self._derived_properties['input_columns'] = None
         
-    def build(self, height):
+    def build(self, width, height, smoothing= [0,2]):
         """ """
-        self._properties["y"] = np.linspace(0, 1, height)
-        self._derived_properties["input_background"] = \
-          np.asarray([self.contvalue_to_polynome(self._contvalues[i], self._y)
-                          for i in self.input_columns])
+        self._derived_properties['background'] = self.get_background(height, width, smoothing=smoothing)
+        
+    def contvalue_to_polynome(self, contvalue_):
+        """ """
+        from modefit.basics import polynomial_model, normal_and_polynomial_model
+        if "mu0" in contvalue_.keys():
+            poly = normal_and_polynomial_model( CONTDEGREE_GAUSS, NGAUSS)
+            poly.use_legendre=LEGENDRE_GAUSS
+        else:
+            poly = polynomial_model( DEGREE )
+            poly.use_legendre=LEGENDRE
+            
+        poly.setup([contvalue_[k] for k in poly.FREEPARAMETERS])
+        self._side_properties["y"] = np.linspace(0, SEDM_CCD_SIZE[1], self.n_inputcolumns*2)
+        model = poly.get_model(self._y)
+        del(poly)
+        return model
 
-    def contvalue_to_polynome(self, contvalue_, y = None):
-        """ """
-        from modefit.basics import polynomial_model
-        freeparam = np.sort([k_ for k_ in contvalue_.keys() if "a" in k_ and '.err' not in k_])
-        poly = polynomial_model( len(freeparam) )
-        poly.use_legendre=LEGENDRE
-        poly.setup([contvalue_[k] for k in freeparam])
-        return poly.get_model(y if y is not None else self._y)
 
-    def show(self):
+    def get_background(self, width, height, smoothing = [0,2]):
         """ """
-        fig = mpl.figure()
-        ax  = fig.add_subplot(111)
-        ax.imshow(self.input_background.T, origin="lower", aspect="auto")
-        fig.show()
+        from scipy import ndimage, interpolate
+        # get the blured image
+        self._filtered = ndimage.filters.gaussian_filter( self.input_background, smoothing)
+        # resample
+        orig_shape = np.shape(self.input_background)
+        x = np.linspace(0,1, orig_shape[0])
+        y = np.linspace(0,1, orig_shape[1])
+        nk = interpolate.RectBivariateSpline(x,y, self._filtered, kx=3,ky=3)
+        
+        return nk(np.linspace(0,1,width),np.linspace(0,1,height))
+
+
+    # ----------------- #
+    #   I/O and Plots   #
+    # ----------------- #
+    def writeto(self, savefile, overwrite=True, **header_kwargs):
+        """ save the background as a .fits file
+        
+        The object will be structured as follows:
+        0 PrimaryHDU: Background image 
+        1 POLYVALUES: list of values associated to the best fits of column continuum
+                      [parameter names in the header]
+        2 COLUMNS: list of the fitted columns
+        
+        Use load() to read a .fits file created by this method.
+        
+        Parameters
+        ----------
+        savefile: [string]
+            Full path of the .fits file to be created
+            
+        overwrite: [bool] -optional-
+            Shall this overwrite an existing file if any.
+
+        **header_kwargs additional information to be saved in the Primary header.
+        
+        Returns
+        -------
+        Void
+        """
+        img_shape = np.shape(self.background)
+        
+        self.header["NAXIS"] = len(img_shape)
+        self.header['NAXIS1'] = img_shape[0]
+        self.header['NAXIS2'] = img_shape[1]
+        self.header['TYPE']   = "background"
+        for k,v in header_kwargs:
+            self.header[k] = v
+            
+        # --- Build the HDU
+        hdu = [pf.PrimaryHDU(self.background, self.header)] # Background
+
+        params = np.sort(self._contvalues.values()[0].keys())
+        header_POLY = pf.Header()
+        for i, p in enumerate(params): 
+            header_POLY['VALUE%s'%i] = p
+            
+        hdu.append(pf.ImageHDU( [[self._contvalues[i][p] for p in params] for i in self.input_columns], name='POLYVALUES', header=header_POLY))
+        hdu.append(pf.ImageHDU(self.input_columns, name='COLUMNS'))
+        
+        hdulist = pf.HDUList(hdu)
+        hdulist.writeto(savefile, overwrite =overwrite)
+
+        
+    def show(self, savefile=None, vmin=None, vmax=None, show=True, **kwargs):
+        """ """
+        from .utils.mpl import figout
+        
+        fig = mpl.figure(figsize=[9,4])
+        space = 0.02
+        width = 0.38
+        axs  = fig.add_axes([0.1,0.1,width,0.8])
+        ax   = fig.add_axes([0.1+width+space,0.1,width,0.8])
+        axc  = fig.add_axes([0.1+(width+space)*2,0.1,0.02,0.8])
+        if vmin is None:
+            vmin = "2"
+        if vmax is None:
+            vmax = "98"
+        prop = dict(origin="lower", aspect="auto", 
+            vmax=np.percentile(self.input_background, float(vmax)) if type(vmax) == str else vmax,
+            vmin=np.percentile(self.input_background, float(vmin)) if type(vmin) == str else vmin)
+                          
+        axs.imshow(self.input_background,        **prop)
+        cl = ax.imshow(self.background, **prop)
+        
+        axs.set_title("column fit [source]")
+        ax.set_title("background")
+        ax.set_yticks([])
+        fig.colorbar(cl, axc)
+        
+        fig.figout(savefile=savefile, show=show)
         
     # -------------------- #
     #    Properites        #
@@ -97,11 +291,29 @@ class Background( BaseObject ):
     @property
     def _y(self):
         """ """
-        return self._properties['y']
+        if self._side_properties['y'] is None:
+            self._side_properties["y"] = np.linspace(0, 1, self.n_inputcolumns)
+        return self._side_properties['y']
     
 
     # -- Background
     @property
+    def background(self):
+        """ """
+        return self._derived_properties["background"]
+    @property
     def input_background(self):
         """ """
+        if self._derived_properties["input_background"] is None:
+            self._derived_properties["input_background"] = \
+              np.asarray([self.contvalue_to_polynome(self._contvalues[i])
+                            for i in self.input_columns]).T
         return self._derived_properties["input_background"]
+    
+    # -- Fits tools
+    @property
+    def header(self):
+        """ """
+        if self._side_properties["header"] is None:
+            self._side_properties["header"] = pf.Header()
+        return self._side_properties["header"]

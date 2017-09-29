@@ -95,6 +95,12 @@ def shape_ajustment(x,y,model_x,**kwargs):
     
     return yrebinOK
 
+def running_from_notebook():
+    """ True is the current system runs from ipython notebook 
+    (ipykernel detected in the sys.modules) 
+    """
+    import sys
+    return "ipykernel" in sys.modules
 
 ################################
 #                              #

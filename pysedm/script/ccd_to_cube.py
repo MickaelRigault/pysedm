@@ -6,23 +6,25 @@ import os
 import warnings
 from astrobject.utils.tools import dump_pkl
 from glob import glob
-from .. io import get_datapath
+from .. import io
+
 from ..ccd import get_ccd
-from ..spectralmatching import get_tracematcher, illustrate_traces
+from ..spectralmatching import get_tracematcher, illustrate_traces, load_trace_masks
 from ..wavesolution import get_wavesolution
 import matplotlib.pyplot as mpl
 from ..sedm import INDEX_CCD_CONTOURS, TRACE_DISPERSION
 
 
 
-
+CALIBFILES = ["Hg.fits","Cd.fits","Xe.fits","dome.fits"]
 ############################
 #                          #
 #  Spectral Matcher        #
 #                          #
 ############################
-def build_tracematcher(date, verbose=True, width=None, rebuild_nightly_trace=False,
-                        build_finetuned_tracematcher=True, night_trace_only=False):
+def build_tracematcher(date, verbose=True, width=None,
+                        night_trace_only=True, save_masks=False,
+                        rebuild_nightly_trace=False, notebook=False):
     
     """ Create Spaxel trace Solution 
     This enable to know which pixel belong to which spaxel
@@ -31,21 +33,24 @@ def build_tracematcher(date, verbose=True, width=None, rebuild_nightly_trace=Fal
     ----------
     date: [string]
         YYYMMDD 
-    lamps: [list of lamp name] -optional-
-        Which lamp will be used to improve the spectral matching
 
     width: [None/float] -optional-
         What should be the trace width (in pixels)
         If None, this will use 2 times whatever is defined as "TRACE_DISPERSION" in sedm.py
-
+        
+    save_masks: [bool] -optional-
+        Shall this measures all the individual masks and save them?
+        This mask building is the most cpu expensive part of the pipeline, 
+        it takes about 30min/number_of_core. If this is saved (~150Mo) 
+        wavelength-solution and cube-building will be faster.
+        
     Returns
     -------
-    Void.  (Creates the file TraceMatch.pkl)
+    Void.  (Creates the file TraceMatch.pkl and TraceMatch_WithMasks.pkl if save_masks)
     """
-    from .. import io
     
     
-    timedir = get_datapath(date)
+    timedir = io.get_datapath(date)
     try:
         os.mkdir(timedir+"ProdPlots/")
     except:
@@ -68,45 +73,12 @@ def build_tracematcher(date, verbose=True, width=None, rebuild_nightly_trace=Fal
         print("Building Nightly Solution")
         smap = get_tracematcher(timedir+"dome.fits", width=width)
         smap.writeto(timedir+"%s_TraceMatch.pkl"%date)
-        smap.writeto(timedir+"tracematch_dome.pkl")
         print("Nightly Solution Saved")
-        if night_trace_only:
-            return
-    # ----------------- #
-    #   Output          #
-    # ----------------- #
-    if not build_finetuned_tracematcher:
-        return
-
-    ccdfiles = io.get_night_ccdfiles(date, skip_calib=True) + glob(timedir+"Hg.fits") + glob(timedir+"Cd.fits") + glob(timedir+"Xe.fits")
-    def build_finetubed_trace(ccdfile_):
-        """ Buid the individual object. 
-        This is called by ProgressBar
-        """
-        ccd_ = get_ccd(ccdfile_, tracematch=smap) # takes about 2s
-        # - Do the FineTuning
-        if ccd_.objname in ["Hg","Cd","Xe"]:
-            thresh = np.nanpercentile(ccd_.rawdata, 80) # Massive emission lines
-        else:
-            coef = 1.5 if ccd_.objname not in ["Hg","Xe"] else 2. if ccd_.objname not in ["Hg"] else 0.5
-            thresh = np.nanstd(ccd_.rawdata)*coef
-            
-        ccd_.sep_extract(thresh=thresh) # takes about 1min
-        ccd_.match_trace_to_sep()
         
-        # - Which Trace to use
-        indexes = ccd_.tracematch.get_traces_within_polygon(INDEX_CCD_CONTOURS)
-        # - Fine Tuning
-        finetuned_trace = ccd_.get_finetuned_tracematch( indexes, width=width)
-        # - Build the mas
-        finetuned_trace.writeto(timedir+"tracematch_%s.pkl"%(ccdfile_.split("/")[-1].replace(".fits","")))
-        del ccd_
-        del finetuned_trace
-        
-    # - Progress Bar
-    from astropy.utils.console import ProgressBar
-    ProgressBar.map(build_finetubed_trace, ccdfiles, multiprocess=False)
-        
+    if save_masks:
+        load_trace_masks(smap, smap.get_traces_within_polygon(sedm.INDEX_CCD_CONTOURS), notebook=notebook)
+        smap.writeto(timedir+"%s_TraceMatch_WithMasks.pkl"%date)
+    
 ############################
 #                          #
 # Spaxel Spacial Position  #
@@ -114,8 +86,7 @@ def build_tracematcher(date, verbose=True, width=None, rebuild_nightly_trace=Fal
 ############################
 def build_hexagonalgrid(date, xybounds=None):
     """ """
-    from ..io import load_nightly_tracematch
-    smap  = load_nightly_tracematch(date)
+    smap  = io.load_nightly_tracematch(date)
     # ----------------
     # - Spaxel Selection
     if xybounds is None: xybounds=INDEX_CCD_CONTOURS
@@ -123,8 +94,52 @@ def build_hexagonalgrid(date, xybounds=None):
 
     hgrid = smap.extract_hexgrid(idxall)
 
-    timedir = get_datapath(date)
+    timedir = io.get_datapath(date)
     hgrid.writeto(timedir+"%s_HexaGrid.pkl"%date)
+
+############################
+#                          #
+#   BackGround             #
+#                          #
+############################
+def build_backgrounds(date, lamps=True, only_lamps=False,
+                          skip_calib=True, starts_with="crr_b",contains="*",
+                     start=2, jump=10, multiprocess=True,
+                     savefig=True, notebook=False, ):
+    """ """
+    timedir  = io.get_datapath(date)
+    try:
+        os.mkdir(timedir+"ProdPlots/")
+    except:
+        pass
+    
+    # - which files ?
+    fileccds = []
+    if lamps:
+        lamp_files = glob(timedir+"Hg.fits") + glob(timedir+"Cd.fits") + glob(timedir+"Xe.fits") + glob(timedir+"dome.fits")
+        fileccds  += lamp_files
+
+    if not only_lamps:
+        fileccds_ = io.get_night_ccdfiles(date, skip_calib=skip_calib, starts_with=starts_with, contains=contains)
+        fileccds  += fileccds_
+
+        
+        
+    tmap = io.load_nightly_tracematch(date)
+    nfiles = len(fileccds)
+    print("%d files to go..."%nfiles)
+    for i,file_ in enumerate(fileccds):
+        ccd_ = get_ccd(file_, tracematch=tmap, background=0)
+        ccd_.fit_background(start=start, jump=jump, multiprocess=multiprocess, notebook=notebook,
+                                set_it=False, is_std= io.is_stdstars(ccd_.header) )
+        ccd_._background.writeto(io.filename_to_background_name(file_))
+        if savefig:
+            ccd_._background.show(savefile=timedir+"ProdPlots/bkgd_%s.pdf"%(file_.split('/')[-1].replace(".fits","")))
+            mpl.close("all")
+        
+        
+    
+
     
 ############################
 #                          #
@@ -144,9 +159,7 @@ def build_wavesolution(date, verbose=False, ntest=None, use_fine_tuned_traces=Fa
     -------
 
     """
-    from ..io import load_nightly_tracematch, get_file_tracematch
-    
-    timedir = get_datapath(date)
+    timedir = io.get_datapath(date)
     try:
         os.mkdir(timedir+"ProdPlots/")
     except:
@@ -159,10 +172,10 @@ def build_wavesolution(date, verbose=False, ntest=None, use_fine_tuned_traces=Fa
     # - Load the Data
     # - SpectralMatch using domes
     #   Built by build_spectmatcher
-    smap = load_nightly_tracematch(date)
+    smap = io.load_nightly_tracematch(date, withmask=True)
         
     # - lamps 
-    lamps = [get_ccd(timedir+"%s.fits"%s_, tracematch= get_file_tracematch(date, s_) if use_fine_tuned_traces else smap)
+    lamps = [get_ccd(timedir+"%s.fits"%s_, tracematch= io.get_file_tracematch(date, s_) if use_fine_tuned_traces else smap)
                  for s_ in lamps ]
     if verbose: print "Cd, Hg and Xe lamp loaded"
     # - The CubeSolution
@@ -197,46 +210,58 @@ def build_wavesolution(date, verbose=False, ntest=None, use_fine_tuned_traces=Fa
 #  Build Cubes             #
 #                          #
 ############################
-def build_night_cubes(date, use_fine_tuned_traces=False,
+def build_night_cubes(date, 
                       lbda_min=3700, lbda_max=9200, lbda_npix=260,
-                      only_calib=False, no_calib=False, no_bkgd_sub=False,
-                      contains=None,test=None):
-    """ """
-    from .. import io
+                      lamps=True, only_lamps=False, skip_calib=True, no_bkgd_sub=False,
+                      test=None, notebook=False, **kwargs):
+    """ 
+    **kwargs goes to get_night_ccdfiles()
+    """
+    
+    timedir  = io.get_datapath(date)
     
     # - The Files
-    timedir  = get_datapath(date)
-    calibkeys = ["Hg.fits","Cd.fits","Xe.fits","dome.fits"]
-    calib_files = glob(timedir+"Hg.fits") + glob(timedir+"Cd.fits") + glob(timedir+"Xe.fits") + glob(timedir+"dome.fits")
-    if not only_calib:
-        fileccds = io.get_night_ccdfiles(date, skip_calib=True)
-        if contains is not None:
-            fileccds = [f for f in fileccds if contains in f]
-        if not no_calib:
-            fileccds += calib_files
-    else:
-        fileccds = calib_files
-        
+    fileccds = []
+    if lamps:
+        lamp_files = glob(timedir+"Hg.fits") + glob(timedir+"Cd.fits") + glob(timedir+"Xe.fits") + glob(timedir+"dome.fits")
+        fileccds  += lamp_files
+
+    if not only_lamps:
+        fileccds_ = io.get_night_ccdfiles(date, skip_calib=skip_calib, **kwargs)
+        fileccds  += fileccds_
+
+    print(fileccds)
     # - The tools to build the cubes
-    smap     = io.load_nightly_tracematch(date)
+    if test:
+        return
+    # Traces
+    tmatch   = io.load_nightly_tracematch(date, withmask=True)
+    indexes  = tmatch.get_traces_within_polygon(INDEX_CCD_CONTOURS)
+    
     hgrid    = io.load_nightly_hexagonalgrid(date)
+
     wcol     = io.load_nightly_wavesolution(date)
+    wcol._load_full_solutions_()
+    
     lbda     = np.linspace(lbda_min,lbda_max,lbda_npix)
     root     = io.CUBE_PROD_ROOTS["cube"]["root"]
 
+    print("All Roots loaded")
+    
     def build_cube(ccdfile):
-        tmatch = smap if not use_fine_tuned_traces else \
-          io.get_file_tracematch(date, ccdfile.split("/")[-1].split(".")[0]) \
-          if np.any([calibkey_ in ccdfile for calibkey_ in calibkeys]) else\
-          io.get_file_tracematch(date, ccdfile.split(date)[-1].split(".")[0])
-          
-        ccd_    = get_ccd(ccdfile, tracematch = tmatch, background = 0 if no_bkgd_sub else None)
+        ccd_    = get_ccd(ccdfile, tracematch = tmatch, background = 0)
+        # - Background
+        if not no_bkgd_sub:
+            ccd_.fetch_background()
+        # - Variance
         if not ccd_.has_var():
-            ccd_._properties["var"] = np.sqrt(ccd_.rawdata)
-            
-        indexes = ccd_.tracematch.get_traces_within_polygon(INDEX_CCD_CONTOURS)
+            ccd_.set_default_variance()
+        
+        # Build the cube
         cube_   = ccd_.extract_cube(wcol, lbda, hexagrid=hgrid, show_progress=True)
-        if np.any([calibkey_ in ccdfile for calibkey_ in calibkeys]):
+        
+        # Save the cube
+        if np.any([calibkey_ in ccdfile for calibkey_ in CALIBFILES]):
             filout = "%s"%(ccdfile.split("/")[-1].split(".fits")[0])
         else:
             filout = "%s_%s"%(ccdfile.split("/")[-1].split(".fits")[0], ccd_.objname)

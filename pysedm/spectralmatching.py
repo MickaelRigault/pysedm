@@ -7,11 +7,13 @@ import warnings
 import numpy as np
 import matplotlib.pyplot as mpl
 from scipy import sparse
+from astropy.utils.console import ProgressBar
 
 from propobject import BaseObject
 from .ccd import get_dome, ScienceCCD
 from .utils.tools import kwargs_update
 
+from .sedm import SEDM_CCD_SIZE
 try:
     from shapely import vectorized, geometry
     _HAS_SHAPELY = True
@@ -186,7 +188,8 @@ def get_boxing_polygone(x, y, rangex, width,
     """ """
     from shapely import geometry
     import modefit
-    if not hasattr(dy,"__iter__"): dy = np.ones(len(y))*dy
+    if not hasattr(dy,"__iter__"):
+        dy = np.ones(len(y))*dy
     pfit = modefit.get_polyfit(x, y, dy, degree=polydegree)
     pfit.fit(a0_guess=np.median(y))
     
@@ -203,6 +206,57 @@ def get_boxing_polygone(x, y, rangex, width,
     return  geometry.Polygon(vertices)
 
 
+
+
+# ------------------------- # 
+#   MultiProcessing Tracing #
+# ------------------------- #
+def verts_to_mask(verts):
+    """ Based on the given vertices (and using the CCD size from semd.SEDM_CCD_SIZE)
+    this create a weighted mask:
+    - pixels outise of the vertices have 0
+    - pixels fully included within the vertices have 1
+    - pixels on the edge only have a fraction of 1 
+    
+
+    = Based on Shapely = 
+    
+    Returns
+    -------
+    [NxM] array (size of semd.SEDM_CCD_SIZE)
+    """
+    verts = verts+np.asarray([0.5,0.5])
+    
+    xlim, ylim = np.asarray(np.round(np.percentile(verts, [0,100], axis=0)), dtype="int").T + np.asarray([-1,1])
+    polytrace  = geometry.Polygon(verts)
+        
+    sqgrid     = np.asarray([[geometry.Polygon(_BASEPIX + np.asarray([x_,y_]))
+                                  for y_ in np.arange(*ylim)] for x_ in np.arange(*xlim)]
+                                ).ravel()
+    maskfull = np.zeros(SEDM_CCD_SIZE)
+    maskfull[xlim[0]:xlim[1],ylim[0]:ylim[1]] = \
+      (np.asarray([polytrace.intersection(sq_).area if polytrace.intersects(sq_) or polytrace.contains(sq_) else 0
+                     for sq_ in sqgrid]).reshape(xlim[1]-xlim[0],ylim[1]-ylim[0]))
+    return maskfull.T
+    
+
+def load_trace_masks(tmatch, traceindexes=None, multiprocess=True, notebook=True):
+    """ """
+    if traceindexes is None:
+        traceindexes = tmatch.trace_indexes
+    
+    if multiprocess:
+        import multiprocessing
+        bar = ProgressBar( len(traceindexes), ipython_widget=notebook)
+        p = multiprocessing.Pool()
+        for j, mask in enumerate( p.imap(verts_to_mask, [tmatch.trace_vertices[i_] for i_ in traceindexes])):
+            tmatch.set_trace_masks(sparse.csr_matrix(mask), traceindexes[j])
+            bar.update(j)
+        bar.update( len(traceindexes) )
+        
+    else:
+        raise NotImplementedError("Use multiprocess = True (load_trace_masks)")
+
 #####################################
 #                                   #
 #  Spectral Matching Class          #
@@ -217,9 +271,9 @@ class TraceMatch( BaseObject ):
     """
     PROPERTIES         = ["trace_vertices","subpixelization"]
     SIDE_PROPERTIES    = ["trace_masks"]
-    DERIVED_PROPERTIES = ["tracecolor", "facecolor","maskimage","rmap","gmap","bmap",
-                              "trace_polygons"]
-
+    DERIVED_PROPERTIES = ["tracecolor", "facecolor","maskimage",
+                          "rmap","gmap","bmap",
+                          "trace_polygons"]
 
     # ===================== #
     #   Main Methods        #
@@ -479,23 +533,11 @@ class TraceMatch( BaseObject ):
         final_mask = mask if self.subpixelization == 1 else \
               measure.block_reduce(mask, (self.subpixelization, self.subpixelization) )/float(self.subpixelization**2)
               
-    def _get_shapely_trace_mask_(self, traceindex, width=2048, height=2048):
+    def _get_shapely_trace_mask_(self, traceindex):
         """ Based on Shapely, measure the intersection area between traces and pixels.
         = Takes about 1s =
         """
-        
-        verts      = self.trace_vertices[traceindex]
-        xlim, ylim = np.asarray(np.round(np.percentile(verts, [0,100], axis=0)), dtype="int").T + np.asarray([-1,1])
-        polytrace  = geometry.Polygon(verts)
-        
-        sqgrid     = np.asarray([[geometry.Polygon(_BASEPIX + np.asarray([x_,y_]))
-                                    for y_ in np.arange(*ylim)] for x_ in np.arange(*xlim)]
-                                ).ravel()
-        maskfull = np.zeros((width,height))
-        maskfull[xlim[0]:xlim[1],ylim[0]:ylim[1]] = \
-          (np.asarray([polytrace.intersection(sq_).area if polytrace.intersects(sq_) or polytrace.contains(sq_) else 0
-                               for sq_ in sqgrid]).reshape(xlim[1]-xlim[0],ylim[1]-ylim[0]))
-        return maskfull.T
+        return verts_to_mask(self.trace_vertices[traceindex])
     
     def _load_trace_mask_(self, traceindexe ):
         """ """

@@ -61,9 +61,9 @@ class MOFFATPLANE( PSF3DMODEL ):
         """ """
         x,y = np.asarray(cube.index_to_xy(cube.indexes)).T
         def fit_slice(data_):
-            fit_p  = fitting.LevMarLSQFitter()
+            fit_p   = fitting.LevMarLSQFitter()
             flagnan = np.isnan(data_)
-            p      = fit_p(self.model, x[~flagnan], y[~flagnan], data_[~flagnan])
+            p       = fit_p(self.model, x[~flagnan], y[~flagnan], data_[~flagnan])
             return {pname:[p.parameters[i],np.NaN]
                           for i,pname in enumerate(p.param_names)}
         
@@ -149,7 +149,34 @@ class ExtractStar( BaseObject ):
     # ---------- #
     def show_psfextraction(self):
         """ """
-        
+        lbda_idx = 215
+
+        slice_ = cube.data[lbda_idx]
+        slice_var = cube.variance[lbda_idx]
+        x,y = np.asarray(cube.index_to_xy(cube.indexes)).T
+        model_ = es.psfmodel.evaluate(lbda_idx,x,y)
+
+        # Plot the data with the best-fit model
+        mpl.figure(figsize=(10, 3))
+        prop = dict(marker="h",s=15)
+
+        mpl.subplot(1, 4, 1)
+        mpl.scatter(x,y,c=slice_,**prop)
+        mpl.title("Data")
+
+        mpl.subplot(1, 4, 2)
+        mpl.scatter(x,y,c=np.sqrt(slice_var),**prop)
+        mpl.title("Error")
+
+        mpl.subplot(1, 4, 3)
+        mpl.scatter(x,y,c=model_,**prop)
+        mpl.title("Model")
+
+        mpl.subplot(1, 4, 4)
+        sc = mpl.scatter(x,y,c=(slice_ - model_)/np.sqrt(slice_var),**prop)
+        mpl.title("Residual")
+
+        mpl.gca().figure.show()
         
     # =================== #
     #   Properties        #

@@ -21,7 +21,7 @@ def flat_cubes(date, lbda_min=7000, lbda_max=9000, ref="dome"):
     
     refcube  = get_sedmcube(reffile[0])
     flatfied = refcube.get_slice(lbda_min, lbda_max, usemean=True)
-
+    print(flatfied.mean())
     # ----------------- #
     # Build flat cubes  #
     # ----------------- #

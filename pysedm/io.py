@@ -102,6 +102,13 @@ def get_file_tracematch(YYYYMMDD, contains):
     from .spectralmatching import load_tracematcher
     return load_tracematcher(tracefile[0])
 
+def get_std_cubefiles(date):
+    """ """
+    ccdfiles  = get_night_ccdfiles(date)
+    filestd   = [f_ for f_ in ccdfiles if is_file_stdstars(f_)]
+    return [get_night_cubes(date,"flat", f_.split("/")[-1].split(".fits")[0].split("ifu")[-1])[0]
+                for f_ in filestd]
+
 #########################
 #                       #
 #   File Information    #

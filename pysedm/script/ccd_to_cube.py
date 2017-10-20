@@ -102,7 +102,8 @@ def build_hexagonalgrid(date, xybounds=None):
 #   BackGround             #
 #                          #
 ############################
-def build_backgrounds(date, lamps=True, only_lamps=False,
+def build_backgrounds(date, smoothing=[0,2],
+                          lamps=True, only_lamps=False,
                           skip_calib=True, starts_with="crr_b",contains="*",
                      start=2, jump=10, multiprocess=True,
                      savefig=True, notebook=False, ):
@@ -131,7 +132,7 @@ def build_backgrounds(date, lamps=True, only_lamps=False,
     for i,file_ in enumerate(fileccds):
         ccd_ = get_ccd(file_, tracematch=tmap, background=0)
         ccd_.fit_background(start=start, jump=jump, multiprocess=multiprocess, notebook=notebook,
-                                set_it=False, is_std= io.is_stdstars(ccd_.header) )
+                                set_it=False, is_std= io.is_stdstars(ccd_.header), smoothing=smoothing)
         ccd_._background.writeto(io.filename_to_background_name(file_))
         if savefig:
             ccd_._background.show(savefile=timedir+"ProdPlots/bkgd_%s.pdf"%(file_.split('/')[-1].replace(".fits","")))
@@ -276,3 +277,16 @@ def build_night_cubes(date,
     
     
     
+def save_cubeplot(date, kind):
+    """ """
+    from ..sedm import get_sedmcube
+    timedir  = io.get_datapath(date)
+    try:
+        os.mkdir(timedir+"ProdPlots/")
+    except:
+        pass
+    
+    for cubefile in io.get_night_cubes(date, kind):
+        cube = get_sedmcube(cubefile)
+        cube.show(savefile= timedir+"ProdPlots/%s.pdf"%(cubefile.split('/')[-1].replace(".fits","")))
+        

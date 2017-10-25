@@ -42,7 +42,7 @@ BACKCOLOR    = (0,0,0,0)
 ZOOMING      = 5 if _HAS_SKIMAGE else 1
 _BASEPIX     = np.asarray([[0,0],[0,1],[1,1],[1,0]])
 
-__all__ = ["load_specmatcher","get_specmatcher"]
+__all__ = ["load_tracematcher","get_tracematcher"]
 
 
 def load_tracematcher(tracematchfile):

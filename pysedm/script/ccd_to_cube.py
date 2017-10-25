@@ -23,8 +23,9 @@ CALIBFILES = ["Hg.fits","Cd.fits","Xe.fits","dome.fits"]
 #                          #
 ############################
 def build_tracematcher(date, verbose=True, width=None,
-                        night_trace_only=True, save_masks=False,
-                        rebuild_nightly_trace=False, notebook=False):
+                           save_masks=False,
+                           rebuild_nightly_trace=False,
+                           notebook=False):
     
     """ Create Spaxel trace Solution 
     This enable to know which pixel belong to which spaxel

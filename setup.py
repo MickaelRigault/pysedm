@@ -41,7 +41,9 @@ if __name__ == "__main__":
         print packages
     else:
         # This should be updated if new submodules are added
-        packages = ['pysedm']
+        packages = ['pysedm',
+                    "pysedm.script",
+                    "pysedm.utils"]
 
     setup(name=DISTNAME,
           author=AUTHOR,

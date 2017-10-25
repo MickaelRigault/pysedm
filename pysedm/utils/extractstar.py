@@ -16,6 +16,43 @@ from astropy.modeling import models, fitting
 SO FAR THIS MODULE IS NOT USED FOR THE SEDM PIPELINE. 
 """
 
+__all__ = ["get_extractstar"]
+
+
+
+def get_extractstar(cube, psfmodel="MoffatPlane0", fit=True, **kwargs):
+    """ loads and returns the extractstar object with the given PSF model.
+    
+    Parameters
+    ----------
+    cube: [pyifu's Cube]
+        cube with the point source to extract
+        
+    psfmodel: [string] -optional-
+        name of the 3D-PSF model to use to extract the point source:
+        list of known model:
+           - MoffatPlaneX: Moffat2d + Polynomial2D(degree=X)
+
+    fit: [bool] -optional-
+        shall this run the fit?
+    
+    **kwargs goes to fit()
+
+    Return 
+    ------
+    ExtractStar
+    """
+    es = ExtractStar(cube)
+    es.set_psfmodel(kind=psfmodel)
+    if fit:
+        es.fit()
+    return es
+
+# ====================== #
+#                        #
+#   Models               #
+#                        #
+# ====================== #
 class PSF3DMODEL( BaseObject ):
     """ """
     PROPERTIES = ["model"]
@@ -147,36 +184,45 @@ class ExtractStar( BaseObject ):
     # ---------- #
     #  PLOTTER   #
     # ---------- #
-    def show_psfextraction(self):
+    def show_psfextraction(self, ref_lbdaidx=215,
+                               savefile=None, show=True,
+                               **kwargs):
         """ """
-        lbda_idx = 215
-
-        slice_ = cube.data[lbda_idx]
-        slice_var = cube.variance[lbda_idx]
-        x,y = np.asarray(cube.index_to_xy(cube.indexes)).T
-        model_ = es.psfmodel.evaluate(lbda_idx,x,y)
+        import matplotlib.pyplot as mpl
+        from .tools import kwargs_update
+        from .mpl   import figout
+        fig = mpl.figure(figsize=(10, 3))
+        axdata  = fig.add_subplot(141)
+        axerr   = fig.add_subplot(142)
+        axmodel = fig.add_subplot(143)
+        axres   = fig.add_subplot(144)
+        
+        slice_    = self.cube.data[ref_lbdaidx]
+        slice_var = self.cube.variance[ref_lbdaidx]
+        x,y       = np.asarray(self.cube.index_to_xy(self.cube.indexes)).T
+        model_    = self.psfmodel.evaluate(ref_lbdaidx, x ,y)
 
         # Plot the data with the best-fit model
-        mpl.figure(figsize=(10, 3))
-        prop = dict(marker="h",s=15)
+        default_prop = dict(marker="h",s=15,
+                            vmin=np.percentile(slice_, 5),
+                            vmax=np.percentile(slice_, 95))
+        
+        prop = kwargs_update(default_prop, **kwargs)
+        
+        # - Data
+        axdata.scatter(x,y,c=slice_, **prop)
+        axdata.set_title("Data")
+        # - Error
+        axerr.scatter(x,y,c=np.sqrt(slice_var), **prop)
+        axerr.set_title("Error")
+        # - Model
+        axmodel.scatter(x,y,c=model_,**prop)
+        axmodel.set_title("Model")
 
-        mpl.subplot(1, 4, 1)
-        mpl.scatter(x,y,c=slice_,**prop)
-        mpl.title("Data")
+        sc = axres.scatter(x,y,c=(slice_ - model_)/np.sqrt(slice_var),**prop)
+        axres.set_title("Residual")
 
-        mpl.subplot(1, 4, 2)
-        mpl.scatter(x,y,c=np.sqrt(slice_var),**prop)
-        mpl.title("Error")
-
-        mpl.subplot(1, 4, 3)
-        mpl.scatter(x,y,c=model_,**prop)
-        mpl.title("Model")
-
-        mpl.subplot(1, 4, 4)
-        sc = mpl.scatter(x,y,c=(slice_ - model_)/np.sqrt(slice_var),**prop)
-        mpl.title("Residual")
-
-        mpl.gca().figure.show()
+        fig.figout(savefile=savefile, show=show)
         
     # =================== #
     #   Properties        #

@@ -97,9 +97,6 @@ def get_arccollection(traceindex, lamps):
     sol_.set_databounds(*np.sort(len(spec_) - lamp.tracematch.get_trace_xbounds(traceindex)))
     return sol_
 
-
-
-
     
 ###########################
 #                         #

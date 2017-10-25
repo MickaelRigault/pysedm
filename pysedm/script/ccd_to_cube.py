@@ -77,7 +77,7 @@ def build_tracematcher(date, verbose=True, width=None,
         print("Nightly Solution Saved")
         
     if save_masks:
-        load_trace_masks(smap, smap.get_traces_within_polygon(sedm.INDEX_CCD_CONTOURS), notebook=notebook)
+        load_trace_masks(smap, smap.get_traces_within_polygon(INDEX_CCD_CONTOURS), notebook=notebook)
         smap.writeto(timedir+"%s_TraceMatch_WithMasks.pkl"%date)
     
 ############################

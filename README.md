@@ -14,10 +14,8 @@ Not ready yet
   - _for the structure of the classes_
 - astrobject (pip install astrobject)
   - _for the basic Image and Spectrum objects as well as low level tools_
-
-#### Additional but not requested
-- modefit (to be added to pip)
-  - _for the fit of the spectral line and wavelength solution_
+- modefit and iminuit (pip install modefit ; pip install iminuit)
+  - _modefit is used to fit the background and emission lines. It needs iminuit to do so_
 - pynverse (pip install pynverse)
   - _for a faster lbda<->pixels conversion in the wavelength solution (it's slower without pynverse)_
 

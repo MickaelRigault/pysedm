@@ -18,8 +18,6 @@ SO FAR THIS MODULE IS NOT USED FOR THE SEDM PIPELINE.
 
 __all__ = ["get_extractstar"]
 
-
-
 def get_extractstar(cube, psfmodel="MoffatPlane0", fit=True, **kwargs):
     """ loads and returns the extractstar object with the given PSF model.
     
@@ -92,8 +90,11 @@ class PSF3DMODEL( BaseObject ):
         return self._derived_properties["fit_param"]
 
     
-class MOFFATPLANE( PSF3DMODEL ):
-    """ """
+# =================== #
+#    Astropy Based    #
+# =================== #
+class _ASTROPY_BASICPLANE_( PSF3DMODEL ):
+    """ Basic model composed of Moffat or Gaussian + Plane """
     def fit_cube(self, cube):
         """ """
         x,y = np.asarray(cube.index_to_xy(cube.indexes)).T
@@ -117,6 +118,31 @@ class MOFFATPLANE( PSF3DMODEL ):
             return np.asarray([self.get_starflux(lbda_idx_) for lbda_idx_ in lbda_idx]).T
         return self.fitparam[lbda_idx]["amplitude_0"]
     
+class MOFFATPLANE( _ASTROPY_BASICPLANE_ ):
+    """ """
+    def get_starposition(self, lbda_idx):
+        """ get the centroid of the moffat2D and their associated error:
+        Return
+        ------
+        [x,dx], [y,dy] or list of [[[x,dx], [y,dy]], ...] if lbda_idx is an array
+        """
+        if hasattr(lbda_idx, "__iter__"):
+            return np.asarray([self.get_starposition(lbda_idx_) for lbda_idx_ in lbda_idx]).T
+        return self.fitparam[lbda_idx]["x_0_0"],self.fitparam[lbda_idx]["y_0_0"]
+
+class GAUSSIANPLANE( _ASTROPY_BASICPLANE_ ):
+    """ """
+    def get_starposition(self, lbda_idx):
+        """ get the centroid of the moffat2D and their associated error:
+        Return
+        ------
+        [x,dx], [y,dy] or list of [[[x,dx], [y,dy]], ...] if lbda_idx is an array
+        """
+        if hasattr(lbda_idx, "__iter__"):
+            return np.asarray([self.get_starposition(lbda_idx_) for lbda_idx_ in lbda_idx]).T
+        
+        return self.fitparam[lbda_idx]["x_mean_0"],self.fitparam[lbda_idx]["y_mean_0"]
+
 
 
 # ========================== #
@@ -163,6 +189,22 @@ class ExtractStar( BaseObject ):
             moffatplane = MOFFATPLANE()
             moffatplane.set_model(models.Moffat2D(amplitude=a0, x_0=x0, y_0=y0) + models.Polynomial2D(degree))
             self._properties["psfmodel"] = moffatplane
+            
+        elif "GaussianPlane" in kind:
+            try:
+                degree = int(kind.replace("GaussianPlane",""))
+            except:
+                raise ValueError("Could not parse the Plane Degree. Should be `MoffatPlaneX` where X is any integer")
+                        # - initial guess
+            slice_ = self.cube.get_slice(None,None)
+            imax   = np.nanargmax(slice_)
+            a0     = slice_[imax]
+            x0,y0  = np.asarray(self.cube.index_to_xy(self.cube.indexes))[imax]
+            
+            moffatplane = GAUSSIANPLANE()
+            moffatplane.set_model(models.Gaussian2D(amplitude=a0, x_mean=x0, y_mean=y0, x_stddev=2, y_stddev=2) + models.Polynomial2D(degree))
+            self._properties["psfmodel"] = moffatplane
+            
         else:
             raise TypeError("Only MoffatPlane PSF model define")
                 
@@ -180,22 +222,29 @@ class ExtractStar( BaseObject ):
         """ """
         flux,err = self.psfmodel.get_starflux(np.arange(self.cube._l_spix))
         return get_spectrum(self.cube.lbda, flux, variance=err**2)
+
+    def get_modelcentroid(self, lbda=None):
+        """ """
+        return self.psfmodel.get_starposition(np.arange(self.cube._l_spix))[0]
     
     # ---------- #
     #  PLOTTER   #
     # ---------- #
     def show_psfextraction(self, ref_lbdaidx=215,
                                savefile=None, show=True,
+                               show_centroid=False, centroid_prop={},
                                **kwargs):
         """ """
         import matplotlib.pyplot as mpl
         from .tools import kwargs_update
         from .mpl   import figout
-        fig = mpl.figure(figsize=(10, 3))
-        axdata  = fig.add_subplot(141)
-        axerr   = fig.add_subplot(142)
-        axmodel = fig.add_subplot(143)
-        axres   = fig.add_subplot(144)
+        fig = mpl.figure(figsize=(9, 3))
+        left, width, space = 0.075, 0.2, 0.02
+        bottom, height = 0.15, 0.7
+        axdata  = fig.add_axes([left+0*(width+space), bottom, width, height])
+        axerr   = fig.add_axes([left+1*(width+space), bottom, width, height])
+        axmodel = fig.add_axes([left+2*(width+space), bottom, width, height])
+        axres   = fig.add_axes([left+3*(width+space), bottom, width,height])
         
         slice_    = self.cube.data[ref_lbdaidx]
         slice_var = self.cube.variance[ref_lbdaidx]
@@ -222,8 +271,16 @@ class ExtractStar( BaseObject ):
         sc = axres.scatter(x,y,c=(slice_ - model_)/np.sqrt(slice_var),**prop)
         axres.set_title("Residual")
 
+        if show_centroid:
+            centroid = self.get_modelcentroid()
+            centroidprop = kwargs_update(dict(marker="x", color="0.7", lw=3, ms=10), **centroid_prop)
+            [ax_.plot(centroid[0][ref_lbdaidx],centroid[1][ref_lbdaidx], **centroidprop)
+                 for ax_ in fig.axes]
+
+        [ax_.set_yticklabels([]) for ax_ in fig.axes[1:]]
         fig.figout(savefile=savefile, show=show)
-        
+
+
     # =================== #
     #   Properties        #
     # =================== #

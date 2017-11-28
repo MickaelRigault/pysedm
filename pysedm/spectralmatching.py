@@ -83,9 +83,7 @@ def get_tracematcher(domefile, build_masking=False, width=None, **kwargs):
     # - The Spectral Matcher
     smap = TraceMatch()
     # Dome Data
-    dome = get_dome(domefile, background=0)
-    dome.datadet = dome.data/np.sqrt(np.abs(dome.data))
-    dome.sep_extract(thresh=50., on="datadet")
+    dome = get_dome(domefile, background=0, load_sep=True)
 
     # - Initial Guess based on the dome flat.
     if width is None:

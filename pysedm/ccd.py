@@ -70,7 +70,7 @@ def get_ccd(lampfile, ccdspec_mask=None,
         
     return lamp
 
-def get_dome(domefile, tracematch=None,  **kwargs):
+def get_dome(domefile, tracematch=None,  load_sep=False, **kwargs):
     """ Load a SEDmachine domeflat image. 
     (special version of get_ccd. might be moved to get_ccd...)
 
@@ -88,12 +88,22 @@ def get_dome(domefile, tracematch=None,  **kwargs):
     -------
      DomeCCD (Child of CCD which is a Child of an astrobjec's Image)
     """
-    if tracematch is None:
-        return DomeCCD(domefile, **kwargs)
-    # = Tracematch that gonna help the background
-    dome = DomeCCD(domefile, background=0, **kwargs)
-    dome.set_tracematch(tracematch)
-    dome.set_background(dome._get_default_background_(**kwargs), force_it=True)
+    if tracematch is not None:
+        kwargs["background"] = 0
+        
+    dome = DomeCCD(domefile, **kwargs)
+    
+    if load_sep:
+        dome.datadet = dome.data/np.sqrt(np.abs(dome.data))
+        dome.sep_extract(thresh=50., on="datadet")
+        
+    if tracematch is not None:
+        # = Tracematch that gonna help the background
+        dome.set_tracematch(tracematch)
+        dome.set_background(dome._get_default_background_(**kwargs), force_it=True)
+
+    
+
     return dome
 
 
@@ -404,10 +414,22 @@ class CCD( BaseCCD ):
             self.set_background(self._background.background, force_it=True)
 
 
-    def fetch_background(self, set_it=True):
+    def fetch_background(self, set_it=True, build_if_needed=True, **kwargs):
         """ """
         from .background import load_background
         from .io import filename_to_background_name
+        # ---------------- #
+        #  Test it exists  #
+        # ---------------- #
+        from glob import glob
+        if len(glob(filename_to_background_name(self.filename)))==0:
+            warnings.warn("No background have been found for %s"%self.filename)
+            if not build_if_needed:
+                raise IOError("Since build_if_needed=False, No background available.")
+            from .background import build_background
+            build_background(self, **kwargs)
+            warnings.warn("A background have been built")
+            
         self._background = load_background( filename_to_background_name(self.filename) )
         if set_it:
             self.set_background( self._background.background, force_it=True)

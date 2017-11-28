@@ -7,6 +7,8 @@ import warnings
 import numpy as np
 import matplotlib.pyplot as mpl
 from scipy         import optimize
+from astropy.utils.console import ProgressBar
+
 
 from pynverse import inversefunc
 # - External Modules
@@ -25,6 +27,9 @@ from .ccd import CCD
 # http://www.astrosurf.com/buil/us/spe2/hresol4.htm
 #
 
+# -------------- #
+#  SEDM          #
+# -------------- #
 _REFORIGIN = 69
 
 LINES= {"Hg":{ #5790.66  :  {"ampl":1. ,"mu":202-_REFORIGIN},
@@ -97,7 +102,90 @@ def get_arccollection(traceindex, lamps):
     sol_.set_databounds(*np.sort(len(spec_) - lamp.tracematch.get_trace_xbounds(traceindex)))
     return sol_
 
+# -------------------- #
+#   MultiProcessing    #
+# -------------------- #
+def fit_spaxel_wavelesolution(arccollection, sequential=True,
+                              contdegree=2, wavedegree=4,
+                              saveplot=None, show=False,
+                        plotprop={}):
+    """ Fit the wavelength solution of the given trace.
     
+    This matching is made in two steps:
+    1) fit the central positions of the loaded arcspectrum emission lines.
+       This fit is based on linear combination of gaussian lines + polynomial continuum.
+    2) Fit a polynomial degree to modelize the relation between the 
+       fitted central positions (c.f. step 1) with the corresponding wavelengths
+       of these lines.
+
+    Parameters
+    ----------
+    
+    sequential: [bool] -optional-
+        How the gaussian line profiles (central positions) should be fitted:
+        - False: All at once (as if it was a unique spectrum)
+        - True:  Once at the time (each arcspectrum fitted independently)
+
+    contdegree: [int] -optional-
+        The degree of the polynom underlying the gaussian lines
+            
+    wavedegree: [int] -optional-
+        The degree of the polynom modelizing the pixel<->wavelength relation
+            
+    saveplot: [None or string] -optional-
+        Save the wavelength solution figure. If None, nothing will be saved.
+            
+    show: [bool] -optional-
+        Should the wavelength solution figure be shown?
+        
+    Returns
+    -------
+    None
+    """
+    # 3s 
+    arccollection.fit_lineposition(contdegree=contdegree, sequential=sequential)
+    # 0.01s
+    arccollection.fit_wavelengthsolution(wavedegree, legendre=False)
+    return arccollection
+
+def fit_wavesolution(lamps, indexes, multiprocess=True, notebook=False):
+    """ """
+    if notebook:
+        print("RUNNING FROM NOTEBOOK")
+        try:
+            return _fit_background_notebook_(lamps, indexes, multiprocess=True)
+        except:
+            warnings.warn("FAILING fit_background for notebooks")
+            
+    # Running from ipython/python    
+    arccollections = [get_arccollection(id_, lamps) for id_ in indexes]
+    
+    wsolutions = ProgressBar.map(fit_spaxel_wavelesolution,
+                                arccollections,
+                                multiprocess=multiprocess, step=2)
+    #  these are the wavesolutions
+    return {i_:wsol_.data for i_,wsol_ in zip(indexes, contval)}
+
+def _fit_wavesolution_notebook_(lamps, indexes, multiprocess=True):
+    """ """
+    arccollections = [get_arccollection(id_, lamps) for id_ in indexes]
+    
+    # - Multiprocessing 
+    if multiprocess:
+        bar = ProgressBar( len(indexes), ipython_widget=True)
+        import multiprocessing
+        p = multiprocessing.Pool()
+        res = {}
+        for j, result in enumerate( p.imap(fit_spaxel_wavelesolution, arccollections)):
+            res[indexes[j]] = result
+            bar.update(j)
+        bar.update(len(indexes))
+        return res
+    
+    # - No multiprocessing 
+    return {indexes[i_]: fit_spaxel_wavelesolution(arccollection) for i_,arccollection in enumerate(arccollections)}
+
+
 ###########################
 #                         #
 #  WaveSolution           #
@@ -135,7 +223,7 @@ class WaveSolution( BaseObject ):
     # -------- #
     # BUILDER  #
     # -------- #
-    def fit_wavelesolution(self, traceindex, sequential=True, contdegree=3, wavedegree=4,
+    def fit_wavelesolution(self, traceindex, sequential=True, contdegree=2, wavedegree=4,
                             saveplot=None, show=False, plotprop={}):
         """ Fit the wavelength solution of the given trace.
 
@@ -179,6 +267,8 @@ class WaveSolution( BaseObject ):
         # 0.01s
         wsol_.fit_wavelengthsolution(wavedegree, legendre=False)
         self.wavesolutions[traceindex] = wsol_.data
+
+                                         
         self._wsol = wsol_
         if saveplot is not None or show:
             wsol_.show(traceindex=traceindex, xrange=[3600,9500], savefile=saveplot, **plotprop)
@@ -192,7 +282,7 @@ class WaveSolution( BaseObject ):
             raise ValueError("Unknown wavelength solution for the spaxels #%d"%traceindex)
         
         if traceindex not in self._solution:
-            self._solution[traceindex] = SpaxelWaveSolution(wavesolutions[traceindex]["wavesolution"])
+            self._solution[traceindex] = SpaxelWaveSolution( self.wavesolutions[traceindex]["wavesolution"] )
             
         return self._solution[traceindex]
 
@@ -200,7 +290,7 @@ class WaveSolution( BaseObject ):
         """ """
         for traceindex in self.wavesolutions.keys():
             if traceindex not in self._solution:
-                self._solution[traceindex] = SpaxelWaveSolution(wavesolutions[traceindex]["wavesolution"])
+                self._solution[traceindex] = SpaxelWaveSolution(self.wavesolutions[traceindex]["wavesolution"])
                 
             self._solution[traceindex].load_pixel_to_lbda_solution()
             
@@ -220,7 +310,8 @@ class WaveSolution( BaseObject ):
         """ Load a dictionary containing the wavelength solution of individual spaxels """
         for traceindex,data in wavesolutions.items():
             self.wavesolutions[traceindex] = data
-            self._solution[traceindex]     = SpaxelWaveSolution(data["wavesolution"])
+            self._solution[traceindex]     = SpaxelWaveSolution(data["wavesolution"],
+                                                    datafitted=[data["usedlines"], data["fit_linepos"], data['fit_linepos.err']])
             
     def add_lampccd(self, lampccd, name=None):
         """ """
@@ -238,7 +329,22 @@ class WaveSolution( BaseObject ):
     def remove_lampccd(self, name):
         """ """
         self.lampccds.pop(name)
-        
+
+    # --------- #
+    # PLOTTER   #
+    # --------- #
+    def show_dispersion_map(self, hexagrid,
+                                ax=None, savefile=None, show=True,
+                                kind="nMAD", vmin="0.5", vmax="99.5",
+                            clabel=r"nMAD [$\AA$]", **kwargs):
+        """ """
+        from .sedm import display_on_hexagrid
+        traceindexes = self._solution.keys()
+        value = nmad = [self._solution[i].get_wavesolution_rms(kind="nMAD") for i in traceindexes]
+        return display_on_hexagrid(value, traceindexes,hexagrid=hexagrid, 
+                                       ax=ax, vmin=vmin, vmax=vmax,
+                                       clabel=clabel, savefile=savefile, show=show,
+                                       **kwargs)
     # ================== #
     #  Properties        #
     # ================== #
@@ -271,8 +377,8 @@ class WaveSolution( BaseObject ):
 class SpaxelWaveSolution( BaseObject ):
     """ """
     PROPERTIES = ["wavesolution","inverse_wavesolution"]
-
-    def __init__(self, polycoefs=None):
+    SIDE_PROPERTIES = ["datafitted"]
+    def __init__(self, polycoefs=None, datafitted=None):
         """ 
         Parameters: 
         -----------
@@ -281,16 +387,46 @@ class SpaxelWaveSolution( BaseObject ):
             For example, ``[1, 2, 3]`` returns an object that represents
             :math:`x^2 + 2x + 3`
 
+        datafitted: [3 arrays] -optional-
+            You could provide x,y and dy.
+            The data used to build the SpaxelWaveSolution
+
         Returns
         -------
         """
         self.__build__()
         if polycoefs is not None:
             self.set_solution(polycoefs)
-
+        if datafitted is not None:
+            self.set_datafitted(*datafitted)
+            
     # ================== #
     #  Main Methods      #
     # ================== #
+    # ---------- #
+    #  GETTER    #
+    # ---------- #
+    def get_wavesolution_rms(self, kind="wrms"):
+        """ """
+        if self.datafitted is None:
+            raise AttributeError("This needs the self.datafitted to work")
+
+        res = self.pixels_to_lbda(self.datafitted['fit_linepos'])-self.datafitted['usedlines']
+        known_kind = ["std or rms", "nmad", "wrms"]
+        
+        if kind in ["std", "rms"]:
+            return np.nanstd(res)
+        if kind in ['nMAD', 'nmad','mad_std']:
+            from astropy.stats import mad_std
+            return mad_std(res)
+        if kind in ["wrms", "wRMS"]:
+            err   = self.datafitted['fit_linepos.err']
+            wmean = np.average(np.average(res, weights=1./err**2))
+            return np.sqrt(np.average((res-wmean)**2, weights=1./err*2))
+        raise ValueError("unknown kind %s."%kind+" use: "+", ".join(known_kind))
+    # ---------- #
+    #  SETTER    #
+    # ---------- #
     def set_solution(self, polycoef ):
         """ Sets the wavelength solution based on numpy's poly1d
         
@@ -307,6 +443,12 @@ class SpaxelWaveSolution( BaseObject ):
         """
         self._properties["wavesolution"] = np.poly1d(polycoef)
 
+    def set_datafitted(self, usedlines, fit_linepos, fit_lineposerr):
+        """ The expected wavelength, the fitted line position in pixels and its associated error """
+        self._side_properties['datafitted'] = {"usedlines":usedlines,
+                                                "fit_linepos":fit_linepos,
+                                                "fit_linepos.err":fit_lineposerr}
+        
     def writeto(self, filename, **kwargs):
         """ dump the `data` into the given `filename` with the given `format`.
         - This uses numpy.savetxt -
@@ -319,6 +461,41 @@ class SpaxelWaveSolution( BaseObject ):
         - This uses numpy loadtxt -
         """
         self.set_solution( np.loadtxt(filename, **kwargs))
+
+    # -------- #
+    # PLOTTER  #
+    # -------- #
+    def show(self, ax=None, savefile=None, show=True, ecolor="0.3",
+                 xrange=None, **kwargs):
+        """ """
+        from astrobject.utils.mpladdon import figout, errorscatter
+        from astrobject.utils.tools    import kwargs_update
+        
+        if self.datafitted is None:
+            raise AttributeError('No datafitted to be shown')
+        
+        # - Non Sequential
+        if ax is None:
+            fig = mpl.figure(figsize=[6,5])
+            ax = fig.add_axes([0.12,0.12,0.78,0.78])
+            ax.set_xlabel(r"Wavelength [$\mathrm{\AA}$]", fontsize="large")
+            ax.set_ylabel(r"Pixels (ccd-row)", fontsize="large")
+        else:
+            fig = ax.figure
+
+        prop = kwargs_update( dict(mfc=mpl.cm.binary(0.2,0.5), mec=mpl.cm.binary(0.8,0.5),
+                                       ms=15, ls="None",mew=1.5, marker="o", zorder=5), **kwargs)
+        ax.plot(self.datafitted["usedlines"], self.datafitted["fit_linepos"], **prop)
+        er = ax.errorscatter(self.datafitted["usedlines"], self.datafitted["fit_linepos"],
+                                 dy=self.datafitted["fit_linepos.err"], zorder=prop["zorder"]-1,
+                             ecolor=ecolor)
+
+        if xrange is None:
+            xrange = [self.datafitted["usedlines"].min()-100, self.datafitted["usedlines"].max()+100]
+        x = np.linspace(xrange[0],xrange[1], 1000)
+        ml = ax.plot(x, self.lbda_to_pixels(x), lw=2, color="C1")
+        
+        fig.figout(savefile=savefile, show=show)
         
     # ================== #
     #   Properties       #
@@ -336,6 +513,11 @@ class SpaxelWaveSolution( BaseObject ):
         if not self.has_wavesolution():
             return None
         return self._wavesolution.coeffs
+    
+    @property
+    def datafitted(self):
+        """ """
+        return self._side_properties["datafitted"]
     
     # - SpaxelWaveSolution
     def has_wavesolution(self):
@@ -389,8 +571,13 @@ class VirtualArcSpectrum( BaseObject ):
     # --------- #
     def get_line_shift(self):
         """ Shift of the central line value based on the considered spaxel """
-        wavemax = self.wave[self.get_arg_maxflux(1)] if self.arcname not in ["Xe"] else \
-          np.min(self.wave[self.get_arg_maxflux(2)])
+        if self.arcname in ["Hg"]:
+            wavemax = np.max(self.wave[self.get_arg_maxflux(2)])
+        elif self.arcname in ["Xe"]:
+            wavemax = np.min(self.wave[self.get_arg_maxflux(2)])
+        else:
+            wavemax = self.wave[self.get_arg_maxflux(1)]
+          
           
         wavemax_expected = self.arclines[self.expected_brightesline]["mu"]
         return wavemax-wavemax_expected
@@ -472,17 +659,19 @@ class VirtualArcSpectrum( BaseObject ):
             guesses["a1_guess"] = 0.4
         
         self.solutionfitter.fit(**guesses)
+        self.datafitted = [self.usedlines, mus, emus]
         # - Set the best fit solution
         self._derived_properties["wavesolution"] = \
           SpaxelWaveSolution([self.solutionfitter.fitvalues["a%i"%i]
-                        for i in range(self.solutionfitter.model.DEGREE)[::-1]])
-        
-    def fit_lineposition(self,contdegree=2, line_shift=None,
+                        for i in range(self.solutionfitter.model.DEGREE)[::-1]],
+                            datafitted=self.datafitted)
+
+    def _load_lineposition_(self, contdegree=2, line_shift=None,
                              exclude_reddest_part=True,
                              red_buffer=30,
                              exclude_bluest_part=True,
                              blue_buffer=30, line_to_skip=None
-                             ):
+                              ):
         """ Fit gaussian profiles of expected arclamp emmisions.
         The list of fitted lines are given in `usedlines`.
         The fitter object is stored as `linefitter`.
@@ -519,28 +708,28 @@ class VirtualArcSpectrum( BaseObject ):
         flagin = (self.wave>=self.databounds[0])  * (self.wave<=self.databounds[1]) # 1ms
 
         # Building guess (~1ms)
-        guesses = {}
+        self._normguesses = {}
         if line_shift is None:
             lines_shift = self.get_line_shift()
             
         for i,l in enumerate(self.usedlines):
-            guesses["ampl%d_guess"%i]      = self.arclines[l]["ampl"]
-            guesses["mu%d_guess"%i]        = self.arclines[l]["mu"]+lines_shift
-            guesses["mu%d_boundaries"%i]   = [guesses["mu%d_guess"%i]-5,guesses["mu%d_guess"%i]+5]
-            guesses["ampl%d_boundaries"%i] = [0, None]
-            guesses["sig%d_guess"%i]       = 1.5
-            guesses["sig%d_boundaries"%i]  = [1.1,3] if not "doublet" in self.arclines[l] or not self.arclines[l]["doublet"] else [1.5, 5]
+            self._normguesses["ampl%d_guess"%i]      = self.arclines[l]["ampl"]
+            self._normguesses["mu%d_guess"%i]        = self.arclines[l]["mu"]+lines_shift
+            self._normguesses["mu%d_boundaries"%i]   = [self._normguesses["mu%d_guess"%i]-5, self._normguesses["mu%d_guess"%i]+5]
+            self._normguesses["ampl%d_boundaries"%i] = [0, None]
+            self._normguesses["sig%d_guess"%i]       = 1.5
+            self._normguesses["sig%d_boundaries"%i]  = [1.1,3] if not "doublet" in self.arclines[l] or not self.arclines[l]["doublet"] else [1.5, 5]
 
         # where do you wanna fit? (~1ms)
         if exclude_reddest_part:
-            flagin *= (self.wave<=guesses["mu%d_guess"%(len(self.usedlines)-1)]+red_buffer)
+            flagin *= (self.wave<=self._normguesses["mu%d_guess"%(len(self.usedlines)-1)]+red_buffer)
         else:
-            warnings.warn("part redder than %d *not* removed"%(guesses["mu%d_guess"%(len(self.usedlines)-1)]+red_buffer))
+            warnings.warn("part redder than %d *not* removed"%(self._normguesses["mu%d_guess"%(len(self.usedlines)-1)]+red_buffer))
             
         if exclude_bluest_part:
-            flagin *= (self.wave>=guesses["mu0_guess"]-blue_buffer)
+            flagin *= (self.wave>=self._normguesses["mu0_guess"]-blue_buffer)
         else:
-            warnings.warn("part bluer than %d *not* removed"%(guesses["mu0_guess"]-blue_buffer))
+            warnings.warn("part bluer than %d *not* removed"%(self._normguesses["mu0_guess"]-blue_buffer))
 
         # Setup the linefitter (3ms)
         norm = np.nanmean(self.flux[flagin])
@@ -552,8 +741,52 @@ class VirtualArcSpectrum( BaseObject ):
                               np.nanstd(self.flux[flagin])/norm/5.,
                               contdegree, ngauss=len(self.usedlines), legendre=True)
 
+    def fit_lineposition(self, contdegree=2, line_shift=None,
+                             exclude_reddest_part=True,
+                             red_buffer=30,
+                             exclude_bluest_part=True,
+                             blue_buffer=30, line_to_skip=None
+                             ):
+        """ Fit gaussian profiles of expected arclamp emmisions.
+        The list of fitted lines are given in `usedlines`.
+        The fitter object is stored as `linefitter`.
+        
+        - This method uses `modefit` -
+
+        Pamameters
+        ----------
+        contdegree: [int] -optional-
+            Degree of the (Legendre) polynom used as continuum
+
+        line_shift: [float] -optional-
+            Force the expected line pixel shift used as first guesses. 
+            If not provided an internal procedure based on expected and observed 
+            brightest emission position will be used. 
+            (see `get_line_shift()`)
+        
+        exclude_reddest_part: [bool] -optional-
+            If True, wavelengths that are more than *red_buffer* [wave units] redder
+            than the reddest 'usedline' will be excluded from the fit.
+            If activated, this option raises a warning.
+
+        red_buffer: [float] -optional-
+           How much redder than the reddest emission line should the fit conserve.
+           This is ignored if *exclude_reddest_part* is False
+
+        Returns
+        -------
+        Void (sets linefitter)
+        """
+        
+        if not self.has_linefitter():
+            self._load_lineposition_(contdegree=contdegree,
+                                         line_shift=line_shift,
+                                         exclude_reddest_part=exclude_reddest_part,
+                                         red_buffer=red_buffer,
+                                         exclude_bluest_part=exclude_bluest_part,
+                                         blue_buffer=blue_buffer, line_to_skip=line_to_skip)
         # The actual fit ~4s
-        self.linefitter.fit(**guesses)
+        self.linefitter.fit( **self._normguesses )
 
     def _linefit_to_mus_(self):
         """ returns the best fit values ordered as the usedlines 
@@ -798,7 +1031,7 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
         """
         self._build_arclines_()
         
-        lineprop = dict(contdegree=contdegree,line_shift=line_shift,
+        lineprop = dict(contdegree=contdegree, line_shift=line_shift,
                         exclude_reddest_part=exclude_reddest_part,
                         red_buffer=red_buffer,
                         exclude_bluest_part=exclude_bluest_part,
@@ -911,7 +1144,7 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
                 fig = mpl.figure(figsize=[8,5])
                 ax = fig.add_axes([0.12,0.12,0.78,0.78])
                 ax.set_xlabel(r"Wavelength [$\mathrm{\AA}$]", fontsize="large")
-                ax.set_xlabel(r"Flux []", fontsize="large")
+                ax.set_ylabel(r"Flux []", fontsize="large")
             else:
                 fig = ax.figure
 
@@ -922,7 +1155,7 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
                     _ = [ax.axvline(self.linefitter[lamp].param_input["mu%s_guess"%i], color="0.8", lw=1) 
                          for i,l in enumerate(self.usedlines)]
         else:
-            # - Non Sequential
+            # - Sequential
             if ax is None:
                 fig = mpl.figure(figsize=[10,3])
                 ax = [fig.add_subplot(1,self.nspectra,i+1) for i in range(self.nspectra)]

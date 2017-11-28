@@ -22,6 +22,27 @@ CONTDEGREE_GAUSS = 4
 LEGENDRE_GAUSS= False
 
 
+# ------------------ #
+#  Builder           #
+# ------------------ #
+def build_background(ccd,
+                    smoothing=[0,2],
+                    start=2, jump=10, multiprocess=True,notebook=False,
+                    savefile=None):
+    """ """
+    from .io import is_stdstars, filename_to_background_name
+    ccd.fit_background(start=start, jump=jump, multiprocess=multiprocess, notebook=notebook,
+                                set_it=False, is_std= is_stdstars(ccd.header), smoothing=smoothing)
+    ccd._background.writeto( filename_to_background_name(ccd.filename).replace('.gz','') )
+    if savefile is not None:
+        ccd._background.show(savefile=savefile)
+        mpl.close("all")
+
+
+
+# ------------------ #
+#  Main Functions    #
+# ------------------ #
 
 def get_background(contvalues, size=SEDM_CCD_SIZE, smoothing=[0,2]):
     """ """
@@ -35,7 +56,6 @@ def load_background(filename):
     back = Background()
     back.load(filename)
     return back
-
 
 # ------------------- #
 #   MultiProcessing   #

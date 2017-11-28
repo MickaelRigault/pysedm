@@ -104,7 +104,7 @@ if  __name__ == "__main__":
     
     # - Builds
     
-    if args.buildbkgd is not None and len(args.build) >0:
+    if args.build is not None and len(args.build) >0:
         for target in args.build.split(","):
             build_night_cubes(date, target=target,
                             lamps=True, only_lamps=True, skip_calib=True, no_bkgd_sub=False,

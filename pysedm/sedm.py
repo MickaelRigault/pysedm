@@ -394,7 +394,7 @@ class SEDMCube( Cube ):
                  interactive=False, ccd=None,
                  savefile=None, ax=None, show=True,
                  show_meanspectrum=True, cmap=None,
-                 vmin=None, vmax=None, 
+                 vmin=None, vmax=None, notebook=None,
                  **kwargs):
         """ Display the cube.
         
@@ -449,6 +449,12 @@ class SEDMCube( Cube ):
 
         show: [bool] -optional-
             If you do not save the data (see savefile), shall the plot be shown?
+        
+        notebook: [bool or None] -optional-
+            Is this running from a notebook? 
+            If True, the plot will be made using fig.show() if not with mpl.show()
+            If None, this will try to guess.
+
 
         **kwargs goes to matplotlib's imshow 
 
@@ -460,12 +466,12 @@ class SEDMCube( Cube ):
             return super(SEDMCube, self).show(toshow=toshow, interactive=interactive,
                                            savefile=savefile, ax=ax, show=show,
                                            show_meanspectrum=show_meanspectrum, cmap=cmap,
-                                           vmin=vmin, vmax=vmax, **kwargs)
+                                           vmin=vmin, vmax=vmax, notebook=notebook, **kwargs)
         else:
             iplot = InteractiveCubeandCCD(self, fig=None, axes=ax, toshow=toshow)
             iplot._nofancy = True
             iplot.set_ccd(ccd)
-            iplot.launch(vmin=vmin, vmax=vmax)
+            iplot.launch(vmin=vmin, vmax=vmax, notebook=notebook)
             return iplot
 
 

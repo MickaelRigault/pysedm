@@ -430,7 +430,7 @@ class CCD( BaseCCD ):
             build_background(self, **kwargs)
             warnings.warn("A background have been built")
             
-        self._background = load_background( filename_to_background_name(self.filename) )
+        self._background = load_background( filename_to_background_name( self.filename ))
         if set_it:
             self.set_background( self._background.background, force_it=True)
             

@@ -74,7 +74,7 @@ def build_tracematcher(date, verbose=True, width=None,
         
     if rebuild_nightly_trace:
         print("Building Nightly Solution")
-        smap = get_tracematcher(glob(timedir+"dome.fits.*")[0], width=width)
+        smap = get_tracematcher(glob(timedir+"dome.fits*")[0], width=width)
         smap.writeto(timedir+"%s_TraceMatch.pkl"%date)
         print("Nightly Solution Saved")
         
@@ -182,7 +182,7 @@ def build_backgrounds(date, smoothing=[0,2], start=2, jump=10,
     fileccds = []
     if target is None:
         if lamps:
-            lamp_files = glob(timedir+"Hg.fits.*") + glob(timedir+"Cd.fits.*") + glob(timedir+"Xe.fits.*") + glob(timedir+"dome.fits.*")
+            lamp_files = glob(timedir+"Hg.fits*") + glob(timedir+"Cd.fits*") + glob(timedir+"Xe.fits*") + glob(timedir+"dome.fits*")
             fileccds  += lamp_files
 
         if not only_lamps:
@@ -247,7 +247,7 @@ def build_wavesolution(date, verbose=False, ntest=None, use_fine_tuned_traces=Fa
         #lamps = [get_ccd(timedir+"%s.fits"%s_, tracematch= io.get_file_tracematch(date, s_) if use_fine_tuned_traces else smap)
         #           for s_ in lamps ]
         raise ValueError("use_fine_tuned_traces is not supported anymore")
-    lamps = [get_ccd(glob(timedir+"%s.fits.*"%s_)[0], tracematch=smap) for s_ in lamps]
+    lamps = [get_ccd(glob(timedir+"%s.fits*"%s_)[0], tracematch=smap) for s_ in lamps]
     
     if verbose: print "Cd, Hg and Xe lamp loaded"
     # - The CubeSolution
@@ -300,7 +300,7 @@ def build_night_cubes(date, lbda=None,
     fileccds = []
     if target is None:
         if lamps:
-            lamp_files = glob(timedir+"Hg.fits.*") + glob(timedir+"Cd.fits.*") + glob(timedir+"Xe.fits.*") + glob(timedir+"dome.fits.*")
+            lamp_files = glob(timedir+"Hg.fits*") + glob(timedir+"Cd.fits*") + glob(timedir+"Xe.fits*") + glob(timedir+"dome.fits*")
             fileccds  += lamp_files
 
         if not only_lamps:

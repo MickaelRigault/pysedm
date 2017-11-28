@@ -385,8 +385,9 @@ class SEDMCube( Cube ):
         -------
         Void (affects `data`)
         """
-        self.remove_flux( self.get_spectrum(self.get_faintest_spaxels(nspaxels,**kwargs), usemean=usemean,
-                                                data=estimate_from).data)
+        self._sky = self.get_spectrum(self.get_faintest_spaxels(nspaxels,**kwargs), usemean=usemean,
+                                                data=estimate_from)
+        self.remove_flux( self._sky.data)
 
 
     # - Improved version allowing to add CCD

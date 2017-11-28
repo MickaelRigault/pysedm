@@ -26,7 +26,7 @@ from ..sedm import INDEX_CCD_CONTOURS, TRACE_DISPERSION, build_sedmcube
 ############################
 def build_tracematcher(date, verbose=True, width=None,
                            save_masks=False,
-                           rebuild_nightly_trace=False,
+                           rebuild=False,
                            notebook=False):
     
     """ Create Spaxel trace Solution 
@@ -66,19 +66,22 @@ def build_tracematcher(date, verbose=True, width=None,
         width = 2.*TRACE_DISPERSION
 
     # - Load the Spectral Matcher
-    if not rebuild_nightly_trace:
+    if not rebuild:
         try:
             smap = io.load_nightly_tracematch(date)
         except:
-            rebuild_nightly_trace = True
+            rebuild = True
         
-    if rebuild_nightly_trace:
+    if rebuild:
         print("Building Nightly Solution")
         smap = get_tracematcher(glob(timedir+"dome.fits*")[0], width=width)
         smap.writeto(timedir+"%s_TraceMatch.pkl"%date)
         print("Nightly Solution Saved")
         
     if save_masks:
+        if not rebuild and len(glob(timedir+"%s_TraceMatch_WithMasks.pkl"%date))>0:
+            warnings.warn("TraceMatch_WithMasks already exists for %s. rebuild is False, so nothing is happening"%date)
+            return
         load_trace_masks(smap, smap.get_traces_within_polygon(INDEX_CCD_CONTOURS), notebook=notebook)
         smap.writeto(timedir+"%s_TraceMatch_WithMasks.pkl"%date)
     
@@ -192,7 +195,7 @@ def build_backgrounds(date, smoothing=[0,2], start=2, jump=10,
         if target in ["dome","Hg","Cd","Xe"]:
             starts_with = ""
             
-        fileccds += [f for f in io.get_night_ccdfiles(date, skip_calib=False, contains=target, **kwargs)
+        fileccds += [f for f in io.get_night_ccdfiles(date, skip_calib=False, contains=target, starts_with=starts_with, **kwargs)
                          if "e3d" not in f and "bkgd" not in f] # to avoid picking cubes or background files
         
         
@@ -205,10 +208,6 @@ def build_backgrounds(date, smoothing=[0,2], start=2, jump=10,
                         smoothing=smoothing,
             savefile = None if not savefig else timedir+"ProdPlots/bkgd_%s.pdf"%(file_.split('/')[-1].replace(".fits","")))
         
-        
-        
-    
-
     
 ############################
 #                          #
@@ -217,7 +216,7 @@ def build_backgrounds(date, smoothing=[0,2], start=2, jump=10,
 ############################
 def build_wavesolution(date, verbose=False, ntest=None, use_fine_tuned_traces=False,
                        lamps=["Hg","Cd","Xe"], savefig=True, saveindividuals=False,
-                       xybounds=None):
+                       xybounds=None, rebuild=True):
     """ Create the wavelength solution for the given night.
     The core of the solution fitting is made in pysedm.wavesolution.
 
@@ -237,6 +236,11 @@ def build_wavesolution(date, verbose=False, ntest=None, use_fine_tuned_traces=Fa
     if verbose:
         print "Directory affected by Wavelength Calibration: %s"%timedir
 
+
+    if not rebuild and len(glob(timedir+"%s_WaveSolution.pkl"%(date)))>0:
+        warnings.warn("WaveSolution already exists for %s. rebuild is False, so nothing is happening"%date)
+        return
+    
     # ----------------
     # - Load the Data
     # - SpectralMatch using domes

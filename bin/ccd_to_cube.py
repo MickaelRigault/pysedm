@@ -22,6 +22,9 @@ if  __name__ == "__main__":
     parser.add_argument('infile', type=str, default=None,
                         help='The date YYYYMMDD')
 
+    parser.add_argument('--rebuild',  action="store_true", default=False,
+                        help='If the object you want to build already exists, nothing happens except if this is set')
+    
     # --------------- #
     #  Cube Building  #
     # --------------- #
@@ -118,7 +121,7 @@ if  __name__ == "__main__":
     # - TraceMatch
     if args.tracematch or args.tracematchnomasks:
         build_tracematcher(date, save_masks=args.tracematch,
-                            rebuild_nightly_trace=True, notebook=False)
+                            rebuild_nightly_trace=True, notebook=False, rebuild=args.rebuild)
         
     # - Hexagonal Grid        
     if args.hexagrid:
@@ -130,11 +133,11 @@ if  __name__ == "__main__":
         
         build_wavesolution(date, ntest=ntest, use_fine_tuned_traces=False,
                        lamps=["Hg","Cd","Xe"], saveindividuals=False,
-                        savefig=~args.nofig)
+                        savefig=~args.nofig, rebuild=args.rebuild)
 
     # - Flat Fielding
     if args.flat:
-        lbda_min,lbda_max = np.asarray(flatlbda.split(","), dtype="float")
+        lbda_min,lbda_max = np.asarray(args.flatlbda.split(","), dtype="float")
         build_flatfield(date,
                         lbda_min=lbda_min,
                         lbda_max=lbda_max, ref=args.flatref,

@@ -234,7 +234,12 @@ def display_on_hexagrid(value, traceindexes,
 #                               #
 #    SEDMachine Cube            #
 #                               #
-################################# 
+#################################
+class CubeFlat( Cube ):
+    """ """
+    
+
+    
 class SEDMCube( Cube ):
     """ SEDM Cube """
     DERIVED_PROPERTIES = ["sky"]

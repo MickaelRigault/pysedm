@@ -103,12 +103,12 @@ if  __name__ == "__main__":
     # ================= #
     
     # - Builds
-    
     if args.build is not None and len(args.build) >0:
         for target in args.build.split(","):
             build_night_cubes(date, target=target,
                             lamps=True, only_lamps=True, skip_calib=True, no_bkgd_sub=False,
                             test=None, notebook=False)
+            
     if args.buildbkgd is not None and len(args.buildbkgd) > 0:
         for target in args.buildbkgd.split(","):
             build_backgrounds(date, target=target,
@@ -121,7 +121,7 @@ if  __name__ == "__main__":
     # - TraceMatch
     if args.tracematch or args.tracematchnomasks:
         build_tracematcher(date, save_masks=args.tracematch,
-                            rebuild_nightly_trace=True, notebook=False, rebuild=args.rebuild)
+                           rebuild_nightly_trace=True, notebook=False, rebuild=args.rebuild)
         
     # - Hexagonal Grid        
     if args.hexagrid:

@@ -171,3 +171,10 @@ def load_nightly_wavesolution(YYYYMMDD):
     """
     from .wavesolution import load_wavesolution
     return load_wavesolution(get_datapath(YYYYMMDD)+"%s_WaveSolution.pkl"%(YYYYMMDD))
+
+def load_nightly_flat(YYYYMMDD):
+    """ Load the spectral matcher.
+    This object must have been created. 
+    """
+    from pyifu.spectroscopy import load_slice
+    return load_slice(get_datapath(YYYYMMDD)+"%s_Flat.fits"%(YYYYMMDD))

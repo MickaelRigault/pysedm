@@ -112,16 +112,16 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000, ref="dome",
                     kind="median", savefig=True):
     """ """
     from ..sedm import get_sedmcube
-
+    from pyifu.spectroscopy  import get_slice
     
     reffile  = io.get_night_cubes(date, kind="cube", target=ref)[0]
     refcube  = get_sedmcube(reffile)
     sliceref = refcube.get_slice(lbda_min, lbda_max, usemean=True)
     # - How to normalize the Flat
     if kind in ["med", "median"]:
-        norm = np.median(sliceref)
+        norm = np.nanmedian(sliceref)
     elif kind in ["mean"]:
-        norm = np.mean(sliceref)
+        norm = np.nanmean(sliceref)
     elif kind in refcube.indexes:
         norm = sliceref[np.argwhere(refcube.indexes==kind)]
     else:
@@ -129,7 +129,9 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000, ref="dome",
     
     # - The Flat
     flat     = sliceref / norm
-
+    slice_ = get_slice(flat, np.asarray(refcube.index_to_xy(refcube.indexes)),
+                        refcube.spaxel_vertices,
+                        indexes=refcube.indexes, variance=None, lbda=None)
     # - Figure
     if savefig:
         timedir  = io.get_datapath(date)
@@ -137,31 +139,14 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000, ref="dome",
             os.mkdir(timedir+"ProdPlots/")
         except:
             pass
-    
-        from ..sedm import display_on_hexagrid
-        xy = np.asarray(refcube.index_to_xy(refcube.indexes)).T
-        display_on_hexagrid(flat, refcube.indexes, xy=xy, vmin="0.5",vmax="99.5",
-                        outlier_highlight=5, savefile=timedir+"ProdPlots/%s_flat3d.pdf"%date)
+        slice_.show(savefile=timedir+"ProdPlots/%s_flat3d.pdf"%date)
 
     # - Savefing
-    from astropy.io import fits as pf
-    hdul = []
-    # -- Data saving
-    hduP = pf.PrimaryHDU(flat, header=refcube.header)
-
-    hduP.header["CALTYPE"] = "FlatField"
-    hduP.header["FLATSRC"]  = ref
-    hduP.header["FLATREF"]  = kind
-    hdul.append(hduP)
+    slice_.header["CALTYPE"] = "FlatField"
+    slice_.header["FLATSRC"]  = ref
+    slice_.header["FLATREF"]  = kind
+    slice_.writeto(timedir+'%s_Flat.fits'%date)
     
-    hdul.append(pf.ImageHDU([v for i,v in refcube.spaxel_mapping.items()], name='MAPPING'))
-    hdul.append(pf.ImageHDU([i for i,v in refcube.spaxel_mapping.items()], name='SPAX_ID'))
-    hdul.append(pf.ImageHDU(refcube.spaxel_vertices, name='SPAX_VERT'))
-    
-    
-    hdulist = pf.HDUList(hdul)
-    
-    hdulist.writeto(timedir+'%s_Flat.fits'%date)
     
 ############################
 #                          #

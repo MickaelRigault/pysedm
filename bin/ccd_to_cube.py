@@ -121,7 +121,7 @@ if  __name__ == "__main__":
     # - TraceMatch
     if args.tracematch or args.tracematchnomasks:
         build_tracematcher(date, save_masks=args.tracematch,
-                           rebuild_nightly_trace=True, notebook=False, rebuild=args.rebuild)
+                           notebook=False, rebuild=args.rebuild)
         
     # - Hexagonal Grid        
     if args.hexagrid:

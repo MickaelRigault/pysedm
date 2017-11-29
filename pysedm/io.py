@@ -60,7 +60,7 @@ def get_night_ccdfiles(YYYYMMDD, skip_calib=False, starts_with="crr_b_", contain
     from glob import glob
     
     timedir = get_datapath(YYYYMMDD)
-    basefile = timedir+"%s*%s*.fits*"%(starts_with,contains)
+    basefile = timedir+"%s*%s*.fits*"%(starts_with,contains.replace(".fits",""))
     return glob(basefile) if not skip_calib else\
       [f_ for f_ in glob(basefile) if "Calib" not in pf.getval(f_,"Name") ]
     

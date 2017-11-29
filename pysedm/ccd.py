@@ -423,12 +423,12 @@ class CCD( BaseCCD ):
         # ---------------- #
         from glob import glob
         if len(glob(filename_to_background_name(self.filename)))==0:
-            warnings.warn("No background have been found for %s"%self.filename)
+            warnings.warn("No background has been found for %s"%self.filename)
             if not build_if_needed:
                 raise IOError("Since build_if_needed=False, No background available.")
             from .background import build_background
             build_background(self, **kwargs)
-            warnings.warn("A background have been built")
+            warnings.warn("A background has been built")
             
         self._background = load_background( filename_to_background_name( self.filename ))
         if set_it:

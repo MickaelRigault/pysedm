@@ -40,28 +40,39 @@ IFU_SCALE_UNIT  = 0.4
 # ------------------ #
 #  Builder           #
 # ------------------ #
-def build_sedmcube(ccd, date, lbda=None,
-                 wavesolution=None, hexagrid=None):
+def build_sedmcube(ccd, date, lbda=None, flatfield=None,
+                 wavesolution=None, hexagrid=None, flatfielded=True):
     """ """
     from . import io
     # - INPUT [optional]
     if hexagrid is None:
-        hexagrid    = io.load_nightly_hexagonalgrid(date)
+        hexagrid     = io.load_nightly_hexagonalgrid(date)
     
     if wavesolution is None:
-        wavesolution     = io.load_nightly_wavesolution(date)
+        wavesolution = io.load_nightly_wavesolution(date)
         wavesolution._load_full_solutions_()
     
     if lbda is None:
         lbda = SEDM_LBDA
 
+    if flatfielded and flatfield is None:
+        flatfield = io.load_nightly_flat(date)
+        
     # - Build the Cube
     cube = ccd.extract_cube(wavesolution, lbda, hexagrid=hexagrid, show_progress=True)
+
     # - passing the header inforation
     for k,v in ccd.header.items():
         if k not in cube.header:
             cube.header[k] = v
 
+    cube.header['ORIGIN'] = (ccd.filename.split('/')[-1], "CCD filename used to build the cube")
+
+    if flatfielded:
+        cube.scale_by(flatfield.data)
+        cube.header['FLAT3D'] = (True, "Is the Cube FlatFielded")
+        cube.header['FLATSRC'] = (flatfield.filename.split('/')[-1], "Object use to FlatField the cube")
+    
     # - Saving it
     root  = io.CUBE_PROD_ROOTS["cube"]["root"]
     

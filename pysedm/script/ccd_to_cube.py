@@ -276,7 +276,7 @@ def build_wavesolution(date, verbose=False, ntest=None, use_fine_tuned_traces=Fa
 #  Build Cubes             #
 #                          #
 ############################
-def build_night_cubes(date, lbda=None,
+def build_night_cubes(date, lbda=None, flatfielded=True,
                       target=None, lamps=True, only_lamps=False, skip_calib=True, no_bkgd_sub=False,
                       test=None, notebook=False, **kwargs):
     """ 
@@ -326,6 +326,7 @@ def build_night_cubes(date, lbda=None,
             
         # - see pysedm.sedm
         build_sedmcube(ccd_, date, lbda=lbda, wavesolution=wcol, hexagrid=hgrid)
+        
 
     # - Actual Build (no ProgressBar for only 1 case
     to_be_built = [fileccds[test]] if test is not None else fileccds

@@ -146,6 +146,7 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000,
     # ---------------------- #
     #  Actual FlatFielding   #
     # ---------------------- #
+    reffile  = io.get_night_cubes(date, kind="cube", target=ref)[0]
     refcube  = get_sedmcube(reffile)
     sliceref = refcube.get_slice(lbda_min, lbda_max, usemean=True)
     # - How to normalize the Flat

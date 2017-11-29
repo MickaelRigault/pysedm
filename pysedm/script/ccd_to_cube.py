@@ -108,13 +108,44 @@ def build_hexagonalgrid(date, xybounds=None):
 # Spaxel Spacial Position  #
 #                          #
 ############################
-def build_flatfield(date, lbda_min=7000, lbda_max=9000, ref="dome",
+def build_flatfield(date, lbda_min=7000, lbda_max=9000,
+                        ref="dome", build_ref=True,
                     kind="median", savefig=True):
     """ """
     from ..sedm import get_sedmcube
     from pyifu.spectroscopy  import get_slice
+    timedir  = io.get_datapath(date)
+    reffile  = io.get_night_cubes(date, kind="cube", target=ref)
     
-    reffile  = io.get_night_cubes(date, kind="cube", target=ref)[0]
+    if len(reffile)==0:
+        warnings.warn("The reference cube %s does not exist "%ref)
+        if build_ref:
+            warnings.warn("build_flatfield is building it!")
+        else:
+            raise IOError("No reference cube to build the flatfield (build_ref was set to False)")
+        # --------------------- #
+        # Build the reference   #
+        # --------------------- #
+        
+        tmatch   = io.load_nightly_tracematch(date, withmask=True) 
+        # - The CCD
+        ccdreffile = glob(timedir+"dome.fits*")[0]
+        ccdref     = get_ccd(ccdreffile, tracematch = tmatch, background = 0)
+        ccdref.fetch_background(set_it=True, build_if_needed=True)
+        if not ccdref.has_var():
+            ccdref.set_default_variance()
+            
+        # - HexaGrid
+        hgrid    = io.load_nightly_hexagonalgrid(date)
+        wcol     = io.load_nightly_wavesolution(date)
+        wcol._load_full_solutions_()
+
+        build_sedmcube(ccdref, date, lbda=None, wavesolution=wcol, hexagrid=hgrid,
+                        flatfielded=False)
+        
+    # ---------------------- #
+    #  Actual FlatFielding   #
+    # ---------------------- #
     refcube  = get_sedmcube(reffile)
     sliceref = refcube.get_slice(lbda_min, lbda_max, usemean=True)
     # - How to normalize the Flat
@@ -134,7 +165,6 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000, ref="dome",
                         indexes=refcube.indexes, variance=None, lbda=None)
     # - Figure
     if savefig:
-        timedir  = io.get_datapath(date)
         try:
             os.mkdir(timedir+"ProdPlots/")
         except:

@@ -41,7 +41,7 @@ def get_extractstar(cube, psfmodel="MoffatPlane0", fit=True, **kwargs):
     ExtractStar
     """
     es = ExtractStar(cube)
-    es.set_psfmodel(kind=psfmodel)
+    es.set_psfmodel(kind=psfmodel, **kwargs)
     if fit:
         es.fit()
     return es
@@ -95,15 +95,14 @@ class PSF3DMODEL( BaseObject ):
 # =================== #
 class _ASTROPY_BASICPLANE_( PSF3DMODEL ):
     """ Basic model composed of Moffat or Gaussian + Plane """
-    def fit_cube(self, cube):
+    def fit_cube(self, cube, **kwargs):
         """ """
         x,y = np.asarray(cube.index_to_xy(cube.indexes)).T
         def fit_slice(data_):
             fit_p   = fitting.LevMarLSQFitter()
             flagnan = np.isnan(data_)
             p       = fit_p(self.model, x[~flagnan], y[~flagnan], data_[~flagnan])
-            return {pname:[p.parameters[i],np.NaN]
-                          for i,pname in enumerate(p.param_names)}
+            return {pname:[p.parameters[i],np.NaN] for i,pname in enumerate(p.param_names)}
         
         self._derived_properties["fit_param"] = {i:fit_slice(data_) for i, data_ in enumerate(cube.data)}
     
@@ -181,13 +180,16 @@ class ExtractStar( BaseObject ):
                 raise ValueError("Could not parse the Plane Degree. Should be `MoffatPlaneX` where X is any integer")
 
             # - initial guess
-            slice_ = self.cube.get_slice(None,None)
+            slice_ = self.cube.get_slice(6000,8000) # max of response of the intrument
             imax   = np.nanargmax(slice_)
             a0     = slice_[imax]
             x0,y0  = np.asarray(self.cube.index_to_xy(self.cube.indexes))[imax]
-
+            gamma  = kwargs.pop("gamma",15)
+            alpha = kwargs.pop("alpha", 30)
             moffatplane = MOFFATPLANE()
-            moffatplane.set_model(models.Moffat2D(amplitude=a0, x_0=x0, y_0=y0) + models.Polynomial2D(degree))
+            
+            moffatplane.set_model(models.Moffat2D(amplitude=a0, x_0=x0, y_0=y0, gamma=gamma, alpha=alpha) + models.Polynomial2D(degree))
+            
             self._properties["psfmodel"] = moffatplane
             
         elif "GaussianPlane" in kind:
@@ -213,7 +215,7 @@ class ExtractStar( BaseObject ):
     # ---------- #
     def fit(self, **kwargs):
         """ extract the spectrum from the cube and return parameters """
-        self.psfmodel.fit_cube(self.cube)
+        self.psfmodel.fit_cube(self.cube,**kwargs)
 
     # ---------- #
     #  GETTER    #

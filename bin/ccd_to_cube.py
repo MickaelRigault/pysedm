@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-
+from glob import glob
 #################################
 #
 #   MAIN 
@@ -140,7 +140,8 @@ if  __name__ == "__main__":
         lbda_min,lbda_max = np.asarray(args.flatlbda.split(","), dtype="float")
         build_flatfield(date,
                         lbda_min=lbda_min,
-                        lbda_max=lbda_max, ref=args.flatref,
+                        lbda_max=lbda_max,
+                        ref=args.flatref, build_ref=True,
                         savefig=~args.nofig)
 
     

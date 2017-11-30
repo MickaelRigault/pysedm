@@ -26,7 +26,12 @@ if  __name__ == "__main__":
     
     parser.add_argument('--nskyspaxels',  type=int, default=50,
                         help='Number of faintest spaxels used to estimate the sky')
-
+    
+    parser.add_argument('--ccd',  type=str, default=None,
+                        help='provide the origin ccd file')
+    
+    parser.add_argument('--date',  type=str, default=None,
+                        help='Set the date')
     args = parser.parse_args()
     # ================= #
     #  The Scripts      #
@@ -34,6 +39,14 @@ if  __name__ == "__main__":
     cube = get_sedmcube(args.infile)
     if args.rmsky:
         cube.remove_sky(nspaxels=args.nskyspaxels, usemean=False)
-
+    if args.ccd is not None:
+        from pysedm import io, get_ccd
+        if args.date is None:
+            date = args.ccd.split("b_ifu")[-1].split("_")[0]
+            print("used date %s"%date)
+            
+        ccd = get_ccd(args.ccd, tracematch=io.load_nightly_tracematch(date, False))
+    else:
+        ccd = None
     # - The plotting
-    cube.show(interactive=True, notebook=False)
+    cube.show(interactive=True, notebook=False, ccd=ccd)

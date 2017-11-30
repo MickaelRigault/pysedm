@@ -188,7 +188,7 @@ def build_backgrounds(date, smoothing=[0,2], start=2, jump=10,
                         target=None, lamps=True, only_lamps=False,
                         skip_calib=True, starts_with="crr_b", contains="*",
                         multiprocess=True,
-                        savefig=True, notebook=False):
+                        savefig=True, notebook=False,  **kwargs):
     """ """
     from ..background import build_background
     timedir  = io.get_datapath(date)

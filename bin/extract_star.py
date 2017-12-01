@@ -52,7 +52,7 @@ if  __name__ == "__main__":
     if args.auto is not None and len(args.auto) >0:
         print(args.auto)
         for target in args.auto.split(","):
-            fileccds = io.get_night_cubes(date, kind="cube", target=target)
+            fileccds = io.get_night_cubes(date, kind="cube", target=target.replace(".fits",""))
             print(fileccds)
             for filecube in fileccds:
                 print("Automatic extraction of target %s, file: %s"%(target, filecube))

@@ -11,10 +11,8 @@ from astropy.io import fits as pf
 REDUXPATH   = os.getenv('SEDMREDUXPATH',default="~/redux/")
 
 CUBE_PROD_ROOTS = {"cube":{"root":"e3d",
-                          "comment":"Raw Extract cube"},
-                   "flat":{"root":"flat_e3d",
                            "comment":"Flat fielded cube (from Raw Extract cube)"},
-                   "flux_calibrated":{"root":"fluxcal_e3d",
+                   "calibrated":{"root":"cal_e3d",
                                       "comment":"Flux calibrated flat fielded cube"}
                     }
     
@@ -65,7 +63,7 @@ def get_night_ccdfiles(YYYYMMDD, skip_calib=False, starts_with="crr_b_", contain
       [f_ for f_ in glob(basefile) if "Calib" not in pf.getval(f_,"Name") ]
     
 def get_night_cubes(YYYYMMDD, kind, target="*"):
-    """ Return the ccdfile associated to the given night (ccr_b_....fits)
+    """ Return the ccdfile associated to the given night 
 
     Parameters
     ----------
@@ -75,8 +73,7 @@ def get_night_cubes(YYYYMMDD, kind, target="*"):
     kind: [string] 
         The kind of cube you want:
         - cube: for wavelength calibrated cube
-        - flat: for wavelength calibrated cube after 3d flat correction
-        - flux_calibrated: flux calibrated cube
+        - calibrated: flux calibrated cube
         
     starts_with: [string] -optional-
         How the ccdfiles be identified? 

@@ -9,6 +9,7 @@ import matplotlib.pyplot  as mpl
 from pyifu.spectroscopy   import Cube, Spectrum
 from pyifu.mplinteractive import InteractiveCube
 from .utils.tools         import kwargs_update
+from astropy.io           import fits as pf
 
 # --- DB Structure
 CALIBFILES = ["Hg.fits","Cd.fits","Xe.fits","dome.fits"]
@@ -256,45 +257,47 @@ class SEDMCube( Cube ):
     DERIVED_PROPERTIES = ["sky"]
 
     def get_aperture_spec(self, xref, yref, radius, bkgd_annulus=None,
-                              refindex=None):
-        """ """
+                              refindex=None, adr=True, **kwargs):
+        """ 
+        bkgd_annulus: [float, float ] -optional-
+            coefficient (in radius) defining the background annulus.
+            e.g. if the radius is 5 and bkgd_annulus=[1,1.5], the resulting
+            annulus will have an inner radius of 5 and an outter radius of 5*1.5= 7.5
+        
+        """
         from shapely import geometry
-        sourcex, sourcey = self.get_source_position(self.lbda,
-                                                xref=xref, yref=yref, refindex=refindex)
+        if adr:
+            sourcex, sourcey = self.get_source_position(self.lbda, xref=xref, yref=yref, refindex=refindex)
+        else:
+            sourcex, sourcey = np.ones( len(self.lbda) )*xref,np.ones( len(self.lbda) )*yref
+
         # - Radius 
         if not hasattr(radius,"__iter__"):
             radius = np.ones(len(self.lbda))*radius
         elif len(radius)!= len(self.lbda):
             raise TypeError("The radius size must be a constant or have the same lenth as self.lbda")
         
-        flux, var, apweight = [], [], []
+        apert = []
         if bkgd_annulus is not None:
-            bflux, bvar, bapweight = [], [], []
+            apert_bkgd = []
             
         for i, x, y, r in zip(range(self.nspaxels), sourcex, sourcey, radius):
-            # - Circle
-            cicle = geometry.Point(x,y).buffer(r)
-            win     = self.fraction_of_spaxel_within_polygon(cicle)
-            flux.append(np.nansum(win*self.data[i]))
-            apweight.append(np.nansum(win))
-            if self.has_variance():
-                var.append(np.nansum(win**2*self.variance[i]))
-            # - Annulus
+            sl_ = self.get_slice(index=i, slice_object=True)
+            apert.append(sl_.get_aperture(x,y,r, **kwargs))
             if bkgd_annulus is not None:
-                annulus = geometry.Point(x,y).buffer(bkgd_annulus[1]).difference(geometry.Point(x,y).buffer(bkgd_annulus[0]))
-                bwin    = self.fraction_of_spaxel_within_polygon(annulus)
-                bflux.append(np.nansum(bwin*self.data[i]))
-                bapweight.append(np.nansum(bwin))
-                if self.has_variance():
-                    bvar.append(np.nansum(bwin**2*self.variance[i]))
-                
-            
-            
-        spec  = ApertureSpectrum(self.lbda, flux, variance=var if self.has_variance() else None,
-                                    apweight=apweight, header=None)
-        if bkgd_annulus:
-            bspec = ApertureSpectrum(self.lbda, bflux, variance=bvar if self.has_variance() else None,
-                                    apweight=bapweight, header=None)
+                apert_bkgd.append(sl_.get_aperture(x,y,r*bkgd_annulus[1],
+                                                radius_min=r*bkgd_annulus[0],
+                                                **kwargs))
+        apert = np.asarray(apert)
+        
+        # - Setting the background
+        
+        spec  = ApertureSpectrum(self.lbda, apert.T[0]/apert.T[2], variance=apert.T[1]/apert.T[2]**2 if self.has_variance() else None,
+                                    apweight=apert.T[2], header=None)
+        if bkgd_annulus is not None:
+            apert_bkgd = np.asarray(apert_bkgd)
+            bspec = ApertureSpectrum(self.lbda, apert_bkgd.T[0]/apert_bkgd.T[2], variance=apert_bkgd.T[1]/apert_bkgd.T[2]**2 if self.has_variance() else None,
+                                    apweight=apert_bkgd.T[2], header=None)
             spec.set_background(bspec)
             
         return spec
@@ -500,9 +503,10 @@ class ApertureSpectrum( Spectrum ):
 
     def __init__(self, lbda, flux, variance=None, apweight=None, header=None):
         """ """
+        self.__build__()
         self.set_data(flux, variance=variance, lbda=lbda, logwave=None)
         self._properties['apweight'] = apweight
-        
+
     # ================ #
     #  Methods         #
     # ================ #
@@ -523,7 +527,8 @@ class ApertureSpectrum( Spectrum ):
     # ------- #
     # PLOTTER #
     # ------- #
-    def show(self, toshow="data", ax=None, savefile=None, show=True, **kwargs):
+    def show(self, toshow="data", ax=None, savefile=None, show=True,
+                 bcolor="0.7", **kwargs):
         """ Display the spectrum.
         
         Parameters
@@ -558,7 +563,78 @@ class ApertureSpectrum( Spectrum ):
         pl = super(ApertureSpectrum, self).show(toshow="data", ax=ax, savefile=None, show=False, **kwargs)
         fig = pl["fig"]
         ax  = pl["ax"]
+        if self.has_background():
+            alpha = kwargs.pop("alpha",1.)/4.
+            super(ApertureSpectrum, self).show(toshow="rawdata", ax=ax,
+                                                   savefile=None, show=False, alpha=alpha, **kwargs)
+            self.background.show(ax=ax, savefile=None, show=False, alpha=alpha, color=bcolor, **kwargs)
+            
         fig.figout(savefile=savefile, show=show)
+
+    # -------- #
+    #  I/O     #
+    # -------- #
+    def _build_hdulist_(self, saveerror=False, savebackground=True):
+        """ The fits hdulist that should be saved.
+
+        Parameters
+        ----------
+        saveerror:  [bool] -optional- 
+            Set this to True if you wish to record the error and not the variance
+            in you first hdu-table. if False, the table will be called
+            VARIANCE and have self.v; if True, the table will be called
+            ERROR and have sqrt(self.v)
+
+        savebackground: [bool] -optional-
+            Shall the background be saved ?
+
+        Returns
+        -------
+        Void
+        """           
+        self.header['PYSEDM_T'] = ("ApertureSpectrum","Pysedm object Type")
+        hdul = super(ApertureSpectrum, self)._build_hdulist_(saveerror=saveerror)
+
+        hduAp  = pf.ImageHDU(self.apweight, name='APWEIGHT')
+        hdul.append(hduAp)
+        # -- Variance saving
+        if self.has_background():
+            hduBkgd  = pf.ImageHDU(self.background.data, name='BKGD')
+            hdul.append(hduBkgd)
+            hduBkgdVar  = pf.ImageHDU(self.background.data, name='BKGDVAR')
+            hdul.append(hduBkgdVar)
+            hduApBkgd  = pf.ImageHDU(self.background.apweight, name='BKGDAPW')
+            hdul.append(hduApBkgd)
+            
+        return hdul
+
+
+    def load(self, filename, dataindex=0, varianceindex=1, headerindex=None):
+        """ 
+
+        lbda - If an hdu column of the fits file is name:
+               "LBDA" or "LAMBDA" or "WAVE" or "WAVELENGTH" or "WAVELENGTHS",
+               the column will the used as lbda
+        
+        """
+        super(ApertureSpectrum, self).load(filename, dataindex=dataindex, varianceindex=varianceindex, headerindex=headerindex)
+        
+        # Get the LBDA if any
+        apweight_ = [f.data for f in self.fits if f.name.upper() in ["APWEIGHT"]]
+        self._properties["apweight"] = None if len(apweight_)==0 else apweight_[0]
+        
+        # Get the LBDA if any
+        background_ = [f.data for f in self.fits if f.name.upper() in ["BKGD","BACKGROUND"]]
+        bapweight_ = [f.data for f in self.fits if f.name.upper() in ["APWBKGD","BKGDAPW"]]
+        bvar_ = [f.data for f in self.fits if f.name.upper() in ["BKGDVAR"]]
+        if len(background_)==1:
+            
+            bck = ApertureSpectrum(self.lbda, background_[0],
+                                       variance=None if len(bvar_)==0 else bvar_[0],
+                                       apweight=None if len(bapweight_)==0 else bapweight_[0],
+                                       header=None)
+            self._properties['rawdata'] = self.rawdata + bck.data
+            self.set_background(bck)
         
     # ================ #
     #  Properties      #
@@ -581,12 +657,15 @@ class ApertureSpectrum( Spectrum ):
         return self._properties['background']
     
     def has_background(self):
-        return self._properties['background'] is None
+        return self._properties['background'] is not None
     
     @property
     def _backgrounddata(self):
         """ """
-        return 0 if self.has_background() else self.background.data
+        return 0 if not self.has_background() else self.background.data
+
+
+
     
 ########################
 #                      #

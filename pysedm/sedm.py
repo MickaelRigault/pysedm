@@ -37,12 +37,39 @@ DEFAULT_REFLBDA = 6000 # In Angstrom
 IFU_SCALE_UNIT  = 0.4
 
 
+# --- Palomar Atmosphere
+# Palomar Extinction Data from Hayes & Latham 1975
+# (Wavelength in Angstroms, Magnitudes per airmass)
+PALOMAR_EXTINCTION = np.asarray([ (3200, 1.058),
+ (3250, 0.911), (3300, 0.826), (3350, 0.757), (3390, 0.719), (3448, 0.663), (3509, 0.617),
+ (3571, 0.575), (3636, 0.537), (3704, 0.500), (3862, 0.428), (4036, 0.364), (4167, 0.325),
+ (4255, 0.302), (4464, 0.256), (4566, 0.238), (4785, 0.206), (5000, 0.183), (5263, 0.164),
+ (5556, 0.151), (5840, 0.140), (6055, 0.133), (6435, 0.104), (6790, 0.084), (7100, 0.071),
+ (7550, 0.061), (7780, 0.055), (8090, 0.051), (8370, 0.048), (8708, 0.044), (9832, 0.036),
+ (10255, 0.034), (10610, 0.032), (10795, 0.032), (10870, 0.031)])
+
+def get_palomar_extinction():
+    """ The ExtinctionSpectrum object of the Palomar Extinction 
+    To correct for atmosphere extinction, see the get_atm_extinction() method
+
+    Return 
+    ------
+    ExtinctionSpectrum
+    """
+    from .utils.atmosphere import ExtinctionSpectrum
+    spec = ExtinctionSpectrum(None)
+    spec.create(lbda=PALOMAR_EXTINCTION.T[0],data=PALOMAR_EXTINCTION.T[1],
+                                variance=None, header=None)
+    spec._source = "Hayes & Latham 1975"
+    return spec
+
 
 # ------------------ #
 #  Builder           #
 # ------------------ #
 def build_sedmcube(ccd, date, lbda=None, flatfield=None,
-                 wavesolution=None, hexagrid=None, flatfielded=True):
+                 wavesolution=None, hexagrid=None,
+                 flatfielded=True, atmcorrected=True):
     """ """
     from . import io
     # - INPUT [optional]
@@ -68,12 +95,25 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
             cube.header[k] = v
 
     cube.header['ORIGIN'] = (ccd.filename.split('/')[-1], "CCD filename used to build the cube")
-
+    # - Flat Field the cube
     if flatfielded:
         cube.scale_by(flatfield.data)
         cube.header['FLAT3D'] = (True, "Is the Cube FlatFielded")
         cube.header['FLATSRC'] = (flatfield.filename.split('/')[-1], "Object use to FlatField the cube")
-    
+        
+    # - Amtphore correction
+    if atmcorrected:
+        atmspec = get_palomar_extinction()
+        extinction = atmspec.get_atm_extinction(cube.lbda, cube.header['AIRMASS'])
+        # scale_by devided by
+        cube.scale_by(1./extinction)
+        cube.header['ATMCORR']  = (True, "Has the Atmosphere extinction been corrected?")
+        cube.header['ATMSRC']   = (atmspec._source if hasattr(atmspec,"_source") else "unknown", "Reference of the atmosphere extinction")
+        cube.header['ATMSCALE'] = (np.nanmean(extinction), "Mean atm correction over the entire wavelength range")
+        
+
+
+        
     # - Saving it
     root  = io.CUBE_PROD_ROOTS["cube"]["root"]
     

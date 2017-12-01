@@ -432,3 +432,10 @@ def get_moffatplane(bkgdegree):
 
     return _ProfileBackground_()
 
+def get_gaussianplane(bkgdegree):
+    """ """
+    class _ProfileBackground_( PSF3D ):
+        _profile     = Gaussian2D()
+        _background  = Polynomial2D(degree=bkgdegree)
+        
+    return _ProfileBackground_()

@@ -12,7 +12,7 @@ from propobject          import BaseObject
 from modefit.baseobjects import BaseFitter, BaseModel
 from pyifu.tools     import kwargs_update
 
-from astropy.modeling.functional_models import Moffat2D
+from astropy.modeling.functional_models import Moffat2D, Gaussian2D
 from astropy.modeling.models import Polynomial2D
 
 
@@ -33,9 +33,10 @@ def fit_slice(slice_, degree=1, fitbuffer=None,
     # - restrict area
     if fitted_indexes is None and fitbuffer is not None:
         # 1ms
-        g_ = slpsf.get_guesses()
+        g = slpsf.get_guesses() # loads the guess
+        x,y = slpsf.model.centroid_guess
         # 288ms
-        slpsf.set_fit_area(shapely.geometry.Point(g_["x_0_guess"],g_["y_0_guess"]).buffer(fitbuffer))
+        slpsf.set_fit_area(shapely.geometry.Point(x,y).buffer(fitbuffer))
         
     # 338ms / 900 without buffer
     slpsf.fit( **kwargs_update(slpsf.get_guesses(),**kwargs) )
@@ -85,20 +86,46 @@ class ExtractStar( BaseObject ):
               fit_slice(self.cube.get_slice(index=i_, slice_object=True, **kwargs),
                             fitbuffer=20, fitted_indexes=fitted_indexes).fitvalues
 
-    def get_slice_psf(self, lbdarange=None, pdfmodel="MoffatPlane0", fitbuffer=20, **kwargs):
+    def get_slice_psf(self, lbdarange=None, psfmodel="MoffatPlane0", fitbuffer=20, **kwargs):
         """ """
         return fit_slice( self.cube.get_slice(lbda_min=lbdarange[0], lbda_max=lbdarange[1],
                                                   slice_object=True),
-                            fitbuffer=fitbuffer, **kwargs)
+                            psfmodel=psfmodel, fitbuffer=fitbuffer, **kwargs)
 
     
     # APERTURE SPECTROSCOPY
-    def get_auto_aperture_spectroscopy(self, radius=10, bkgd_annulus=[1,1.2],
+    def get_auto_aperture_spectroscopy(self, radius=10, units="spaxels",
+                                           bkgd_annulus=[1,1.2],
                                         refindex=100, waverange=20, **kwargs):
-        """ """
-        sliceref   = self.get_slice_psf([self.cube.lbda[refindex]-20,self.cube.lbda[refindex]+20],**kwargs)
-        xref, yref = sliceref.fitvalues["x_0"], sliceref.fitvalues["y_0"]
-        return self.cube.get_aperture_spec(xref, yref, radius=radius, bkgd_annulus=bkgd_annulus, refindex=refindex)
+        """
+        radius: [float]
+        
+        units: [string]
+             For a gaussian distribution, a radius of 
+            - 1   FWHM includes 98.14% of the flux
+            - 1.5 FWHM includes 99.95% of the flux
+        """
+        sliceref   = self.get_slice_psf([self.cube.lbda[refindex]-20,self.cube.lbda[refindex]+20],
+                                        psfmodel="GaussianPlane0", **kwargs)
+        xref, yref = sliceref.model.centroid
+        if units in ["fwhm","FWHM"]:
+            effradius = sliceref.model.fwhm * radius
+        elif units in ['spaxel',"spaxels","spxl"]:
+            effradius = radius
+        else:
+            from astropy import units
+            warnings.warn("Unclear Unit %s. using astropy.units converting to spaxels assuming 1spaxels=0.75arcsec"%units)
+            effradius = (radius * units.Unit(units).to("arcsec") / 0.75).value #spaxel size
+            
+        spec =  self.cube.get_aperture_spec(xref, yref, radius=effradius,
+                                            bkgd_annulus=bkgd_annulus, refindex=refindex)
+        spec.header['TYPE']     = ("ApertureSpectroscopy", "Nature of the object")
+        spec.header['APTYPE']   = ("Auto", "What kond of Aperture Spectroscopy")
+        spec.header['APRADIUS'] = (radius, "Radius used to extract the spectra")
+        spec.header['APRUNITS'] = (units, "Unit of the Aperture radius")
+        return spec
+    
+
         
     def get_aperture_spectroscopy(self, x, y, radius, radius_min=None, **kwargs):
         """ 
@@ -187,6 +214,8 @@ class SlicePSF( BaseFitter ):
         self.set_slice(slice_)
         if "MoffatPlane" in psfmodel:
             self.set_model(get_moffatplane( int(psfmodel.replace("MoffatPlane","")) ))
+        elif "GaussianPlane" in psfmodel:
+            self.set_model(get_gaussianplane( int(psfmodel.replace("GaussianPlane","")) ))
         else:
             raise ValueError("Only the 'MoffatPlane' psfmodel has been implemented")
 
@@ -241,16 +270,10 @@ class SlicePSF( BaseFitter ):
         # corresponding data entry:
         return self._xfitted, self._yfitted, self._datafitted, self._errorfitted
 
+
     def get_guesses(self):
-        """ return a dictionary containing simple best guesses """
-        # gamma =  FWHM / (2 * np.sqrt(2**(1 / alpha) - 1))
-        ampl = np.nanmax(self._datafitted)
-        x0   = self._xfitted[np.argmax(self._datafitted)]
-        y0   = self._yfitted[np.argmax(self._datafitted)]
-        return dict(amplitude_guess=ampl, x_0_guess=x0, y_0_guess=y0,
-                        gamma_guess=2.3, alpha_guess=2.5,alpha_boundaries=[1,5],
-                        c0_0_guess=np.percentile(self._datafitted,10))
-        
+        return self.model.get_guesses(self._xfitted, self._yfitted, self._datafitted)
+    
     # --------- #
     # PLOTTER   #
     # --------- #
@@ -426,16 +449,102 @@ class PSF3D( BaseModel ):
 #######################
 def get_moffatplane(bkgdegree):
     """ """
-    class _ProfileBackground_( PSF3D ):
-        _profile     = Moffat2D()
+    class MoffatPlane( MoffatPlaneVirtual ):
         _background  = Polynomial2D(degree=bkgdegree)
 
-    return _ProfileBackground_()
+    return MoffatPlane()
 
+class MoffatPlaneVirtual( PSF3D ):
+    """ """
+    _profile     = Moffat2D()
+
+    # --------------- #
+    def get_guesses(self, x, y, data):
+        """ return a dictionary containing simple best guesses """
+        ampl = np.nanmax(data)
+        x0   = x[np.argmax(data)]
+        y0   = y[np.argmax(data)]
+        self._guess = dict(amplitude_guess=ampl, x_0_guess=x0, y_0_guess=y0,
+                        gamma_guess=3., alpha_guess=2.5, alpha_boundaries=[1,5],
+                        c0_0_guess=np.percentile(data,10))
+        return self._guess
+    # ============= #
+    #  Properties   #
+    # ============= #
+    @property
+    def centroid_guess(self):
+        """ """
+        return self._guess["x_0_guess"],self._guess["y_0_guess"]
+    
+    @property
+    def centroid(self):
+        """ """
+        return self.fitvalues["x_0"],self.fitvalues["y_0"]
+    
+    @property
+    def fwhm(self):
+        """ """
+        gamma = self.param_profile[3]
+        alpha = self.param_profile[4]
+        return gamma * np.sqrt(2.**(1. / alpha) - 1.)
+        
+#######################
+#                     #
+#  Gaussian + BKGD    #
+#                     #
+#######################
+
+class GaussianPlaneVirtual( PSF3D ):
+    """ """
+    _profile     = Gaussian2D()
+    # --------------- #
+    def get_guesses(self, x, y, data):
+        """ return a dictionary containing simple best guesses """
+        ampl = np.nanmax(data)
+        x0   = x[np.argmax(data)]
+        y0   = y[np.argmax(data)]
+        self._guess = dict(amplitude_guess=ampl,
+                        x_mean_guess=x0, y_mean_guess=y0,
+                        x_stddev_guess=1, x_stddev_boundaries=[0.2,10],
+                        y_stddev_guess=1, y_stddev_boundaries=[0.2,10], 
+                        c0_0_guess=np.percentile(data,10))
+        return self._guess
+    
+    # ============= #
+    #  Properties   #
+    # ============= #
+    @property
+    def centroid_guess(self):
+        """ """
+        return self._guess["x_mean_guess"],self._guess["y_mean_guess"]
+    
+    @property
+    def centroid(self):
+        """ """
+        return self.param_profile[1],self.param_profile[2]
+
+    @property
+    def fwhm(self):
+        """ """
+        xstd = self.param_profile[3]
+        ystd = self.param_profile[4]
+        return 2.355 * np.mean([xstd,ystd])
+
+    
 def get_gaussianplane(bkgdegree):
     """ """
-    class _ProfileBackground_( PSF3D ):
-        _profile     = Gaussian2D()
+    class GaussianPlane( GaussianPlaneVirtual ):
         _background  = Polynomial2D(degree=bkgdegree)
         
-    return _ProfileBackground_()
+    return GaussianPlane()
+
+
+
+
+########################
+#                      #
+# Moffat+Gaussian+BKGD #
+#                      #
+########################
+
+

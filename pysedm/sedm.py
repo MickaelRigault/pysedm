@@ -136,6 +136,12 @@ def get_sedmcube(filename, **kwargs):
     """
     return SEDMCube(filename, **kwargs)
 
+def get_aperturespectrum(filename):
+    """ Load and return an Aperture Spectrum """
+    spec = ApertureSpectrum(None,None)
+    spec.load(filename)
+    return spec
+
 def kpy_to_e3d(filename, lbda, savefile=None):
     """ Converts SEDmachine kpy .npy data into pyifu e3d cubes. 
     (rotation information missing)
@@ -339,6 +345,13 @@ class SEDMCube( Cube ):
             bspec = ApertureSpectrum(self.lbda, apert_bkgd.T[0]/apert_bkgd.T[2], variance=apert_bkgd.T[1]/apert_bkgd.T[2]**2 if self.has_variance() else None,
                                     apweight=apert_bkgd.T[2], header=None)
             spec.set_background(bspec)
+
+        for k,v in self.header.items():
+            if np.any([entry in k for entry in ["TEL","RA","DEC","DOME","OBJ","OUT","IN_","TEMP","INST",
+                                                    "FLAT","ATM"]]):
+                spec.header[k] = v
+        if self.filename is not None:
+            spec.header["SOURCE"] = self.filename.split("/")[-1]
             
         return spec
         
@@ -632,7 +645,7 @@ class ApertureSpectrum( Spectrum ):
         -------
         Void
         """           
-        self.header['PYSEDM_T'] = ("ApertureSpectrum","Pysedm object Type")
+        self.header['PYSEDMT']  = ("ApertureSpectrum","Pysedm object Type")
         hdul = super(ApertureSpectrum, self)._build_hdulist_(saveerror=saveerror)
 
         hduAp  = pf.ImageHDU(self.apweight, name='APWEIGHT')

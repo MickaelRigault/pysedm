@@ -32,8 +32,11 @@ if  __name__ == "__main__":
     parser.add_argument('--auto',  type=str, default=None,
                         help='Build a e3d cube of the given target or target list (csv) e.g. --build dome or --build dome,Hg,Cd')
     
-    parser.add_argument('--autoradius',  type=float, default=10,
-                        help='Radius (in spaxels) of the automatic aperture photometric extraction [default=10]')
+    parser.add_argument('--radius',  type=float, default=10,
+                        help='Radius for the Aperture spectroscopic extraction [see --runits for radius units]')
+
+    parser.add_argument('--runits',  type=str, default="spaxels",
+                        help='Units of the radius. could be: fwhm, spaxels or any astropy.units')
     
     args = parser.parse_args()
     # ================= #
@@ -58,7 +61,8 @@ if  __name__ == "__main__":
                 print("Automatic extraction of target %s, file: %s"%(target, filecube))
                 cube = get_sedmcube(filecube)
                 es   = extractstar.ExtractStar(cube)
-                spec = es.get_auto_aperture_spectroscopy(radius=args.autoradius)
+                
+                spec = es.get_auto_aperture_spectroscopy(radius=args.radius, units=args.runits)
                 spec.writeto(filecube.replace("e3d","specauto"))
                 spec.show(savefile=filecube.replace("e3d","specauto").replace(".fits",".pdf"))
                 

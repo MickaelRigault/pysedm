@@ -69,7 +69,9 @@ def get_palomar_extinction():
 # ------------------ #
 def build_sedmcube(ccd, date, lbda=None, flatfield=None,
                  wavesolution=None, hexagrid=None,
-                 flatfielded=True, atmcorrected=True):
+                 flatfielded=True, atmcorrected=True,
+                 calibration_ref=None,
+                 build_calibrated_cube=True):
     """ """
     from . import io
     # - INPUT [optional]
@@ -111,9 +113,6 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
         cube.header['ATMSRC']   = (atmspec._source if hasattr(atmspec,"_source") else "unknown", "Reference of the atmosphere extinction")
         cube.header['ATMSCALE'] = (np.nanmean(extinction), "Mean atm correction over the entire wavelength range")
         
-
-
-        
     # - Saving it
     root  = io.CUBE_PROD_ROOTS["cube"]["root"]
     
@@ -122,8 +121,25 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
     else:
         filout = "%s_%s"%(ccd.filename.split("/")[-1].split(".fits")[0], ccd.objname)
         
-    cube.writeto(io.get_datapath(date)+"%s_%s.fits"%(root,filout))
-            
+    fileout =    io.get_datapath(date)+"%s_%s.fits"%(root,filout) 
+    cube.writeto(fileout)
+
+    if build_calibrated_cube:
+        if calibration_ref is None:
+            calfiles = io.get_night_fluxcalfiles(date)
+            if len(calfiles)==0:
+                warnings.warn("No `fluxcalfiles` for date %s. No calibrated cube created"%date)
+                return
+            calibration_ref = calfiles[-1]
+            print("using %s as a flux calibration reference"%calibration_ref.split("/")[-1] )
+            spec = Spectrum(calibration_ref)
+            cube.scale_by(1./spec.data)
+            cube.header['SOURCE']  = (fileout.split('/')[-1] , "the original cube")
+            cube.header['FCALSRC'] = (calibration_ref.split('/')[-1], "the calibration source reference")
+            cube.header['PYSEDMT'] = ("Flux Calibrated Cube")
+            cube.writeto(fileout.replace("e3d","e3d_cal"))
+
+    
 # ------------------ #
 #  Main Functions    #
 # ------------------ #        
@@ -287,7 +303,7 @@ def display_on_hexagrid(value, traceindexes,
                 fontsize=cfontsize)
     
     fig.figout(savefile=savefile, show=show)
-
+    return {"ax":axim,"fig":fig}
 #################################
 #                               #
 #    SEDMachine Cube            #
@@ -348,15 +364,13 @@ class SEDMCube( Cube ):
 
         for k,v in self.header.items():
             if np.any([entry in k for entry in ["TEL","RA","DEC","DOME","OBJ","OUT","IN_","TEMP","INST",
-                                                    "FLAT","ATM"]]):
+                                                    "FLAT","ATM","AIR"]]):
                 spec.header[k] = v
         if self.filename is not None:
             spec.header["SOURCE"] = self.filename.split("/")[-1]
             
         return spec
         
-        
-    
     def get_source_position(self, lbda, xref=0, yref=0, refindex=None):
         """ The position in the IFU of a spacial element as a function of wavelength.
         Shift caused by the ADR.
@@ -581,6 +595,7 @@ class ApertureSpectrum( Spectrum ):
     # PLOTTER #
     # ------- #
     def show(self, toshow="data", ax=None, savefile=None, show=True,
+                 show_background=True,
                  bcolor="0.7", **kwargs):
         """ Display the spectrum.
         
@@ -613,10 +628,10 @@ class ApertureSpectrum( Spectrum ):
         Void
         """
         from pyifu.tools import figout, specplot
-        pl = super(ApertureSpectrum, self).show(toshow="data", ax=ax, savefile=None, show=False, **kwargs)
+        pl = super(ApertureSpectrum, self).show(toshow=toshow, ax=ax, savefile=None, show=False, **kwargs)
         fig = pl["fig"]
         ax  = pl["ax"]
-        if self.has_background():
+        if show_background and self.has_background():
             alpha = kwargs.pop("alpha",1.)/4.
             super(ApertureSpectrum, self).show(toshow="rawdata", ax=ax,
                                                    savefile=None, show=False, alpha=alpha, **kwargs)

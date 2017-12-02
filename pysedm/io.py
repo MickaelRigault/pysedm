@@ -8,6 +8,7 @@ import warnings
 import numpy as np
 from astropy.io import fits as pf
 
+from glob import glob
 REDUXPATH   = os.getenv('SEDMREDUXPATH',default="~/redux/")
 
 CUBE_PROD_ROOTS = {"cube":{"root":"e3d",
@@ -29,13 +30,18 @@ def filename_to_background_name(filename):
 
 def get_night_schedule(YYYYMMDD):
     """ Return the list of observations (the what.list) """
-    from glob import glob
     schedule_file = glob(get_datapath(YYYYMMDD)+"what*")
     if len(schedule_file)==0:
         warnings.warn("No 'what list' for the given night ")
         return None
     return open(schedule_file[0]).read().splitlines()
 
+def get_night_fluxcalfiles(YYYYMMDD):
+    """ Returns the list of all the fluxcal files i.e. the files created from standard stars observation
+    that enables to flux calibrate the cubes """
+    timedir = get_datapath(YYYYMMDD)
+    return glob(timedir+"fluxcal*.fits")
+    
 def get_night_ccdfiles(YYYYMMDD, skip_calib=False, starts_with="crr_b_", contains="*"):
     """ Return the ccdfile associated to the given night (ccr_b_....fits)
 
@@ -55,7 +61,7 @@ def get_night_ccdfiles(YYYYMMDD, skip_calib=False, starts_with="crr_b_", contain
     -------
     list of fullpathes
     """
-    from glob import glob
+
     
     timedir = get_datapath(YYYYMMDD)
     basefile = timedir+"%s*%s*.fits*"%(starts_with,contains.replace(".fits",""))
@@ -82,7 +88,6 @@ def get_night_cubes(YYYYMMDD, kind, target="*"):
     -------
     list of fullpathes
     """
-    from glob import glob
     if kind not in CUBE_PROD_ROOTS.keys():
         raise ValueError("Unknown kind (%s). Available kinds -> "%kind+ ", ".join(CUBE_PROD_ROOTS.keys()))
     root = CUBE_PROD_ROOTS[kind]["root"]
@@ -92,7 +97,6 @@ def get_night_cubes(YYYYMMDD, kind, target="*"):
 
 def get_file_tracematch(YYYYMMDD, contains):
     """ """
-    from glob import glob
     tracefile = glob(get_datapath(YYYYMMDD)+"tracematch_*%s*"%contains)
     if len(tracefile) == 0:
         return None

@@ -296,9 +296,11 @@ def build_wavesolution(date, verbose=False, ntest=None, use_fine_tuned_traces=Fa
 
     dump_pkl(csolution.wavesolutions, timedir+"%s_WaveSolution.pkl"%date)
     if savefig:
+        wsol = io.load_nightly_hexagonalgrid(date)
         hexagrid = io.load_nightly_hexagonalgrid(date)
-        csolution.show_dispersion_map(hexagrid,vmin="0.5",vmax="99.5",
-                                      outlier_highlight=5, savefile= timedir+"ProdPlots/%s_wavesolution_dispersionmap.pdf"%date)
+        pl = wsol.show_dispersion_map(hexagrid,vmin="0.5",vmax="99.5",
+                                outlier_highlight=5, show=False)
+        pl['fig'].savefig(timedir+"%s_wavesolution_dispersionmap.pdf"%date)
         
     
 ############################

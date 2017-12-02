@@ -23,12 +23,6 @@ if  __name__ == "__main__":
     parser.add_argument('infile', type=str, default=None,
                         help='cube filepath')
     
-    #parser.add_argument('--rmsky',  action="store_true", default=False,
-    #                    help='Removes the sky component from the cube')
-    #
-    #parser.add_argument('--nskyspaxels',  type=int, default=50,
-    #                    help='Number of faintest spaxels used to estimate the sky')
-
     parser.add_argument('--auto',  type=str, default=None,
                         help='Build a e3d cube of the given target or target list (csv) e.g. --build dome or --build dome,Hg,Cd')
     
@@ -37,6 +31,11 @@ if  __name__ == "__main__":
 
     parser.add_argument('--runits',  type=str, default="spaxels",
                         help='Units of the radius. could be: fwhm, spaxels or any astropy.units')
+
+    # - Standard Star object
+    parser.add_argument('--std',  action="store_true", default=False,
+                        help='Set this to True to tell the program you what to build a calibration spectrum from this object')
+    
     
     args = parser.parse_args()
     # ================= #
@@ -50,7 +49,10 @@ if  __name__ == "__main__":
     # ================= #
     #   Actions         #
     # ================= #
-    
+    extracted_objects = []
+    # ---------- #
+    # Extraction #
+    # ---------- #
     # - Automatic extraction
     if args.auto is not None and len(args.auto) >0:
         print(args.auto)
@@ -64,7 +66,50 @@ if  __name__ == "__main__":
                 
                 spec = es.get_auto_aperture_spectroscopy(radius=args.radius, units=args.runits)
                 spec.writeto(filecube.replace("e3d","specauto"))
+                spec._side_properties["filename"] = filecube.replace("e3d","specauto")
                 spec.show(savefile=filecube.replace("e3d","specauto").replace(".fits",".pdf"))
+                extracted_objects.append(spec)
                 
     else:
         print("NO  AUTO")
+        
+    # ----------- #
+    # Calibration #
+    # ----------- #
+    if args.std:
+        import pycalspec
+        from pyifu.spectroscopy import get_spectrum
+        from pyifu.tools import figout
+        for spec in extracted_objects:
+            if "STD" not in spec.header['OBJECT']:
+                continue
+            
+            if "FLUXCAL" in spec.header.keys() and spec.header['FLUXCAL']:
+                continue
+            
+            # - Let's go
+            stdname = spec.header['OBJECT'].replace("STD-","")
+            stdspec = pycalspec.std_spectrum(stdname).reshape(spec.lbda,"linear")
+            speccal = get_spectrum(spec.lbda, stdspec.data/spec.data, variance=None, header=spec.header)
+            speccal.header["SOURCE"] = (spec.filename.split("/")[-1], "This object has been derived from this file")
+            speccal.header["PYSEDMT"] = ("Flux Calibration Spectrum", "Object to use to flux calibrate")
+            speccal._side_properties['filename'] = spec.filename.replace('spec',"fluxcal")
+            speccal.writeto(spec.filename.replace('spec',"fluxcal"))
+                                
+            # - Checkplot
+            pl = speccal.show(color="C1", lw=2, show=False, savefile=None)
+            ax = pl["ax"]
+            ax.set_ylabel('Inverse Sensitivity')
+            ax.set_yscale("log")
+            # telluric
+            ax.axvspan(7500,7800, color="0.7", alpha=0.4) 
+            ax.text(7700,ax.get_ylim()[-1],  "02 Telluric ", 
+                        va="top", ha="center",  rotation=90,color="0.2", zorder=9)
+            # reference            
+            axrspec = ax.twinx()
+            spec.show(ax=axrspec, color="C0",  show_background=False, label="obs.", show=False, savefile=None)
+            axrspec.set_yticks([])
+            axrspec.legend(loc="upper right")
+            axrspec.set_title("Source:%s | Airmass:%.2f"%(spec.filename.split('/')[-1],spec.header['AIRMASS']),
+                    fontsize="small", color="0.5")
+            ax.figure.figout(savefile=speccal.filename.replace(".fits",".pdf"))

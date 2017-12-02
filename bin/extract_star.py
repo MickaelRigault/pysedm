@@ -27,9 +27,9 @@ if  __name__ == "__main__":
                         help='Build a e3d cube of the given target or target list (csv) e.g. --build dome or --build dome,Hg,Cd')
     
     parser.add_argument('--radius',  type=float, default=10,
-                        help='Radius for the Aperture spectroscopic extraction [see --runits for radius units]')
+                        help='Radius for the Aperture spectroscopic extraction [see --runit for radius units]')
 
-    parser.add_argument('--runits',  type=str, default="spaxels",
+    parser.add_argument('--runit',  type=str, default="spaxels",
                         help='Units of the radius. could be: fwhm, spaxels or any astropy.units')
 
     # - Standard Star object
@@ -64,7 +64,7 @@ if  __name__ == "__main__":
                 cube = get_sedmcube(filecube)
                 es   = extractstar.ExtractStar(cube)
                 
-                spec = es.get_auto_aperture_spectroscopy(radius=args.radius, units=args.runits)
+                spec = es.get_auto_aperture_spectroscopy(radius=args.radius, units=args.runit)
                 spec.writeto(filecube.replace("e3d","specauto"))
                 spec._side_properties["filename"] = filecube.replace("e3d","specauto")
                 spec.show(savefile=filecube.replace("e3d","specauto").replace(".fits",".pdf"))

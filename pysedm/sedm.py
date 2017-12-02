@@ -445,7 +445,8 @@ class SEDMCube( Cube ):
                                 **kwargs)
         return super(SEDMCube, self).load_adr(**adr_prop)
     
-    def remove_sky(self, nspaxels=50, usemean=False, estimate_from="rawdata",
+    def remove_sky(self, nspaxels=50, usemean=False,
+                       estimate_from="rawdata", lbda_range=[5000,8000],
                       **kwargs):
         """ Pick the `nspaxels` spaxels and average them out to build a skyspectrum.
         The flux of this skyspectrum is then removed from the cube.
@@ -465,6 +466,9 @@ class SEDMCube( Cube ):
         estimate_from: [string] -optional-
             Attribute that will be used to estimate the `data` of the sky spectrum
  
+        lbda_range: [float, float] -optional-
+            Which wavelength range is check.
+
         **kwargs goes to get_faintest_spaxels(): 
                   e.g: lbda_range, avoid_area, avoid_indexes etc.
 
@@ -472,8 +476,8 @@ class SEDMCube( Cube ):
         -------
         Void (affects `data`)
         """
-        self._sky = self.get_spectrum(self.get_faintest_spaxels(nspaxels,**kwargs), usemean=usemean,
-                                                data=estimate_from)
+        self._sky = self.get_spectrum(self.get_faintest_spaxels(nspaxels, lbda_range=lbda_range,**kwargs),
+                                          usemean=usemean, data=estimate_from)
         self.remove_flux( self._sky.data)
 
 

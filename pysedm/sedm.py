@@ -4,6 +4,7 @@
 """ Module containing the part that are directly SEDM oriented. """
 
 import numpy              as np
+import warnings
 import matplotlib.pyplot  as mpl
 
 from pyifu.spectroscopy   import Cube, Spectrum

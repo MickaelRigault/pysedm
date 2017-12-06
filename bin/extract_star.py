@@ -57,7 +57,7 @@ if  __name__ == "__main__":
     if args.auto is not None and len(args.auto) >0:
         print(args.auto)
         for target in args.auto.split(","):
-            fileccds = io.get_night_cubes(date, kind="cube", target=target.replace(".fits",""))
+            fileccds = io.get_night_files(date, "cube.*", target=target.replace(".fits",""))
             print(fileccds)
             for filecube in fileccds:
                 print("Automatic extraction of target %s, file: %s"%(target, filecube))
@@ -65,9 +65,10 @@ if  __name__ == "__main__":
                 es   = extractstar.ExtractStar(cube)
                 
                 spec = es.get_auto_aperture_spectroscopy(radius=args.radius, units=args.runit)
-                spec.writeto(filecube.replace("e3d","specauto"))
-                spec._side_properties["filename"] = filecube.replace("e3d","specauto")
-                spec.show(savefile=filecube.replace("e3d","specauto").replace(".fits",".pdf"))
+                fileout = filecube.replace(io.PROD_CUBEROOT,io.PROD_SPECROOT+"auto")
+                spec.writeto(fileout)
+                spec._side_properties["filename"] = fileout
+                spec.show(savefile=spec.filename.replace(".fits",".pdf"))
                 extracted_objects.append(spec)
                 
     else:
@@ -93,8 +94,11 @@ if  __name__ == "__main__":
             speccal = get_spectrum(spec.lbda, stdspec.data/spec.data, variance=None, header=spec.header)
             speccal.header["SOURCE"] = (spec.filename.split("/")[-1], "This object has been derived from this file")
             speccal.header["PYSEDMT"] = ("Flux Calibration Spectrum", "Object to use to flux calibrate")
-            speccal._side_properties['filename'] = spec.filename.replace('spec',"fluxcal")
-            speccal.writeto(spec.filename.replace('spec',"fluxcal"))
+            
+            # - Naming
+            filename_inv = spec.filename.replace(io.PROD_SPECROOT,io.PROD_SENSITIVITYROOT)
+            speccal._side_properties['filename'] = filename_inv
+            speccal.writeto(filename_inv)
                                 
             # - Checkplot
             pl = speccal.show(color="C1", lw=2, show=False, savefile=None)
@@ -103,7 +107,7 @@ if  __name__ == "__main__":
             ax.set_yscale("log")
             # telluric
             ax.axvspan(7500,7800, color="0.7", alpha=0.4) 
-            ax.text(7700,ax.get_ylim()[-1],  "02 Telluric ", 
+            ax.text(7700,ax.get_ylim()[-1],  "O2 Telluric ", 
                         va="top", ha="center",  rotation=90,color="0.2", zorder=9)
             # reference            
             axrspec = ax.twinx()

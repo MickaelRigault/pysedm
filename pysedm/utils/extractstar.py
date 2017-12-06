@@ -10,10 +10,12 @@ from pyifu.spectroscopy import Slice, Cube
 import shapely
 from propobject          import BaseObject
 from modefit.baseobjects import BaseFitter, BaseModel
-from pyifu.tools     import kwargs_update
+from .tools     import kwargs_update
 
 from astropy.modeling.functional_models import Moffat2D, Gaussian2D
 from astropy.modeling.models import Polynomial2D
+
+from scipy.stats import multivariate_normal
 
 
 ###########################
@@ -21,27 +23,49 @@ from astropy.modeling.models import Polynomial2D
 #  Single Slice Fit       #
 #                         #
 ###########################
-def fit_slice(slice_, degree=1, fitbuffer=None,
-              psfmodel="MoffatPlane0", fitted_indexes=None,
+from .tools import _loading_multiprocess
+_loading_multiprocess()
+
+def fit_slice(slice_, fitbuffer=None,
+              psfmodel="BiGaussianCont", fitted_indexes=None,
               **kwargs):
     """ 
     fitbuffer ignored if fitted_indexes provided
     """
-    # 10ms / 263ms with fitted_indexes
-    slpsf = SlicePSF(slice_, psfmodel=psfmodel, fitted_indexes=fitted_indexes)
-    
-    # - restrict area
-    if fitted_indexes is None and fitbuffer is not None:
-        # 1ms
-        g = slpsf.get_guesses() # loads the guess
-        x,y = slpsf.model.centroid_guess
-        # 288ms
-        slpsf.set_fit_area(shapely.geometry.Point(x,y).buffer(fitbuffer))
-        
-    # 338ms / 900 without buffer
-    slpsf.fit( **kwargs_update(slpsf.get_guesses(),**kwargs) )
-    return slpsf
+    slpsf = SlicePSF(slice_, psfmodel=psfmodel,
+                    fitbuffer=fitbuffer, fitted_indexes=fitted_indexes)
+    return _fit_slicepsf_(slpsf, **kwargs)
 
+# - Internal Method for Multiprocessing
+def _fit_slicepsf_(slicepsf, **kwargs):
+    """ Run the Fitting method from the slicepsf """
+    slicepsf.fit( **kwargs_update( slicepsf.get_guesses(), **kwargs) )
+    return slicepsf
+
+def fit_cube_per_slice(cube, notebook=True, psfmodel="BiGaussianCont",
+                    fitted_indexes=None, fitbuffer=10, multiprocess=True):
+    """ """
+    import multiprocessing
+    from astropy.utils.console import ProgressBar
+    # ================= #
+    #  Loading Slices   #
+    # ================= #
+    nlbda      = len(cube.lbda)
+    prop_slice = {"psfmodel":psfmodel, "fitbuffer":fitbuffer, "fitted_indexes":fitted_indexes}
+    all_slices = [SlicePSF(cube.get_slice(index=i_, slice_object=True), **prop_slice)
+                      for i_ in range(nlbda)]
+    
+    if multiprocess:
+        bar    = ProgressBar(nlbda, ipython_widget=notebook)
+        p, res = multiprocessing.Pool(), {}
+        for j, result in enumerate( p.imap(_fit_slicepsf_, all_slices)):
+            res[j] = result.fitvalues
+            bar.update(j)
+        bar.update(nlbda)
+        return res
+    else:
+        return ProgressBar.map(_fit_slicepsf_, all_slices, step=2)
+    
 ###########################
 #                         #
 #   Extract Star          #
@@ -64,9 +88,9 @@ class ExtractStar( BaseObject ):
     #  Cube -> Spectrum   #
     # ------------------- #
     # PSF SPECTROSCOPY
-    def fit_psf(self, fixed_buffer=None, buffer_refindex=100,
-                psfmodel="MoffatPlane0",
-                **kwargs):
+    def fit_psf(self, psfmodel="BiGaussianCont",
+                fixed_buffer=None, buffer_refindex=100,
+                notebook=False, **kwargs):
         """ """
         self._derived_properties['slicefitvalues'] = {}
         
@@ -74,19 +98,17 @@ class ExtractStar( BaseObject ):
             slref          = self.cube.get_slice(index=buffer_refindex, slice_object=True)
             psfref         = SlicePSF(slref, psfmodel=psfmodel)
             g_             = psfref.get_guesses()
-            polynom_buffer = shapely.geometry.Point(g_["x_0_guess"],g_["y_0_guess"]).buffer(fixed_buffer)
+            x, y           = psfref.model.centroid_guess
+            polynom_buffer = shapely.geometry.Point(x, y).buffer(fixed_buffer)
             fitted_indexes = slref.get_spaxels_within_polygon(polynom_buffer)
         else:
             fitted_indexes = None
-
-            
-        for i_ in range(len(self.cube.lbda)):
-            print(i_)
-            self._derived_properties['slicefitvalues'][i_] = \
-              fit_slice(self.cube.get_slice(index=i_, slice_object=True, **kwargs),
-                            fitbuffer=20, fitted_indexes=fitted_indexes).fitvalues
-
-    def get_slice_psf(self, lbdarange=None, psfmodel="MoffatPlane0", fitbuffer=20, **kwargs):
+        
+        self._derived_properties['slicefitvalues'] = \
+          fit_cube_per_slice(self.cube, notebook=notebook, psfmodel=psfmodel,
+                                 fitted_indexes=fitted_indexes, multiprocess=True)
+          
+    def get_slice_psf(self, lbdarange=None, psfmodel="BiGaussianCont", fitbuffer=20, **kwargs):
         """ """
         return fit_slice( self.cube.get_slice(lbda_min=lbdarange[0], lbda_max=lbdarange[1],
                                                   slice_object=True),
@@ -195,15 +217,20 @@ class SlicePSF( BaseFitter ):
     # =================== #
     #   Methods           #
     # =================== #
-    def __init__(self, slice_, 
-                     psfmodel="MoffatPlane0",
-                     fit_area=None, fitted_indexes=None):
+    def __init__(self, slice_,
+                     fitbuffer=None,fit_area=None,
+                     psfmodel="BiGaussianCont",
+                      fitted_indexes=None):
         """ The SlicePSF fitter object
 
         Parameters
         ---------- 
         slice_: [pyifu Slice] 
             The slice object that will be fitted
+            
+
+        fitbuffer: [float] -optional- 
+            = Ignored if fit_area or fitted_indexes are given=
 
         psfmodel: [string] -optional-
             Name of the PSF model used to fit the slice. 
@@ -214,18 +241,33 @@ class SlicePSF( BaseFitter ):
         self.set_slice(slice_)
         if "MoffatPlane" in psfmodel:
             self.set_model(get_moffatplane( int(psfmodel.replace("MoffatPlane","")) ))
+            
         elif "GaussianPlane" in psfmodel:
             self.set_model(get_gaussianplane( int(psfmodel.replace("GaussianPlane","")) ))
+            
+        elif "BiGaussianCont" in psfmodel:
+            #print("Model: BiGaussianCont")
+            self.set_model(get_bigaussiancont())
+        elif "GaussianCont" in psfmodel:
+            #print("Model: GaussianCont")
+            self.set_model(get_gaussiancont())
         else:
-            raise ValueError("Only the 'MoffatPlane' psfmodel has been implemented")
+            raise ValueError("Only the 'MoffatPlane/GaussianPlane/GaussianCont/BiGaussianCont' psfmodel has been implemented")
+        
 
         if fitted_indexes is not None:
             self.set_fitted_indexes(fitted_indexes)
         elif fit_area is not None:
             self.set_fit_area(fit_area)
+        elif fitbuffer is not None:
+            self._set_fitted_values_()
+            g = self.get_guesses() 
+            x,y = self.model.centroid_guess
+            self.set_fit_area(shapely.geometry.Point(x,y).buffer(fitbuffer))
         else:
             self._set_fitted_values_()
-            
+
+        self.use_minuit = True
     # --------- #
     #  SETTER   #
     # --------- #
@@ -404,28 +446,11 @@ class SlicePSF( BaseFitter ):
 ###########################
 class PSF3D( BaseModel ):
     """ """
-    FREEPARAMETERS = []
-    
-    def __new__(cls,*arg,**kwarg):
-        """ Black Magic allowing generalization of Polynomial models """
-        # - Profile
-        cls.PROFILE_PARAMETERS = cls._profile.param_names
-        cls.FREEPARAMETERS     = list(cls.PROFILE_PARAMETERS)+list(cls._background.param_names)
-        return super(PSF3D, cls).__new__(cls)
-
     def setup(self, parameters):
         """ """
         self.param_profile    = parameters[:len(self.PROFILE_PARAMETERS)]
         self.param_background = parameters[len(self.PROFILE_PARAMETERS):]
-        
-    def get_profile(self, x, y):
-        """ The profile at the given positions """
-        return self._profile.evaluate(x, y, *self.param_profile)
-    
-    def get_background(self, x, y):
-        """ The background at the given positions """
-        return self._background(x, y, *self.param_background)
-    
+
     # ================= #
     #   Properties      #
     # ================= #
@@ -442,10 +467,212 @@ class PSF3D( BaseModel ):
         """ the profile + background model. """
         return self.get_profile(x,y) + self.get_background(x,y)
 
+# - Based on Astropy Modeling    
+class PSF3DAstropy( PSF3D ):
+    """ """
+    FREEPARAMETERS = []
+    
+    def __new__(cls,*arg,**kwarg):
+        """ Black Magic allowing generalization of Polynomial models """
+        # - Profile
+        cls.PROFILE_PARAMETERS = cls._profile.param_names
+        cls.FREEPARAMETERS     = list(cls.PROFILE_PARAMETERS)+list(cls._background.param_names)
+            
+        return super(PSF3DAstropy, cls).__new__(cls)
+        
+    def get_profile(self, x, y):
+        """ The profile at the given positions """
+        return self._profile.evaluate(x, y, *self.param_profile)
+    
+    def get_background(self, x, y):
+        """ The background at the given positions """
+        return self._background(x, y, *self.param_background)
+    
+# - Based on Scipy Modeling
+class PSF3DScipy( PSF3D ):
+    """ """
+    PROFILE_PARAMETERS    = [] # TO BE DEFINED
+    BACKGROUND_PARAMETERS = [] # TO BE DEFINED
+    
+    def __new__(cls,*arg,**kwarg):
+        """ Black Magic allowing generalization of Polynomial models """
+        # - Profile
+        cls.FREEPARAMETERS     = list(cls.PROFILE_PARAMETERS)+list(cls.BACKGROUND_PARAMETERS)
+        return super(PSF3DScipy, cls).__new__(cls)
+    
+    def get_profile(self, x, y):
+        """ The profile at the given positions """
+        raise NotImplementedError("You must define the get_profile")
+    
+    def get_background(self, x, y):
+        """ The background at the given positions """
+        raise NotImplementedError("You must define the get_background")
+    
+
+#######################
+#                     #
+# BiGaussian + Const  #
+#     = Scipy =       #
+#######################
+def get_bigaussiancont():
+    return BiGaussianCont()
+
+def get_gaussiancont():
+    return GaussianCont()
+
+class GaussianCont( PSF3DScipy ):
+    """ """
+    PROFILE_PARAMETERS = ["amplitude",
+                          "x_mean","y_mean",
+                          "x_stddev","y_stddev","corr_xy"]
+        
+        
+    BACKGROUND_PARAMETERS = ["bkgd"]
+    
+    # --------------- #
+    # - Guesses     - #
+    # --------------- #
+    def get_guesses(self, x, y, data):
+        """ return a dictionary containing simple best guesses """
+        ampl = np.nanmax(data)
+        x0   = x[np.argmax(data)]
+        y0   = y[np.argmax(data)]
+        self._guess = dict(amplitude_guess=ampl * 15,
+                           x_mean_guess=x0, y_mean_guess=y0,
+                           x_stddev_guess=2., x_stddev_boundaries=[1.,10],
+                           y_stddev_guess=2., y_stddev_boundaries=[1.,10],
+                           bkgd_guess=np.percentile(data,10),
+                           corr_xy_guess = 0, corr_xy_boundaries= [-0.9, 0.9],
+                           #amplitude_ratio_guess = 0.5,
+                           #amplitude_ratio_boundaries = [0,1],
+                           #stddev_ratio_guess = 2.,
+                           #stddev_ratio_boundaries = [1,10],
+                            )
+        return self._guess
+    
+    # --------------- #
+    # - GETTER      - #
+    # --------------- #
+    def get_profile(self, x, y):
+        """ The profile at the given positions """
+        # param_profile:
+        #["amplitude", "x_mean","y_mean", "x_stddev","y_stddev","corr_xy",
+        # "amplitude_ratio","stddev_ratio"]
+
+        # - Amplitudes
+        ampl = self.param_profile[0]
+        
+        # - centroid
+        mean = self.param_profile[1], self.param_profile[2]
+        
+        # - Covariance Matrix
+        stdx, stdy, corr_xy = self.param_profile[3],self.param_profile[4],self.param_profile[5]
+        
+        cov = np.asarray([[stdx**2, corr_xy*stdx*stdy], [corr_xy*stdx*stdy, stdy**2]])
+        
+        # - The Gaussians
+        normal_1 = multivariate_normal.pdf(np.asarray([x,y]).T, mean=mean, cov=cov)
+        return ampl*normal_1
+    
+    def get_background(self, x, y):
+        """ The background at the given positions """
+        return self.param_background[0]
+    
+    # ============= #
+    #  Properties   #
+    # ============= #
+    @property
+    def centroid_guess(self):
+        """ """
+        return self._guess["x_mean_guess"],self._guess["y_mean_guess"]
+    
+    @property
+    def centroid(self):
+        """ """
+        return self.fitvalues["x_mean"],self.fitvalues["y_mean"]
+    
+    @property
+    def fwhm(self):
+        """ """
+        return "To Be Done"
+
+
+
+class BiGaussianCont( PSF3DScipy ):
+    """ """
+    PROFILE_PARAMETERS = ["amplitude",
+                          "x_mean","y_mean",
+                          "x_stddev","y_stddev","corr_xy",
+                          "amplitude_ratio","stddev_ratio"]
+        
+    BACKGROUND_PARAMETERS = ["bkgd"]
+    
+    # --------------- #
+    # - Guesses     - #
+    # --------------- #
+    def get_guesses(self, x, y, data):
+        """ return a dictionary containing simple best guesses """
+        ampl = np.nanmax(data)
+        x0   = x[np.argmax(data)]
+        y0   = y[np.argmax(data)]
+        self._guess = dict(amplitude_guess=ampl * 15,
+                           x_mean_guess=x0, y_mean_guess=y0,
+                           x_stddev_guess=1., x_stddev_boundaries=[0.5,5.],
+                           y_stddev_guess=1., y_stddev_boundaries=[0.5,5.],
+                           bkgd_guess=np.percentile(data,10),
+                           corr_xy_guess = 0, corr_xy_boundaries= [-0.9, 0.9],
+                           amplitude_ratio_guess = 0.2,
+                           amplitude_ratio_boundaries = [0,1],
+                           stddev_ratio_guess = 5.,
+                           stddev_ratio_boundaries = [1,10],
+                            )
+        return self._guess
+    
+    # --------------- #
+    # - GETTER      - #
+    # --------------- #
+    def get_profile(self, x, y):
+        """ The profile at the given positions """
+        # param_profile:
+        #["amplitude", "x_mean","y_mean", "x_stddev","y_stddev","corr_xy",
+        # "amplitude_ratio","stddev_ratio"]
+
+        ampl, xmean,ymean, xstd, ystd, corrxy, ampl_ratio, stddev_ratio = self.param_profile        
+        
+        # - Covariance Matrix
+        cov = np.asarray([[xstd**2, corrxy*xstd*ystd], [corrxy*xstd*ystd,ystd**2]])
+        
+        # - The Gaussians
+        normal_1 = multivariate_normal.pdf(np.asarray([x,y]).T, mean=[xmean,ymean], cov=cov)
+        normal_2 = multivariate_normal.pdf(np.asarray([x,y]).T, mean=[xmean,ymean], cov=cov*stddev_ratio**2)
+        return ampl*(normal_1 + normal_2*ampl_ratio)
+    
+    def get_background(self, x, y):
+        """ The background at the given positions """
+        return self.param_background[0]
+    
+    # ============= #
+    #  Properties   #
+    # ============= #
+    @property
+    def centroid_guess(self):
+        """ """
+        return self._guess["x_mean_guess"],self._guess["y_mean_guess"]
+    
+    @property
+    def centroid(self):
+        """ """
+        return self.fitvalues["x_mean"],self.fitvalues["y_mean"]
+    
+    @property
+    def fwhm(self):
+        """ """
+        return "To Be Done"
+    
 #######################
 #                     #
 #   Moffat + BKGD     #
-#                     #
+#    = Astropy =      #
 #######################
 def get_moffatplane(bkgdegree):
     """ """
@@ -454,7 +681,7 @@ def get_moffatplane(bkgdegree):
 
     return MoffatPlane()
 
-class MoffatPlaneVirtual( PSF3D ):
+class MoffatPlaneVirtual( PSF3DAstropy ):
     """ """
     _profile     = Moffat2D()
 
@@ -468,6 +695,7 @@ class MoffatPlaneVirtual( PSF3D ):
                         gamma_guess=3., alpha_guess=2.5, alpha_boundaries=[1,5],
                         c0_0_guess=np.percentile(data,10))
         return self._guess
+    
     # ============= #
     #  Properties   #
     # ============= #
@@ -491,10 +719,9 @@ class MoffatPlaneVirtual( PSF3D ):
 #######################
 #                     #
 #  Gaussian + BKGD    #
-#                     #
+#    = Astropy =      #
 #######################
-
-class GaussianPlaneVirtual( PSF3D ):
+class GaussianPlaneVirtual( PSF3DAstropy ):
     """ """
     _profile     = Gaussian2D()
     # --------------- #

@@ -12,6 +12,8 @@ from pyifu.mplinteractive import InteractiveCube
 from .utils.tools         import kwargs_update
 from astropy.io           import fits as pf
 
+from .io import PROD_CUBEROOT 
+# PROD_CUBEROOT e3d
 # --- DB Structure
 CALIBFILES = ["Hg.fits","Cd.fits","Xe.fits","dome.fits"]
 
@@ -69,11 +71,70 @@ def get_palomar_extinction():
 #  Builder           #
 # ------------------ #
 def build_sedmcube(ccd, date, lbda=None, flatfield=None,
-                 wavesolution=None, hexagrid=None,
-                 flatfielded=True, atmcorrected=True,
-                 calibration_ref=None,
-                 build_calibrated_cube=True):
-    """ """
+                   wavesolution=None, hexagrid=None,
+                   flatfielded=True, atmcorrected=True,
+                   calibration_ref=None,
+                   build_calibrated_cube=False):
+    """ Build a cube from the an IFU ccd image. This image 
+    should be bias corrected and cosmic ray corrected.
+
+    The standard created cube will be 3Dflat field correct 
+    (see flatfielded) and corrected for atmosphere extinction 
+    (see atmcorrected). A second cube will be flux calibrated 
+    if possible (see build_calibrated_cube).
+
+    Parameters
+    ----------
+    ccd: [CCD]
+        A ccd object from which the cube will be extracted.
+        
+    date: [string]
+        date in usual YYYYMMDD format
+    
+    lbda: [None/array] -optional-
+        wavelength array used to build the cube. 
+        If not given the default sedm wavelength range will be used. 
+        See pysedm.sedm.SEDM_LBDA.
+
+    // Cube Calibrator //
+    
+    wavesolution: [WaveSolution] -optional-
+        The wavelength solution containing the pixel<->wavelength conversion.
+        If None, this will be loaded using `date`.
+
+    hexagrid: [HexaGrid] -optional-
+        The Hexagonal Grid tools containing the index<->qr<->xy conversions.
+        If None, this will be loaded using `date`.
+
+    flatfield: [Slice] -optional-
+        Object containing the relative transmission of the IFU spaxels.
+        If None, this will be loaded using `date`.
+
+    // Action Selection //
+    
+    flatfielded: [bool] -optional-
+        Shall the cube be flatfielded?
+        - This information will be saved in the header-
+    
+    atmcorrected: [bool] -optional-
+        Shall the cube the corrected for atmosphere extinction?
+        - This information will be saved in the header-
+
+    // Additional outcome: Flux calibrated cube //
+
+    build_calibrated_cube: [bool] -optional-
+        Shall this method build an additionnal flux calibrated cube?
+        
+    calibration_ref: [None/string] -optional-
+        If you want to build a calibrated cube, you can provide the filename
+        of the spectrum containing the inverse-sensitivity (fluxcal*)
+        If None, this will load the latest fluxcal object of the night.
+        If Nothing found, no flux calibrated cube will be created. 
+
+    Returns
+    -------
+    Void
+    """
     from . import io
     # - INPUT [optional]
     if hexagrid is None:
@@ -98,11 +159,14 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
             cube.header[k] = v
 
     cube.header['ORIGIN'] = (ccd.filename.split('/')[-1], "CCD filename used to build the cube")
+    
     # - Flat Field the cube
     if flatfielded:
         cube.scale_by(flatfield.data)
         cube.header['FLAT3D'] = (True, "Is the Cube FlatFielded")
         cube.header['FLATSRC'] = (flatfield.filename.split('/')[-1], "Object use to FlatField the cube")
+    else:
+        cube.header['FLAT3D'] = (False, "Is the Cube FlatFielded")
         
     # - Amtphore correction
     if atmcorrected:
@@ -113,33 +177,50 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
         cube.header['ATMCORR']  = (True, "Has the Atmosphere extinction been corrected?")
         cube.header['ATMSRC']   = (atmspec._source if hasattr(atmspec,"_source") else "unknown", "Reference of the atmosphere extinction")
         cube.header['ATMSCALE'] = (np.nanmean(extinction), "Mean atm correction over the entire wavelength range")
+    else:
+        cube.header['ATMCORR']  = (False, "Has the Atmosphere extinction been corrected?")
+
         
     # - Saving it
-    root  = io.CUBE_PROD_ROOTS["cube"]["root"]
     
     if np.any([calibkey_ in ccd.filename for calibkey_ in CALIBFILES]):
         filout = "%s"%(ccd.filename.split("/")[-1].split(".fits")[0])
     else:
         filout = "%s_%s"%(ccd.filename.split("/")[-1].split(".fits")[0], ccd.objname)
         
-    fileout =    io.get_datapath(date)+"%s_%s.fits"%(root,filout) 
+    fileout =    io.get_datapath(date)+"%s_%s.fits"%(PROD_CUBEROOT,filout) 
     cube.writeto(fileout)
 
+    # - Build Also a flux calibrated cube?
     if build_calibrated_cube:
-        if calibration_ref is None:
-            calfiles = io.get_night_fluxcalfiles(date)
-            if len(calfiles)==0:
-                warnings.warn("No `fluxcalfiles` for date %s. No calibrated cube created"%date)
-                return
-            calibration_ref = calfiles[-1]
-            print("using %s as a flux calibration reference"%calibration_ref.split("/")[-1] )
-            spec = Spectrum(calibration_ref)
-            cube.scale_by(1./spec.data)
-            cube.header['SOURCE']  = (fileout.split('/')[-1] , "the original cube")
-            cube.header['FCALSRC'] = (calibration_ref.split('/')[-1], "the calibration source reference")
-            cube.header['PYSEDMT'] = ("Flux Calibrated Cube")
-            cube.writeto(fileout.replace("e3d","e3d_cal"))
-
+        build_calibrated_sedmcube(fileout, date=date, calibration_ref=calibration_ref)
+        
+def build_calibrated_sedmcube(cubefile, date=None, calibration_ref=None, kind=None):
+    """ """
+    import io
+    if calibration_ref is None:
+        calfiles = io.get_night_files(date, "spec.fluxcal")
+        if len(calfiles)==0:
+            warnings.warn("No `fluxcalfiles` for date %s. No calibrated cube created"%date)
+            return
+        calibration_ref = calfiles[-1]
+        if kind is None: kind="defcal"
+        print("using %s as a flux calibration reference"%calibration_ref.split("/")[-1] )
+        
+    else:
+        if kind is None: kind="cal"
+        
+    # - Inverse Sensitivity
+    spec = Spectrum(calibration_ref)
+    # - Load it
+    cube = get_sedmcube(cubefile)
+    # - Do it
+    cube.scale_by(1./spec.data)
+    cube.header['SOURCE']  = (fileout.split('/')[-1] , "the original cube")
+    cube.header['FCALSRC'] = (calibration_ref.split('/')[-1], "the calibration source reference")
+    cube.header['PYSEDMT'] = ("Flux Calibrated Cube")
+    # - Save it
+    cube.writeto(cubefile.replace("%s"%PROD_CUBEROOT,"%s_%s"%(PROD_CUBEROOT,kind)))
     
 # ------------------ #
 #  Main Functions    #
@@ -305,15 +386,12 @@ def display_on_hexagrid(value, traceindexes,
     
     fig.figout(savefile=savefile, show=show)
     return {"ax":axim,"fig":fig}
+
 #################################
 #                               #
 #    SEDMachine Cube            #
 #                               #
 #################################
-class CubeFlat( Cube ):
-    """ """
-    
-
     
 class SEDMCube( Cube ):
     """ SEDM Cube """

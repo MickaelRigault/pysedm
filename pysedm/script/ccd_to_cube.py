@@ -5,6 +5,7 @@ import numpy as np
 import os
 import warnings
 from astrobject.utils.tools import dump_pkl
+from astropy.io import fits
 from glob import glob
 from .. import io
 
@@ -12,7 +13,7 @@ from ..ccd import get_ccd
 from ..spectralmatching import get_tracematcher, illustrate_traces, load_trace_masks
 from ..wavesolution import get_wavesolution
 import matplotlib.pyplot as mpl
-from ..sedm import INDEX_CCD_CONTOURS, TRACE_DISPERSION, build_sedmcube
+from ..sedm import INDEX_CCD_CONTOURS, TRACE_DISPERSION, build_sedmcube, build_calibrated_sedmcube, SEDM_LBDA
 
 
 
@@ -109,14 +110,15 @@ def build_hexagonalgrid(date, xybounds=None):
 #                          #
 ############################
 def build_flatfield(date, lbda_min=7000, lbda_max=9000,
-                        ref="dome", build_ref=True,
+                    ref="dome", build_ref=True,
                     kind="median", savefig=True):
     """ """
     from ..sedm import get_sedmcube
     from pyifu.spectroscopy  import get_slice
-    timedir  = io.get_datapath(date)
-    reffile  = io.get_night_cubes(date, kind="cube", target=ref)
-    
+
+    reffile  = io.get_night_files(date, kind="cube.basic", target=ref)
+
+    # - If the reference if not there yet.
     if len(reffile)==0:
         warnings.warn("The reference cube %s does not exist "%ref)
         if build_ref:
@@ -126,27 +128,25 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000,
         # --------------------- #
         # Build the reference   #
         # --------------------- #
-        
         tmatch   = io.load_nightly_tracematch(date, withmask=True) 
         # - The CCD
-        ccdreffile = glob(timedir+"dome.fits*")[0]
+        ccdreffile = io.get_night_files(date, kind="ccd.lamp", target=ref)[0]
         ccdref     = get_ccd(ccdreffile, tracematch = tmatch, background = 0)
         ccdref.fetch_background(set_it=True, build_if_needed=True)
         if not ccdref.has_var():
             ccdref.set_default_variance()
-            
         # - HexaGrid
         hgrid    = io.load_nightly_hexagonalgrid(date)
         wcol     = io.load_nightly_wavesolution(date)
         wcol._load_full_solutions_()
-
+        # - Build a cube
         build_sedmcube(ccdref, date, lbda=None, wavesolution=wcol, hexagrid=hgrid,
-                        flatfielded=False)
+                        flatfielded=False, build_calibrated_cube=False,atmcorrected=False)
         
     # ---------------------- #
     #  Actual FlatFielding   #
     # ---------------------- #
-    reffile  = io.get_night_cubes(date, kind="cube", target=ref)[0]
+    reffile  = reffile  = io.get_night_files(date, kind="cube.basic", target=ref)[0]
     refcube  = get_sedmcube(reffile)
     sliceref = refcube.get_slice(lbda_min, lbda_max, usemean=True)
     # - How to normalize the Flat
@@ -165,12 +165,9 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000,
                         refcube.spaxel_vertices,
                         indexes=refcube.indexes, variance=None, lbda=None)
     # - Figure
+    timedir  = io.get_datapath(date)
     if savefig:
-        try:
-            os.mkdir(timedir+"ProdPlots/")
-        except:
-            pass
-        slice_.show(savefile=timedir+"ProdPlots/%s_flat3d.pdf"%date)
+        slice_.show(savefile=timedir+"%s_flat3d.pdf"%date)
 
     # - Savefing
     slice_.header["CALTYPE"] = "FlatField"
@@ -185,36 +182,20 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000,
 #                          #
 ############################
 def build_backgrounds(date, smoothing=[0,2], start=2, jump=10, 
-                        target=None, lamps=True, only_lamps=False,
-                        skip_calib=True, starts_with="crr_b", contains="*",
+                        target=None, lamps=True, only_lamps=False, skip_calib=True,
                         multiprocess=True,
-                        savefig=True, notebook=False,  **kwargs):
+                        savefig=True, notebook=False, **kwargs):
     """ """
     from ..background import build_background
     timedir  = io.get_datapath(date)
-    try:
-        os.mkdir(timedir+"ProdPlots/")
-    except:
-        pass
-    
-    # - The Files
+    # - The files
     fileccds = []
-    if target is None:
-        if lamps:
-            lamp_files = glob(timedir+"Hg.fits*") + glob(timedir+"Cd.fits*") + glob(timedir+"Xe.fits*") + glob(timedir+"dome.fits*")
-            fileccds  += lamp_files
+    if not only_lamps:
+        crrfiles  = io.get_night_files(date, "ccd.crr", target=target)
+        if skip_calib: fileccds = [f for f in crrfiles if "Calib" not in fits.getval(f,"Name")]            
+        fileccds += crrfiles
 
-        if not only_lamps:
-            fileccds_ = io.get_night_ccdfiles(date, skip_calib=skip_calib, **kwargs)
-            fileccds  += fileccds_
-    else:
-        if target in ["dome","Hg","Cd","Xe"]:
-            starts_with = ""
-            
-        fileccds += [f for f in io.get_night_ccdfiles(date, skip_calib=False, contains=target, starts_with=starts_with, **kwargs)
-                         if "e3d" not in f and "bkgd" not in f] # to avoid picking cubes or background files
-        
-        
+    # - Building the background
     tmap = io.load_nightly_tracematch(date)
     nfiles = len(fileccds)
     print("%d files to go..."%nfiles)
@@ -222,7 +203,7 @@ def build_backgrounds(date, smoothing=[0,2], start=2, jump=10,
         build_background(get_ccd(file_, tracematch=tmap, background=0),
                         start=start, jump=jump, multiprocess=multiprocess, notebook=notebook,
                         smoothing=smoothing,
-            savefile = None if not savefig else timedir+"ProdPlots/bkgd_%s.pdf"%(file_.split('/')[-1].replace(".fits","")))
+            savefile = None if not savefig else timedir+"bkgd_%s.pdf"%(file_.split('/')[-1].replace(".fits","")))
         
     
 ############################
@@ -244,10 +225,6 @@ def build_wavesolution(date, verbose=False, ntest=None, use_fine_tuned_traces=Fa
 
     """
     timedir = io.get_datapath(date)
-    try:
-        os.mkdir(timedir+"ProdPlots/")
-    except:
-        warnings.warn("No Plot directory created. Most likely it already exists.")
         
     if verbose:
         print "Directory affected by Wavelength Calibration: %s"%timedir
@@ -264,12 +241,11 @@ def build_wavesolution(date, verbose=False, ntest=None, use_fine_tuned_traces=Fa
     smap = io.load_nightly_tracematch(date, withmask=True)
         
     if use_fine_tuned_traces:
-        #lamps = [get_ccd(timedir+"%s.fits"%s_, tracematch= io.get_file_tracematch(date, s_) if use_fine_tuned_traces else smap)
-        #           for s_ in lamps ]
         raise ValueError("use_fine_tuned_traces is not supported anymore")
-    lamps = [get_ccd(glob(timedir+"%s.fits*"%s_)[0], tracematch=smap) for s_ in lamps]
     
-    if verbose: print "Cd, Hg and Xe lamp loaded"
+    fileccd_lamps = io.get_night_files(date, "ccd.lamp", target="|".join(lamps))
+    lamps = [get_ccd(f_, tracematch=smap) for f_ in fileccd_lamps]
+    
     # - The CubeSolution
     csolution = get_wavesolution(*lamps)
 
@@ -285,18 +261,13 @@ def build_wavesolution(date, verbose=False, ntest=None, use_fine_tuned_traces=Fa
     # - Do The loop and map it thanks to astropy
     from astropy.utils.console import ProgressBar
     def fitsolution(idx_):
-        saveplot = None if not saveindividuals else \
-          timedir+"ProdPlots/%s_wavesolution_spec%d.pdf"%(date,idx_)
-        csolution.fit_wavelesolution(traceindex=idx_, saveplot=saveplot,
+        csolution.fit_wavelesolution(traceindex=idx_, saveplot=None,
                     contdegree=2, plotprop={"show_guesses":True})
-        if saveplot is not None:
-            mpl.close("all") # just to be sure
             
     ProgressBar.map(fitsolution, idx)
-
     dump_pkl(csolution.wavesolutions, timedir+"%s_WaveSolution.pkl"%date)
     if savefig:
-        wsol = io.load_nightly_hexagonalgrid(date)
+        wsol = io.load_nightly_wavesolution(date)
         hexagrid = io.load_nightly_hexagonalgrid(date)
         pl = wsol.show_dispersion_map(hexagrid,vmin="0.5",vmax="99.5",
                                 outlier_highlight=5, show=False)
@@ -308,79 +279,173 @@ def build_wavesolution(date, verbose=False, ntest=None, use_fine_tuned_traces=Fa
 #  Build Cubes             #
 #                          #
 ############################
-def build_night_cubes(date, lbda=None, flatfielded=True,
-                      target=None, lamps=True, only_lamps=False, skip_calib=True, no_bkgd_sub=False,
-                      test=None, notebook=False, **kwargs):
+def build_night_cubes(date, target=None, lamps=True, only_lamps=False,
+                          skip_calib=True, **kwargs):
     """ 
-    **kwargs goes to get_night_ccdfiles()
     """
-    
-    timedir  = io.get_datapath(date)
-    
-    # - The Files
     fileccds = []
-    if target is None:
-        if lamps:
-            lamp_files = glob(timedir+"Hg.fits*") + glob(timedir+"Cd.fits*") + glob(timedir+"Xe.fits*") + glob(timedir+"dome.fits*")
-            fileccds  += lamp_files
+    if lamps:
+        fileccds += io.get_night_files(date, "ccd.lamp", target=target)
+    if not only_lamps:
+        crrfiles  = io.get_night_files(date, "ccd.crr", target=target)
+        if skip_calib: crrfiles = [f for f in crrfiles if "Calib" not in fits.getval(f,"Name")]            
+        fileccds += crrfiles
 
-        if not only_lamps:
-            fileccds_ = io.get_night_ccdfiles(date, skip_calib=skip_calib, **kwargs)
-            fileccds  += fileccds_
-    else:
-        if "starts_with" not in kwargs and target in ["dome","Hg","Cd","Xe"]:
-            kwargs['starts_with'] = ""
-            
-        fileccds += [f for f in io.get_night_ccdfiles(date, skip_calib=False, contains=target, **kwargs)
-                         if "e3d" not in f and "bkgd" not in f] # to avoid picking cubes or background files
 
     print(fileccds)
-    # - The tools to build the cubes
-    if test:
-        return
-    # Traces for the CCD
-    tmatch   = io.load_nightly_tracematch(date, withmask=True) 
-    
-    # - HexaGrid
-    hgrid    = io.load_nightly_hexagonalgrid(date)
+    build_cubes(fileccds, date, **kwargs)
 
-    wcol     = io.load_nightly_wavesolution(date)
-    wcol._load_full_solutions_()
-    
 
-    print("All Roots loaded")    
-    def build_cube(ccdfile):
-        ccd_    = get_ccd(ccdfile, tracematch = tmatch, background = 0)
+# ----------------- #
+#  Build Cubes      #
+# ----------------- #
+def build_cubes(ccdfiles,  date, lbda=None,
+                tracematch=None, wavesolution=None, hexagrid=None,
+                flatfielded=True, flatfield=None,
+                atmcorrected=True, 
+                build_calibrated_cube=True, calibration_ref=None):
+    """ Build a cube from the an IFU ccd image. This image 
+    should be bias corrected and cosmic ray corrected.
+
+    The standard created cube will be 3Dflat field correct 
+    (see flatfielded) and corrected for atmosphere extinction 
+    (see atmcorrected). A second cube will be flux calibrated 
+    if possible (see build_calibrated_cube).
+
+    Parameters
+    ----------
+    ccd: [CCD]
+        A ccd object from which the cube will be extracted.
+        
+    date: [string]
+        date in usual YYYYMMDD format
+    
+    lbda: [None/array] -optional-
+        wavelength array used to build the cube. 
+        If not given the default sedm wavelength range will be used. 
+        See pysedm.sedm.SEDM_LBDA.
+
+    // Cube Calibrator //
+    
+    wavesolution: [WaveSolution] -optional-
+        The wavelength solution containing the pixel<->wavelength conversion.
+        If None, this will be loaded using `date`.
+
+    hexagrid: [HexaGrid] -optional-
+        The Hexagonal Grid tools containing the index<->qr<->xy conversions.
+        If None, this will be loaded using `date`.
+
+    flatfield: [Slice] -optional-
+        Object containing the relative transmission of the IFU spaxels.
+        If None, this will be loaded using `date`.
+
+    // Action Selection //
+    
+    flatfielded: [bool] -optional-
+        Shall the cube be flatfielded?
+        - This information will be saved in the header-
+    
+    atmcorrected: [bool] -optional-
+        Shall the cube the corrected for atmosphere extinction?
+        - This information will be saved in the header-
+
+    // Additional outcome: Flux calibrated cube //
+
+    build_calibrated_cube: [bool] -optional-
+        Shall this method build an additionnal flux calibrated cube?
+        
+    calibration_ref: [None/string] -optional-
+        If you want to build a calibrated cube, you can provide the filename
+        of the spectrum containing the inverse-sensitivity (fluxcal*)
+        If None, this will load the latest fluxcal object of the night.
+        If Nothing found, no flux calibrated cube will be created. 
+
+    Returns
+    -------
+    Void
+    """
+    # ------------------ #
+    # Loading the Inputs #
+    # ------------------ #
+    if tracematch is None:
+        tracematch   = io.load_nightly_tracematch(date, withmask=True) 
+        
+    if hexagrid is None:
+        hexagrid     = io.load_nightly_hexagonalgrid(date)
+    
+    if wavesolution is None:
+        wavesolution = io.load_nightly_wavesolution(date)
+        wavesolution._load_full_solutions_()
+    
+    if lbda is None:
+        lbda = SEDM_LBDA
+
+    if flatfielded and flatfield is None:
+        flatfield = io.load_nightly_flat(date)
+
+    # ---------------- #
+    # Loading the CCDS #
+    # ---------------- #
+    ccds = []
+    for ccdfile in ccdfiles:
+        ccd_    = get_ccd(ccdfile, tracematch = tracematch, background = 0)
         ccd_.fetch_background(set_it=True, build_if_needed=True)
         # - Variance
         if not ccd_.has_var():
             ccd_.set_default_variance()
-            
-        # - see pysedm.sedm
-        build_sedmcube(ccd_, date, lbda=lbda, wavesolution=wcol, hexagrid=hgrid)
-        
+        ccds.append(ccd_)
 
-    # - Actual Build (no ProgressBar for only 1 case
-    to_be_built = [fileccds[test]] if test is not None else fileccds
-    if len(to_be_built)>1:
+    # ---------------- #
+    # Build the Cubes  #
+    # ---------------- #
+    # internal routine 
+    def _build_cubes_(ccdin):
+        build_sedmcube(ccdin,
+                        date, lbda=lbda, wavesolution=wavesolution, hexagrid=hexagrid,
+                        flatfielded=flatfielded, flatfield=flatfield,
+                        atmcorrected=atmcorrected,  
+                        build_calibrated_cube=build_calibrated_cube,
+                        calibration_ref=calibration_ref)
+    # The actual build
+    if len(ccds)>1:
         from astropy.utils.console import ProgressBar
-        ProgressBar.map(build_cube, to_be_built)
-    elif len(to_be_built)==1:
-        build_cube(to_be_built[0])
+        ProgressBar.map(_build_cubes_, ccds)
+    else:
+        _build_cubes_(ccds[0])
+        
+# ---------------- #
+# Flux Calibration #
+# ---------------- #
+def calibrate_night_cubes(date, target=None, calibrated_reference=None):
+    """ """
+    files = io.get_night_files(date, "cube.basic", target=target)
+    flux_calibrate_cubes(files, date=date, calibrated_reference=calibrated_reference)
+    
 
     
-def save_cubeplot(date, kind):
+def calibrate_cubes(cubefiles, date=None, calibrated_reference=None,
+                             multiprocess=True):
+    """ """
+    # internal routine 
+    def _build_cal_cubes_(cubefile):
+        build_calibrated_sedmcube(cubefile, date=date,
+                                calibration_ref=calibrated_reference)
+    # - The build
+    if len(cubefiles)==1:
+        _build_cal_cubes_(cubefiles[0])
+    else:
+        from astropy.utils.console import ProgressBar
+        ProgressBar.map(_build_cal_cubes_, cubefiles, multiprocess=multiprocess, step=2)
+        
+    
+def save_cubeplot(date, kind="cube.basic"):
     """ """
     from ..sedm import get_sedmcube
     timedir  = io.get_datapath(date)
-    try:
-        os.mkdir(timedir+"ProdPlots/")
-    except:
-        pass
     
-    for cubefile in io.get_night_cubes(date, kind):
+    for cubefile in io.get_night_files(date, kind):
         cube = get_sedmcube(cubefile)
-        cube.show(savefile= timedir+"ProdPlots/%s.pdf"%(cubefile.split('/')[-1].replace(".fits","")))
+        cube.show(savefile= timedir+"%s.pdf"%(cubefile.split('/')[-1].replace(".fits.gz",".pdf").replace(".fits",".pdf")))
 
 
 

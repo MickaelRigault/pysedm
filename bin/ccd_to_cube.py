@@ -29,10 +29,16 @@ if  __name__ == "__main__":
     #  Cube Building  #
     # --------------- #
     parser.add_argument('--build',  type=str, default=None,
-                        help='Build a e3d cube of the given target or target list (csv) e.g. --build dome or --build dome,Hg,Cd')
+                        help='Build a e3d cube of the given target (accepting regex) or target list (csv) e.g. --build dome or --build dome,Hg,Cd')
 
     parser.add_argument('--buildbkgd',  type=str, default=None,
                         help='Build a ccd background of the given target or target list (csv) e.g. --build dome or --build dome,Hg,Cd')
+
+    parser.add_argument('--buildcal',  type=str, default=None,
+                        help='Build the flux calibrated e3d cubes. Set this to "*" to use the --build arguments.')
+
+    parser.add_argument('--calsource',  type=str, default=None,
+                        help='The Inverse sensitivity spectrum used to calibrated the cubes. By default this uses the latest one.')
     
     # - Trace Matching
     parser.add_argument('--tracematch', action="store_true", default=False,
@@ -106,15 +112,23 @@ if  __name__ == "__main__":
     if args.build is not None and len(args.build) >0:
         for target in args.build.split(","):
             build_night_cubes(date, target=target,
-                            lamps=True, only_lamps=True, skip_calib=True, no_bkgd_sub=False,
-                            test=None, notebook=False)
+                            lamps=True, only_lamps=False, skip_calib=True)
+
+    if args.buildcal is not None:
+        if args.buildcal=="*": args.buildcal=args.build
+        if len(args.buildcal) >0:
+            for target in args.buildcal.split(","):
+                calibrate_night_cubes(date, target=target, 
+                                    lamps=True, only_lamps=False, skip_calib=True)
+                    
             
+    # - Background
     if args.buildbkgd is not None and len(args.buildbkgd) > 0:
         for target in args.buildbkgd.split(","):
             build_backgrounds(date, target=target,
                             lamps=True, only_lamps=True, skip_calib=True, 
                             notebook=False)
-        
+            
     # -----------
     # 
     # ----------- 

@@ -33,11 +33,11 @@ INDEX_CCD_CONTOURS = [[_EDGES_X,_EDGES_Y],[_EDGES_X,1700],
 SEDM_LBDA = np.linspace(3700, 9200, 260)
 
 # --- ADR
-MLA_ROTATION_RAD= (180+16.) * np.pi / 180.  # degree -> to rad
+MLA_ROTATION_RAD= (263) * np.pi / 180.  # degree -> to rad
 MLA_ROTMATRIX   = np.asarray([[ np.cos(MLA_ROTATION_RAD),-np.sin(MLA_ROTATION_RAD)], 
                               [ np.sin(MLA_ROTATION_RAD), np.cos(MLA_ROTATION_RAD)]] )
 DEFAULT_REFLBDA = 6000 # In Angstrom
-IFU_SCALE_UNIT  = 0.4
+IFU_SCALE_UNIT  = 0.43
 
 
 # --- Palomar Atmosphere
@@ -476,7 +476,6 @@ class SEDMCube( Cube ):
             self.load_adr(lbdaref=self.lbda[refindex])
 
         x_default, y_default = self.adr.refract(0, 0, lbda, unit=IFU_SCALE_UNIT)
-        
         x, y = np.dot(MLA_ROTMATRIX,np.asarray([x_default,y_default]))
         
         return x+xref, y+yref
@@ -515,11 +514,11 @@ class SEDMCube( Cube ):
         Void (loads the self.adr)
         """
         adr_prop = kwargs_update( dict(pressure=pressure,
-                                           lbdaref=lbdaref,
-                                           temperature=self.header["IN_AIR"], 
-                                           relathumidity=self.header["IN_HUM"], 
-                                           airmass=self.header['AIRMASS'], 
-                                           parangle=self.header['TEL_PA']),
+                                       lbdaref=lbdaref,
+                                       temperature=self.header["IN_AIR"], 
+                                       relathumidity=self.header["IN_HUM"], 
+                                       airmass=self.header['AIRMASS'], 
+                                       parangle=self.header['TEL_PA']),
                                 **kwargs)
         return super(SEDMCube, self).load_adr(**adr_prop)
     

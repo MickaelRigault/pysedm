@@ -57,9 +57,10 @@ if __name__ == "__main__":
           version=VERSION,
           download_url=DOWNLOAD_URL,
           install_requires=install_requires,
-          scripts=["bin/ccd_to_cube.py",
+          scripts=["bin/ccd_to_cube.py" ,
                    "bin/display_cube.py",
-                    "bin/extract_star.py"],
+                   "bin/extract_star.py",
+                   "bin/cube_quality.py"],
           packages=packages,
           package_data={'pysedm': []},
           classifiers=[

@@ -22,10 +22,10 @@ def get_cube_adr_param(cube, lbdaref=5000, lbdastep=10, lbdarange=None,
     indexref      = np.argmin(np.abs( cube.lbda-lbdaref))
 
     # = Building SubCube
-    # Which Wavelength
+    # Which Spaxels
     x0, y0, std0  = extractstar.guess_aperture(x, y, cube.data[indexref])
     used_indexes  = cube.get_spaxels_within_polygon(shapely.geometry.Point(x0,y0).buffer(std0*5))
-    # Which Spaxels
+    # Which Wavelength    
     slice_to_fit = range(len(cube.lbda))[::lbdastep]
     if lbdarange is not None and len(lbdarange)==2:
         flagin = (slice_to_fit>lbdarange[0]) & (slice_to_fit<=lbdarange[1])
@@ -39,11 +39,11 @@ def get_cube_adr_param(cube, lbdaref=5000, lbdastep=10, lbdarange=None,
     es.fit_psf("BiNormalCont")
     xc,yc = es.get_fitted_centroid()
     # 
-    adrfit = ADRFitter(cube_partial.adr)
+    adrfit = ADRFitter(cube_partial.adr.copy())
     adrfit.set_data(cube_partial.lbda, xc[0], yc[0], xc[1], yc[1])
     adrfit.fit(unit_guess=0.4, unit_boundaries=[0.3,1])
     if show or savefile is not None:
-        adrfit.show(show=show, savefile=savefile)
+        pl = adrfit.show(show=show, savefile=savefile, refsedmcube=cube_partial )
         
     return adrfit.fitvalues
     
@@ -81,12 +81,12 @@ class ADRFitter( BaseFitter ):
         """ see model.get_loglikelihood"""
         return self.x, self.y, self.lbda, self.dx, self.dy
 
-
     # ---------- #
     #  PLOTTER   #
     # ---------- #
     def show(self, ax=None, savefile=None, show=True, cmap=None,
-                 show_colorbar=True, clabel="Wavelength [A]", **kwargs):
+                 show_colorbar=True, clabel="Wavelength [A]",
+                 refsedmcube=None, **kwargs):
         """ Plotting method for the ADR fit.
         
         Parameters
@@ -112,7 +112,7 @@ class ADRFitter( BaseFitter ):
         colors = cmap( (self.lbda-vmin)/(vmax-vmin) )
 
         # - data
-        ax.scatter(self.x, self.y, facecolors=colors, edgecolors="None",
+        scd = ax.scatter(self.x, self.y, facecolors=colors, edgecolors="None",
                        lw=1., label="data", **kwargs)
         # - error
         if self.dx is not None or self.dy is not None:
@@ -120,10 +120,18 @@ class ADRFitter( BaseFitter ):
                             ecolor="0.7", zorder=0)
         # - model    
         xmodel, ymodel = self.model.get_model(self.lbda)
-        ax.scatter(xmodel, ymodel, edgecolors=colors, facecolors="None",
+        scm = ax.scatter(xmodel, ymodel, edgecolors=colors, facecolors="None",
                        lw=2., label="model", **kwargs)
-        
-        ax.legend(loc="best", frameon=True)
+        # - reference [if any]
+        if refsedmcube is not None:
+            xexp, yexp = refsedmcube.get_source_position(self.lbda, xref=self.fitvalues['xref'],
+                                                         yref=self.fitvalues['yref'])
+            ax.scatter(xexp, yexp, marker="s", alpha=0.5,
+                       edgecolors=colors, facecolors="None",
+                       label="reference \n[fixed x,y,lbda ref]")
+            
+            
+        ax.legend(loc="best", frameon=True, ncol=2)
         ax.text(0.5,1.01, " ; ".join(["%s: %.2f"%(k,self.fitvalues[k]) for k in self.model.FREEPARAMETERS]) + " | %s: %.1f"%("lbdaref",self.model.adr.lbdaref),
                     transform=ax.transAxes, va="bottom", ha="center")
         if show_colorbar:
@@ -132,7 +140,8 @@ class ADRFitter( BaseFitter ):
                         label=clabel, fontsize="large")
             
         fig.figout(savefile=savefile, show=show)
-        
+        return {"ax":ax, "fig":fig, "plot":[scd,scm]}
+    
             
     
     # ================= #
@@ -267,3 +276,5 @@ class ADRModel( BaseModel):
         """ y-position at the reference wavelength (lbdaref)"""
         return self._side_properties['yref']
         
+
+

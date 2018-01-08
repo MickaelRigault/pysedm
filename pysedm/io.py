@@ -31,7 +31,9 @@ PRODSTRUCT_RE = {"ccd":{"lamp":"^(dome|Hg|Cd|Xe)",
                "cube": {"basic":"^(%s).((?!cal))"%PROD_CUBEROOT, # starts w/ e3d & not containing cal
                         "calibrated":"^(%s_cal)"%PROD_CUBEROOT,
                         "defaultcalibrated":"^(%s_defcal)"%PROD_CUBEROOT},
-                "spec": {"calibrated":"^(%s_cal)"%PROD_SPECROOT,
+                "spec": {"basic":"^(%s).((?!cal))"%PROD_SPECROOT, # starts w/ e3d & not containing cal
+                         "auto":"^(%sauto).((?!cal))"%PROD_SPECROOT, # starts w/ e3d & not containing cal
+                         "calibrated":"^(%s_cal)"%PROD_SPECROOT,
                          "defaultcalibrated":"^(%s_defcal)"%PROD_SPECROOT,
                          "invsensitivity":"^(%s)"%PROD_SENSITIVITYROOT}
               }

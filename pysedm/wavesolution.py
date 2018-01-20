@@ -16,7 +16,7 @@ from propobject              import BaseObject
 from astrobject.spectroscopy import BaseSpectrum
 
 # - Internal Modules
-from .ccd import CCD
+from pysedm.ccd import CCD
 
 # Vacuum wavelength
 # from KECK https://www2.keck.hawaii.edu/inst/lris/arc_calibrations.html
@@ -30,23 +30,26 @@ from .ccd import CCD
 # -------------- #
 #  SEDM          #
 # -------------- #
+REFWAVELENGTH = 7000
+
 _REFORIGIN = 69
 
 LINES= {"Hg":{ #5790.66  :  {"ampl":1. ,"mu":202-_REFORIGIN},
                #5769.59  : {"ampl":1. ,"mu":201-_REFORIGIN},
-               5778.0   : {"ampl":1. ,"mu":201-_REFORIGIN,
-                           "doublet":True, "info":"merge of 5769.59, 5790.66"},
-               5460.735 : {"ampl":10.,"mu":187-_REFORIGIN},
-               4358.32  : {"ampl":5. ,"mu":126-_REFORIGIN},
-               4046.563 : {"ampl":2. ,"mu":104.5-_REFORIGIN},
+               5778.0   : {"ampl":13. ,"mu":201-_REFORIGIN,
+                           "doublet":False,
+                        "info":"merge of 5769.59, 5790.66 but too close for SEDM"},
+               5460.735 : {"ampl":62.,"mu":187-_REFORIGIN},
+               4358.4   : {"ampl":50. ,"mu":127-_REFORIGIN},
+               4046.563 : {"ampl":10. ,"mu":105-_REFORIGIN},
                #3663.27:{"ampl":0.1 ,"mu":3},
                #3654.84:{"ampl":0.1 ,"mu":1},
                #3650.153:{"ampl":1. ,"mu":0},
                },
-        "Cd": {4678.15  : {"ampl":2. ,"mu":146-_REFORIGIN},
-               4799.91  : {"ampl":5. ,"mu":153-_REFORIGIN},
-               5085.822 : {"ampl":8. ,"mu":169-_REFORIGIN},
-               6438.5   : {"ampl":5. ,"mu":227-_REFORIGIN}, # Exact Value To be confirmed
+        "Cd": {4678.15  : {"ampl":14. ,"mu":146-_REFORIGIN},
+               4799.91  : {"ampl":40. ,"mu":153-_REFORIGIN},
+               5085.822 : {"ampl":60. ,"mu":169-_REFORIGIN},
+               6438.5   : {"ampl":19. ,"mu":227-_REFORIGIN}, # Exact Value To be confirmed
                # - Cd and Xe seems to have the same lines
                # Almost same wavelength but diffent enough to save the code
                8280.01  : {"ampl": 1. ,"mu":275-_REFORIGIN,
@@ -56,12 +59,40 @@ LINES= {"Hg":{ #5790.66  :  {"ampl":1. ,"mu":202-_REFORIGIN},
                #9000.01  : {"ampl": 0.5,"mu":302-_REFORIGIN,
                #             "doublet":True,"info":"merge of 8945, 9050"},
                 },
-        # Important for Xe. Keep the Bright line, the First one. of change get_line_shift()
-        "Xe": {8280.    : {"ampl": 1. ,"mu":280-_REFORIGIN,
-                            "doublet":True,"info":"merge of 8230, 8341"},
-               8818.5   : {"ampl": 0.8,"mu":295-_REFORIGIN},
-               9000     : {"ampl": 0.5,"mu":302-_REFORIGIN,
-                            "doublet":True,"info":"merge of 8945, 9050"},
+        # Important for Xe. Keep the Bright line, the First one. or change get_line_shift()
+#        "Xe": {8280.    : {"ampl": 1. ,"mu":280-_REFORIGIN,
+#                            "doublet":True,"info":"merge of 8230, 8341"},
+#               8818.5   : {"ampl": 0.8,"mu":295-_REFORIGIN},
+#               9000     : {"ampl": 0.5,"mu":302-_REFORIGIN,
+#                            "doublet":True,"info":"merge of 8945, 9050"},
+#               }
+
+        "Xe": {8246.6    : {"ampl": 16. ,"mu":280-_REFORIGIN,
+                            "doublet":False},# yes but really close
+               8354    : {"ampl": 3. ,"mu":283-_REFORIGIN,
+                            "doublet":False}, # yes but really close
+#               83562.8    : {"ampl": 0.4 ,"mu":285-_REFORIGIN,
+#                            "doublet":False},
+#               84138.2    : {"ampl": 0.2 ,"mu":287-_REFORIGIN,
+#                            "doublet":False},
+                            
+                            
+               8836.3    : {"ampl": 11.,"mu":294-_REFORIGIN},
+#               8956.5    : {"ampl": 0.6,"mu":297-_REFORIGIN},
+#               9050.5    : {"ampl": 0.6,"mu":299-_REFORIGIN},
+               9006.5    : {"ampl": 11.,"mu":298-_REFORIGIN,
+                             "doublet":True , "info": "merge of lines 8956.5 and 9050.5"},
+               9161.3    : {"ampl": 4.5,"mu":302-_REFORIGIN},
+               
+               # small lines
+               7642    : {"ampl": 1.,"mu":264-_REFORIGIN},
+               
+               9425.    : {"ampl": 2.,"mu":309-_REFORIGIN,
+                               "doublet":True , "info": "merge of lines 9400 and 9450"},
+               
+               #9802.8    : {"ampl": 0.4,"mu":317-_REFORIGIN},
+               #9938.0    : {"ampl": 0.4,"mu":320-_REFORIGIN},
+               
                }
         }
 
@@ -106,7 +137,7 @@ def get_arccollection(traceindex, lamps):
 #   MultiProcessing    #
 # -------------------- #
 def fit_spaxel_wavelesolution(arccollection, sequential=True,
-                              contdegree=2, wavedegree=4,
+                              contdegree=4, wavedegree=5,
                               saveplot=None, show=False,
                         plotprop={}):
     """ Fit the wavelength solution of the given trace.
@@ -206,14 +237,14 @@ class WaveSolution( BaseObject ):
         """ save the object into the given filename (.pkl). 
         Load it the using the load() method.
         """
-        from .utils.tools import dump_pkl
+        from pysedm.utils.tools import dump_pkl
         dump_pkl(self.wavesolutions, filename)
 
     def load(self, filename):
         """ Load the object from the given filename (.pkl).
         object created by the writeto() method can be opened this way.
         """
-        from .utils.tools import load_pkl
+        from pysedm.utils.tools import load_pkl
         data = load_pkl(filename)
         if "wavesolution" not in data.values()[0]:
             raise TypeError('The given dictionary file does not seem to be a wavelength solution. No "wavesolution" in the first entry')
@@ -223,7 +254,7 @@ class WaveSolution( BaseObject ):
     # -------- #
     # BUILDER  #
     # -------- #
-    def fit_wavelesolution(self, traceindex, sequential=True, contdegree=2, wavedegree=4,
+    def fit_wavelesolution(self, traceindex, sequential=True, contdegree=4, wavedegree=5,
                             saveplot=None, show=False, plotprop={}):
         """ Fit the wavelength solution of the given trace.
 
@@ -256,7 +287,7 @@ class WaveSolution( BaseObject ):
         show: [bool] -optional-
             Should the wavelength solution figure be shown?
         
-        Returns
+        Returnsemus
         -------
         None
         """
@@ -338,7 +369,7 @@ class WaveSolution( BaseObject ):
                                 kind="nMAD", vmin="0.5", vmax="99.5",
                             clabel=r"nMAD [$\AA$]", **kwargs):
         """ """
-        from .sedm import display_on_hexagrid
+        from pysedm.sedm import display_on_hexagrid
         traceindexes = self._solution.keys()
         value = nmad = [self._solution[i].get_wavesolution_rms(kind="nMAD") for i in traceindexes]
         return display_on_hexagrid(value, traceindexes,hexagrid=hexagrid, 
@@ -524,15 +555,25 @@ class SpaxelWaveSolution( BaseObject ):
         """ Test if the wavelength solution has been set. """
         return self._wavesolution is not None
     
-    @property
-    def lbda_to_pixels(self):
+    
+    def lbda_to_pixels(self, wavelength):
         """ numpy.poly1d by the best fitted wavelength solution fit.
+
+        Parameters
+        ----------
+        wavelength: [float or array]
+            Wavelength in Angstrom
+
+        Returns
+        -------
+        pixel (or array of)
+
         Example:
         --------
         self.wavesolution(6500) provides the pixel 
         corresponding to the 6500 Angstrom wavelength
         """
-        return self._properties["wavesolution"]
+        return self._wavesolution(wavelength-REFWAVELENGTH)
 
     def load_pixel_to_lbda_solution(self):
         """ """
@@ -652,12 +693,15 @@ class VirtualArcSpectrum( BaseObject ):
             self.fit_lineposition(**kwargs)
             
         mus, emus = self._linefit_to_mus_()
-        self._derived_properties["solutionfitter"] = get_polyfit( self.usedlines, mus, emus, wavesolution_degree,
+        self._derived_properties["solutionfitter"] = get_polyfit( self.usedlines-REFWAVELENGTH, mus, emus+0.2, wavesolution_degree,
                                                                       legendre=legendre)
-        guesses = {"a0_guess":self.databounds[0]}
-        if wavesolution_degree>0:
-            guesses["a1_guess"] = 0.4
         
+        guesses = {"a0_guess":np.nanmean(mus)}
+        if not legendre:
+            if wavesolution_degree>=2:
+                guesses["a1_guess"]= 0.05
+                
+        self.guesses = guesses.copy()
         self.solutionfitter.fit(**guesses)
         self.datafitted = [self.usedlines, mus, emus]
         # - Set the best fit solution
@@ -714,11 +758,13 @@ class VirtualArcSpectrum( BaseObject ):
             
         for i,l in enumerate(self.usedlines):
             self._normguesses["ampl%d_guess"%i]      = self.arclines[l]["ampl"]
+            self._normguesses["ampl%d_boundaries"%i] = [self.arclines[l]["ampl"]*0.2, self.arclines[l]["ampl"]*3]
+            
             self._normguesses["mu%d_guess"%i]        = self.arclines[l]["mu"]+lines_shift
-            self._normguesses["mu%d_boundaries"%i]   = [self._normguesses["mu%d_guess"%i]-5, self._normguesses["mu%d_guess"%i]+5]
-            self._normguesses["ampl%d_boundaries"%i] = [0, None]
-            self._normguesses["sig%d_guess"%i]       = 1.5
-            self._normguesses["sig%d_boundaries"%i]  = [1.1,3] if not "doublet" in self.arclines[l] or not self.arclines[l]["doublet"] else [1.5, 5]
+            self._normguesses["mu%d_boundaries"%i]   = [self._normguesses["mu%d_guess"%i]-2, self._normguesses["mu%d_guess"%i]+2]
+            
+            self._normguesses["sig%d_guess"%i]       = 1.1 if (not "doublet" in self.arclines[l] or not self.arclines[l]["doublet"]) else 1.8
+            self._normguesses["sig%d_boundaries"%i]  = [0.9,1.5] if (not "doublet" in self.arclines[l] or not self.arclines[l]["doublet"]) else [1.1, 3]
 
         # where do you wanna fit? (~1ms)
         if exclude_reddest_part:
@@ -747,6 +793,7 @@ class VirtualArcSpectrum( BaseObject ):
                              exclude_bluest_part=True,
                              blue_buffer=30, line_to_skip=None
                              ):
+        # VirtualArcSpectrum
         """ Fit gaussian profiles of expected arclamp emmisions.
         The list of fitted lines are given in `usedlines`.
         The fitter object is stored as `linefitter`.
@@ -786,6 +833,8 @@ class VirtualArcSpectrum( BaseObject ):
                                          exclude_bluest_part=exclude_bluest_part,
                                          blue_buffer=blue_buffer, line_to_skip=line_to_skip)
         # The actual fit ~4s
+        self._normguesses["a0_guess"] = np.percentile(self.linefitter.data, 25)
+
         self.linefitter.fit( **self._normguesses )
 
     def _linefit_to_mus_(self):
@@ -996,6 +1045,7 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
                              exclude_bluest_part=True,
                              blue_buffer=30
                              ):
+        # ArcSpectrumCollection
         """ Fit gaussian profiles of expected arclamp emmisions.
         The list of fitted lines are given in `usedlines`.
         The fitter object is stored as `linefitter`.
@@ -1228,7 +1278,7 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
     def _lamp_to_color_(self, lamp, alpha=1):
         """ Internal Ploting tool to get a consistent color for the lamp.
         Slower to use that, but prettier."""
-        from .utils.mpl import get_lamp_color
+        from pysedm.utils.mpl import get_lamp_color
         return get_lamp_color(lamp, alpha=alpha)
         
     # ================ #

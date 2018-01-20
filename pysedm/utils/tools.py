@@ -114,6 +114,23 @@ def _loading_multiprocess():
         
     copy_reg.pickle(types.MethodType, _pickle_method)
 
+
+
+def air_to_vac(reflbda):
+    """ """
+    a  = 0
+    b1 = 5.792105 * 10**-2
+    b2 = 1.67917 * 10**-3
+    c1 = 238.0185
+    c2 = 57.362
+    return a + (b1 / (c1 - 1/reflbda**2)) + (b2/ (c2- 1/reflbda**2))
+
+def vac_to_air_sdss(vac):
+    """ """
+    return vac / (1.0 + 2.735182*10**-4 + 131.4182 / vac**2 + 2.76249*10**8 / vac**4)
+
+
+
 ################################
 #                              #
 #    MPL Like                  #

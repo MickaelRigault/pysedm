@@ -146,7 +146,7 @@ if  __name__ == "__main__":
         ntest = None if "None" in args.wavesoltest else int(args.wavesoltest)
         
         build_wavesolution(date, ntest=ntest, use_fine_tuned_traces=False,
-                       lamps=["Hg","Cd","Xe"], saveindividuals=False,
+                       lamps=["Hg","Cd","Xe"], saveindividuals=True,
                         savefig=~args.nofig, rebuild=args.rebuild)
 
     # - Flat Fielding

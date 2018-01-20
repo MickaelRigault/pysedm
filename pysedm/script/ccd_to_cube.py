@@ -212,6 +212,7 @@ def build_backgrounds(date, smoothing=[0,2], start=2, jump=10,
 #                          #
 ############################
 def build_wavesolution(date, verbose=False, ntest=None, use_fine_tuned_traces=False,
+                        wavedegree=4, contdegree=3,
                        lamps=["Hg","Cd","Xe"], savefig=True, saveindividuals=False,
                        xybounds=None, rebuild=True):
     """ Create the wavelength solution for the given night.
@@ -261,8 +262,15 @@ def build_wavesolution(date, verbose=False, ntest=None, use_fine_tuned_traces=Fa
     # - Do The loop and map it thanks to astropy
     from astropy.utils.console import ProgressBar
     def fitsolution(idx_):
+        if saveindividuals:
+            saveplot = timedir+"%s_wavesolution_trace%d.pdf"%(date,idx_)
+        else:
+            saveplot = None
         csolution.fit_wavelesolution(traceindex=idx_, saveplot=None,
-                    contdegree=2, plotprop={"show_guesses":True})
+                    contdegree=contdegree, wavedegree=wavedegree, plotprop={"show_guesses":True})
+        if saveplot is not None:
+            csolution._wsol.show(show_guesses=True, savefile=saveplot)
+            mpl.close("all")
             
     ProgressBar.map(fitsolution, idx)
     dump_pkl(csolution.wavesolutions, timedir+"%s_WaveSolution.pkl"%date)

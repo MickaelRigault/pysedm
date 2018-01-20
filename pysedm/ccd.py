@@ -455,7 +455,7 @@ class CCD( BaseCCD ):
             The index of the spectrum you want to extract
             
         cubesolution: [CubeSolution]
-            Object containing the method to go fromn pixels to lbda
+            Object containing the method to go from pixels to lbda
 
         lbda: [array] -optional-
             Shape of the lbda array you want the spectrum to have.

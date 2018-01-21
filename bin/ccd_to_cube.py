@@ -58,7 +58,7 @@ if  __name__ == "__main__":
     parser.add_argument('--wavesoltest', type=str, default="None",
                         help='to be used with --wavesol. By setting --wavesoltest N one N random wavelength solution will be performed.')
 
-    parser.add_argument('--wavesolplots', type="store_true", default=False,
+    parser.add_argument('--wavesolplots', action="store_true", default=False,
                         help='Set this to save individual wavelength solution fit results')
     # ----------------- #
     #  Raw Calibration  #

@@ -166,15 +166,16 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000,
                         indexes=refcube.indexes, variance=None, lbda=None)
     # - Figure
     timedir  = io.get_datapath(date)
-    if savefig:
-        slice_.show(savefile=timedir+"%s_flat3d.pdf"%date)
-
-    # - Savefing
+    # - Saving
     slice_.header["CALTYPE"] = "FlatField"
     slice_.header["FLATSRC"]  = ref
     slice_.header["FLATREF"]  = kind
     slice_.writeto(timedir+'%s_Flat.fits'%date)
     
+    if savefig:
+        print("Saving flat3d Figure")
+        slice_.show(savefile=timedir+"%s_flat3d.pdf"%date)
+
     
 ############################
 #                          #

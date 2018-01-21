@@ -57,7 +57,9 @@ if  __name__ == "__main__":
     
     parser.add_argument('--wavesoltest', type=str, default="None",
                         help='to be used with --wavesol. By setting --wavesoltest N one N random wavelength solution will be performed.')
-    
+
+    parser.add_argument('--wavesolplots', type="store_true", default=False,
+                        help='Set this to save individual wavelength solution fit results')
     # ----------------- #
     #  Raw Calibration  #
     # ----------------- #
@@ -146,7 +148,7 @@ if  __name__ == "__main__":
         ntest = None if "None" in args.wavesoltest else int(args.wavesoltest)
         
         build_wavesolution(date, ntest=ntest, use_fine_tuned_traces=False,
-                       lamps=["Hg","Cd","Xe"], saveindividuals=True,
+                       lamps=["Hg","Cd","Xe"], saveindividuals=args.wavesolplots,
                         savefig=~args.nofig, rebuild=args.rebuild)
 
     # - Flat Fielding

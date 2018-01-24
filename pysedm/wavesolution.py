@@ -374,7 +374,7 @@ class WaveSolution( BaseObject ):
                             clabel=r"nMAD [$\AA$]", **kwargs):
         """ """
         from pysedm.sedm import display_on_hexagrid
-        traceindexes = self._solution.keys()
+        traceindexes = list(self._solution.keys())
         value = nmad = [self._solution[i].get_wavesolution_rms(kind="nMAD") for i in traceindexes]
         return display_on_hexagrid(value, traceindexes,hexagrid=hexagrid, 
                                        ax=ax, vmin=vmin, vmax=vmax,
@@ -386,7 +386,7 @@ class WaveSolution( BaseObject ):
     @property
     def lampnames(self):
         """ Names of the lamps loaded """
-        return np.sort(self.lampccds.keys())
+        return np.sort(list(self.lampccds.keys()))
     @property
     def lampccds(self):
         """ dictionary containing the ScienceCCD objects used
@@ -908,7 +908,7 @@ class VirtualArcSpectrum( BaseObject ):
     @property
     def usedlines(self):
         """ Wavelengthes used for the wavelength matching """
-        return np.sort(self.arclines.keys())
+        return np.sort(list(self.arclines.keys()))
     
     @property
     def expected_brightesline(self):
@@ -1336,7 +1336,7 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
 
     @property
     def arcnames(self):
-        return np.sort(self.arcspectra.keys())
+        return np.sort(list(self.arcspectra.keys()))
     
     # -----------------
     # Collection Tricks

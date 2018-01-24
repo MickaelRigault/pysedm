@@ -247,7 +247,7 @@ class Background( BaseObject ):
         # --- Build the HDU
         hdu = [pf.PrimaryHDU(self.background, self.header)] # Background
 
-        params = np.sort(self._contvalues.values()[0].keys())
+        params = np.sort(list(self._contvalues.values()[0].keys()))
         header_POLY = pf.Header()
         for i, p in enumerate(params): 
             header_POLY['VALUE%s'%i] = p
@@ -299,7 +299,7 @@ class Background( BaseObject ):
     def input_columns(self):
         """ index of the ccd column where the background has been estimated """
         if self._derived_properties['input_columns'] is None:
-            self._derived_properties['input_columns'] = np.sort(self._contvalues.keys())
+            self._derived_properties['input_columns'] = np.sort(list(self._contvalues.keys()))
             
         return self._derived_properties['input_columns']
     

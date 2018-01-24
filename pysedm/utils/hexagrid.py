@@ -101,7 +101,7 @@ class HexagoneProjection( BaseObject ):
         else:
             fig = ax.figure
 
-        indexes = self.ids_index.keys()
+        indexes = list(self.ids_index.keys())
         colors = mpl.cm.viridis(np.random.uniform(size=len(indexes)))
         ps = [patches.Polygon(SEDMSPAXELS + np.asarray(self.index_to_xy(self.ids_to_index(id_))),
                         facecolor=colors[i], alpha=0.8, **kwargs) for i,id_  in enumerate(indexes)]

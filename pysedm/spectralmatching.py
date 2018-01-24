@@ -717,7 +717,7 @@ class TraceMatch( BaseObject ):
     @property
     def trace_indexes(self):
         """ Indexes associated with to the traces """
-        return self.trace_vertices.keys()
+        return list(self.trace_vertices.keys())
         
     @property
     def ntraces(self):

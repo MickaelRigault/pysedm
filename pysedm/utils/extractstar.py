@@ -200,7 +200,7 @@ class ExtractStar( BaseObject ):
         if not self.has_fit_ran():
             raise AttributeError("You need to first run the fit: see fit_psf()")
         
-        indexes = np.sort(self.slicefitvalues.keys())
+        indexes = np.sort(list(self.slicefitvalues.keys()))
         return np.asarray([[self.slicefitvalues[i]['amplitude'],self.slicefitvalues[i]['amplitude.err']]
                                     for i in indexes]).T
 
@@ -214,7 +214,7 @@ class ExtractStar( BaseObject ):
         if not self.has_fit_ran():
             raise AttributeError("You need to first run the fit: see fit_psf()")
         
-        indexes = np.sort(self.slicefitvalues.keys())
+        indexes = np.sort(list(self.slicefitvalues.keys()))
         return np.asarray([[self.slicefitvalues[i]['x_mean'],self.slicefitvalues[i]['x_mean.err']]
                                for i in indexes]).T,\
                np.asarray([[self.slicefitvalues[i]['y_mean'],self.slicefitvalues[i]['y_mean.err']]

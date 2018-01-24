@@ -8,22 +8,15 @@
 import warnings
 import numpy as np
 
-import matplotlib.pyplot       as mpl
+# Propobject
 from propobject            import BaseObject
+# Astrobject
 from astrobject.photometry import Image
-from scipy.interpolate     import interp1d
+# PyIFU
+from pyifu.spectroscopy    import Spectrum
 
-from pyifu.spectroscopy import Spectrum
-try:
-    import shapely # to be removed
-    _HAS_SHAPELY = True
-except:
-    _HAS_SHAPELY = False
 
 from .utils.tools import kwargs_update
-
-EDGES_COLOR = mpl.cm.binary(0.99,0.5, bytes=True)
-SPECTID_CMAP = mpl.cm.viridis
 
 """
 The Idea of the CCD calibration is to first estimate the Spectral Matching. 
@@ -184,15 +177,17 @@ class CCD( BaseCCD ):
         -------
         Void
         """
+        # -> import and tests
+        try:
+            from shapely import geometry, vectorized
+        except ImportError:
+            raise AttributeError("Matching traces to sep requires Shapely. pip install Shapely")
+
         if not self.has_sepobjects():
             raise AttributeError("sep has not been ran. Do so to be able to match sep output with traces")
 
-        if not _HAS_SHAPELY:
-            raise AttributeError("Matching traces to sep requires Shapely. pip install Shapely")
-
+        # -> actual code
         x,y,a,b,theta = self.sepobjects.get(["x","y","a","b","theta"]).T
-        
-        from shapely import geometry, vectorized
         self._derived_properties["matched_septrace_index"] =\
           {idx: np.argwhere(vectorized.contains( geometry.Polygon(self.tracematch.get_trace_vertices(idx)), x,y)).ravel()
                for idx in self.tracematch.trace_indexes}
@@ -485,6 +480,7 @@ class CCD( BaseCCD ):
         minpix, maxpix = self.tracematch.get_trace_xbounds(traceindex)
         mask = pixs[(pixs>minpix)* (pixs<maxpix)][::-1]
         if lbda is not None:
+            from scipy.interpolate     import interp1d
             pxl_wanted = cubesolution.lbda_to_pixels(lbda, traceindex)
             flux = interp1d(pixs[mask], f[mask], kind=kind)(pxl_wanted)
             var  = interp1d(pixs[mask], v[mask], kind=kind)(pxl_wanted) if v is not None else v
@@ -645,7 +641,7 @@ class CCD( BaseCCD ):
         -------
         dict ({ax, fig, imshow's output})
         """
-        from .utils.mpl import figout
+        from .utils.mpl import figout, mpl
 
         if ax is None:
             fig = mpl.figure(figsize=[8,8])
@@ -724,7 +720,7 @@ class CCD( BaseCCD ):
                         bandalpha=0.5, bandfacecolor="0.7", bandedgecolor="None",bandedgewidth=0,
                         **kwargs):
         """ """
-        from .utils.mpl import figout
+        from .utils.mpl import figout, mpl
         
         if ax is None:
             fig = mpl.figure(figsize=[9,5])
@@ -979,7 +975,7 @@ class CCDSlice( Spectrum ):
 
     def show_continuum(self, ax=None, savefile=None, show=True, show_model=True):
         """ """
-        from .utils.mpl  import figout
+        from .utils.mpl  import figout, mpl
         from pyifu.tools import specplot
 
         if ax is None:

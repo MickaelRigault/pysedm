@@ -5,14 +5,14 @@
 
 import numpy              as np
 import warnings
-import matplotlib.pyplot  as mpl
 
 from pyifu.spectroscopy   import Cube, Spectrum
-from pyifu.mplinteractive import InteractiveCube
 from .utils.tools         import kwargs_update
-from astropy.io           import fits as pf
 
-from .io import PROD_CUBEROOT 
+from .io import PROD_CUBEROOT
+
+__all__ = ["get_sedmcube", "build_sedmcube","kpy_to_e3d"]
+
 # PROD_CUBEROOT e3d
 # --- DB Structure
 CALIBFILES = ["Hg.fits","Cd.fits","Xe.fits","dome.fits"]
@@ -322,7 +322,8 @@ def display_on_hexagrid(value, traceindexes,
         if None, nothing will be done.
 
     """
-    from matplotlib import patches
+    from matplotlib                import patches
+    import matplotlib.pyplot           as mpl
     from astrobject.utils.mpladdon import colorbar, insert_ax
     from pyifu.tools import figout
 
@@ -637,6 +638,7 @@ class SEDMCube( Cube ):
                                            show_meanspectrum=show_meanspectrum, cmap=cmap,
                                            vmin=vmin, vmax=vmax, notebook=notebook, **kwargs)
         else:
+            from .utils.mpl import InteractiveCubeandCCD
             iplot = InteractiveCubeandCCD(self, fig=None, axes=ax, toshow=toshow)
             iplot._nofancy = True
             iplot.set_ccd(ccd)
@@ -741,19 +743,20 @@ class ApertureSpectrum( Spectrum ):
         Returns
         -------
         Void
-        """           
+        """
+        from astropy.io.fits import ImageHDU
         self.header['PYSEDMT']  = ("ApertureSpectrum","Pysedm object Type")
         hdul = super(ApertureSpectrum, self)._build_hdulist_(saveerror=saveerror)
 
-        hduAp  = pf.ImageHDU(self.apweight, name='APWEIGHT')
+        hduAp  = ImageHDU(self.apweight, name='APWEIGHT')
         hdul.append(hduAp)
         # -- Variance saving
         if self.has_background():
-            hduBkgd  = pf.ImageHDU(self.background.data, name='BKGD')
+            hduBkgd     = ImageHDU(self.background.data, name='BKGD')
             hdul.append(hduBkgd)
-            hduBkgdVar  = pf.ImageHDU(self.background.data, name='BKGDVAR')
+            hduBkgdVar  = ImageHDU(self.background.data, name='BKGDVAR')
             hdul.append(hduBkgdVar)
-            hduApBkgd  = pf.ImageHDU(self.background.apweight, name='BKGDAPW')
+            hduApBkgd   = ImageHDU(self.background.apweight, name='BKGDAPW')
             hdul.append(hduApBkgd)
             
         return hdul
@@ -767,7 +770,8 @@ class ApertureSpectrum( Spectrum ):
                the column will the used as lbda
         
         """
-        super(ApertureSpectrum, self).load(filename, dataindex=dataindex, varianceindex=varianceindex, headerindex=headerindex)
+        super(ApertureSpectrum, self).load(filename, dataindex=dataindex, varianceindex=varianceindex,
+                                               headerindex=headerindex)
         
         # Get the LBDA if any
         apweight_ = [f.data for f in self.fits if f.name.upper() in ["APWEIGHT"]]
@@ -822,104 +826,3 @@ class ApertureSpectrum( Spectrum ):
 #    MPL ADDON         #
 #                      #
 ########################
-class InteractiveCubeandCCD( InteractiveCube ):
-    PROPERTIES = ["ccd", "axccd"]
-
-    def launch(self, *args, **kwargs):
-        """ """
-        
-        self._ccdshow = self.ccdimage.show(ax = self.axccd, aspect="auto", show=False)["imshow"]
-        super(InteractiveCubeandCCD, self).launch(*args, **kwargs)
-
-    def set_to_origin(self):
-        """ Defines the default parameters """
-        super(InteractiveCubeandCCD, self).set_to_origin()
-        self._trace_patches = []
-
-    def reset(self):
-        """ Set back everything to origin """
-        super(InteractiveCubeandCCD, self).reset()
-        self.clean_axccd(update_limits=True)
-        
-    # =========== #
-    #  SETTER     #
-    # =========== #
-    def set_ccd(self, ccd):
-        """ """
-        self._properties["ccd"] = ccd
-        
-    def set_figure(self, fig=None, **kwargs):
-        """ attach a figure to this method. """
-        if fig is None:
-            figprop = kwargs_update(dict(figsize=[10,7]), **kwargs)
-            self._properties["figure"] = mpl.figure(**figprop)
-        elif matplotlib.figure.Figure not in fig.__class__.__mro__:
-            raise TypeError("The given fig must be a matplotlib.figure.Figure (or child of)")
-        else:
-            self._properties["figure"] = mpl.figure(**figprop)
-
-    def set_axes(self, axes=None, **kwargs):
-        """ """
-        if axes is None and not self.has_figure():
-            raise AttributeError("If no axes given, please first set the figure.")
-        
-        if axes is None:
-            figsizes = self.fig.get_size_inches()
-            axspec = self.fig.add_axes([0.10,0.6,0.5,0.35])
-            axim   = self.fig.add_axes([0.65,0.6,0.75*(figsizes[1]*0.5)/float(figsizes[0]),0.35])
-
-            axccd  = self.fig.add_axes([0.10,0.10,axim.get_position().xmax- 0.1, 0.4])
-            
-            axspec.set_xlabel(r"Wavelength", fontsize="large")
-            axspec.set_ylabel(r"Flux", fontsize="large")
-            self.set_axes([axspec,axim,axccd])
-            
-        elif len(axes) != 3:
-            raise TypeError("you must provide 2 axes [axspec and axim] and both have to be matplotlib.axes(._axes).Axes (or child of)")
-        else:
-            # - actual setting
-            self._properties["axspec"], self._properties["axim"], self._properties["axccd"] = axes
-            if not self.has_figure():
-                self.set_figure(self.axspec.figure)
-
-    # ------------- #
-    #  Show Things  #
-    # ------------- #
-    def show_picked_traces(self):
-        """ """
-        if not self._hold:
-            self.clean_axccd()
-            
-        self._trace_patches = self.ccdimage.display_traces(self.axccd, self.get_selected_idx(),
-                                                            facecolors="None", edgecolors=self._active_color)
-
-    def clean_axccd(self, update_limits=False):
-        """ """
-        self.axccd.patches = []
-        if update_limits:
-            self.axccd.set_xlim(0, self.ccdimage.shape[0])
-            self.axccd.set_ylim(0, self.ccdimage.shape[1])
-        
-    # ================= #
-    # Change For CCD    #
-    # ================= #
-    def update_figure_fromaxim(self):
-        """ What would happen once the spaxels are picked. """
-        if len(self.selected_spaxels)>0:
-            self.show_picked_spaxels()
-            self.show_picked_spectrum()
-            self.show_picked_traces()
-            self.fig.canvas.draw()
-
-    # ================= #
-    # Properties        #
-    # ================= #
-    @property
-    def axccd(self):
-        """ """
-        return self._properties["axccd"]
-    
-    @property
-    def ccdimage(self):
-        """ """
-        return self._properties["ccd"]

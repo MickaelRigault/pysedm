@@ -6,9 +6,6 @@
 import os
 import re
 import warnings
-import numpy as np
-from astropy.io import fits as pf
-
 from glob import glob
 
 
@@ -37,7 +34,11 @@ PRODSTRUCT_RE = {"ccd":{"lamp":"^(dome|Hg|Cd|Xe)",
                          "defaultcalibrated":"^(%s_defcal)"%PROD_SPECROOT,
                          "invsensitivity":"^(%s)"%PROD_SENSITIVITYROOT}
               }
-    
+
+__all__ = ["get_night_files",
+               "load_nightly_tracematch","load_nightly_hexagonalgrid",
+               "load_nightly_wavesolution","load_nightly_flat"]
+
 ############################
 #                          #
 #  Data Access             #
@@ -140,7 +141,8 @@ def is_file_stdstars(filename):
     -------
     bool or None
     """
-    return is_stdstars(pf.getheader(filename))
+    from astropy.io.fits import getheader
+    return is_stdstars( getheader(filename) )
 
 def is_stdstars(header):
     """ Tests if the 'OBJECT' of the given header is associated with a Standard star exposure. (True / False)
@@ -155,7 +157,7 @@ def is_stdstars(header):
         return None
 
     stdnames = ["STD","Feige", "Hitlner", "LTT"]
-    return np.any([s_ in obj for s_ in stdnames])
+    return any([s_ in obj for s_ in stdnames])
 
 
 #########################

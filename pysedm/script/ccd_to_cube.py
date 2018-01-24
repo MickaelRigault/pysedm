@@ -4,15 +4,18 @@
 import numpy as np
 import os
 import warnings
+import matplotlib.pyplot as mpl
+from glob import glob
+
 from astrobject.utils.tools import dump_pkl
 from astropy.io import fits
-from glob import glob
+
 from .. import io
 
 from ..ccd import get_ccd
 from ..spectralmatching import get_tracematcher, illustrate_traces, load_trace_masks
 from ..wavesolution import get_wavesolution
-import matplotlib.pyplot as mpl
+
 from ..sedm import INDEX_CCD_CONTOURS, TRACE_DISPERSION, build_sedmcube, build_calibrated_sedmcube, SEDM_LBDA
 
 
@@ -61,7 +64,7 @@ def build_tracematcher(date, verbose=True, width=None,
         warnings.warn("No Plot directory created. Most likely it already exists.")
         
     if verbose:
-        print "Directory affected by Spectral Matcher : %s"%timedir
+        print("Directory affected by Spectral Matcher : %s"%timedir)
         
     if width is None:
         width = 2.*TRACE_DISPERSION
@@ -229,7 +232,7 @@ def build_wavesolution(date, verbose=False, ntest=None, use_fine_tuned_traces=Fa
     timedir = io.get_datapath(date)
         
     if verbose:
-        print "Directory affected by Wavelength Calibration: %s"%timedir
+        print("Directory affected by Wavelength Calibration: %s"%timedir)
 
 
     if not rebuild and len(glob(timedir+"%s_WaveSolution.pkl"%(date)))>0:

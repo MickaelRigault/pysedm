@@ -9,8 +9,12 @@ import matplotlib.pyplot as mpl
 from scipy         import optimize
 from astropy.utils.console import ProgressBar
 
-
-from pynverse import inversefunc
+try:
+    from pynverse import inversefunc
+    _HASPYNVERSE = True
+except ImportError:
+    warnings.warn("Cannont Import pynverse, limited wavelength solution tools | pip install pynverse")
+    _HASPYNVERSE = False
 # - External Modules
 from propobject              import BaseObject
 from astrobject.spectroscopy import BaseSpectrum
@@ -577,7 +581,10 @@ class SpaxelWaveSolution( BaseObject ):
 
     def load_pixel_to_lbda_solution(self):
         """ """
-        self._properties["inverse_wavesolution"] = inversefunc(self.lbda_to_pixels)
+        if _HASPYNVERSE:
+            self._properties["inverse_wavesolution"] = inversefunc(self.lbda_to_pixels)
+        else:
+            raise ImportError("You need pynverse | pip install pynverse")
             
     @property
     def pixels_to_lbda(self):

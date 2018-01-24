@@ -926,8 +926,7 @@ class DomeCCD( ScienceCCD ):
 
     def _get_sep_extract_threshold_(self):
         """this will be used as a default threshold for sep_extract"""
-        print "_get_sep_extract_threshold_ called"
-        
+        warnings.warn("_get_sep_extract_threshold_ called")
         if not hasattr(self,"_sepbackground"):
                 _ = self.get_sep_background(update_background=False)
         return self._sepbackground.globalrms*2

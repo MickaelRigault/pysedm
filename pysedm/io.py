@@ -189,12 +189,14 @@ def load_nightly_hexagonalgrid(YYYYMMDD):
     return load_hexprojection(get_datapath(YYYYMMDD)+"%s_HexaGrid.pkl"%(YYYYMMDD))
 
 # - WaveSolution
-def load_nightly_wavesolution(YYYYMMDD):
+def load_nightly_wavesolution(YYYYMMDD, subprocesses=False):
     """ Load the spectral matcher.
     This object must have been created. 
     """
     from .wavesolution import load_wavesolution
-    return load_wavesolution(get_datapath(YYYYMMDD)+"%s_WaveSolution.pkl"%(YYYYMMDD))
+    if not subprocesses:
+        return load_wavesolution(get_datapath(YYYYMMDD)+"%s_WaveSolution.pkl"%(YYYYMMDD))
+    return [load_wavesolution(subwave) for subwave in glob(get_datapath(YYYYMMDD)+"%s_WaveSolution_range*.pkl"%(YYYYMMDD))]
 
 # - 3D Flat
 def load_nightly_flat(YYYYMMDD):

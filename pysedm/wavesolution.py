@@ -181,6 +181,19 @@ def get_arccollection(traceindex, lamps):
     sol_.set_databounds(*np.sort(len(spec_) - lamp.tracematch.get_trace_xbounds(traceindex)))
     return sol_
 
+# ==================== #
+#   Subprocessing      #
+# ==================== #
+def merge_wavesolutions(wavesolutions):
+    """ """
+    wsol = WaveSolution()
+    for w in wavesolutions:
+        for i in w.traceindexes:
+            wsol.add_trace_wavesolution(i,w.wavesolutions[i])
+        
+    return wsol
+
+
 # -------------------- #
 #   MultiProcessing    #
 # -------------------- #
@@ -387,11 +400,21 @@ class WaveSolution( BaseObject ):
     # -------- #
     def set_wavesolutions(self, wavesolutions):
         """ Load a dictionary containing the wavelength solution of individual spaxels """
-        for traceindex,data in wavesolutions.items():
-            self.wavesolutions[traceindex] = data
-            self._solution[traceindex]     = SpaxelWaveSolution(data["wavesolution"],
-                                                    datafitted=[data["usedlines"], data["fit_linepos"], data['fit_linepos.err']])
+        [self.add_trace_wavesolution(traceindex, data) for traceindex,data in wavesolutions.items()]
+        
             
+    def add_trace_wavesolution(self, traceindex, data, replace=False):
+        """ add to the current instance 'data' of a new wavelength solution.
+        see SpaxelWaveSolution.data
+        """
+        if traceindex in self.wavesolutions.keys() and not replace:
+            raise ValueError("%d is already loaded. Set `replace=True` to replace the current value."%traceindex)
+        
+        self.wavesolutions[traceindex] = data
+        self._solution[traceindex]     = SpaxelWaveSolution(data["wavesolution"], datafitted=[data["usedlines"], data["fit_linepos"], data['fit_linepos.err']])
+        
+
+        
     def add_lampccd(self, lampccd, name=None):
         """ """
         if CCD not in lampccd.__class__.__mro__:
@@ -452,7 +475,11 @@ class WaveSolution( BaseObject ):
             self._derived_properties["solutions"] = {}
         return self._derived_properties["solutions"]
 
-
+    @property
+    def traceindexes(self):
+        """ list of indexes having wavelengh solution loaded. """
+        return list(self.wavesolutions.keys())
+    
 class SpaxelWaveSolution( BaseObject ):
     """ """
     PROPERTIES = ["wavesolution","inverse_wavesolution"]

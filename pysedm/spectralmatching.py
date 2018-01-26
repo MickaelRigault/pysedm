@@ -11,7 +11,7 @@ from astropy.utils.console import ProgressBar
 
 from propobject import BaseObject
 from .ccd import get_dome, ScienceCCD
-from .utils.tools import kwargs_update
+from .utils.tools import kwargs_update, is_arraylike
 
 from .sedm import SEDM_CCD_SIZE
 try:
@@ -101,7 +101,7 @@ def polygon_mask(vertices, width=2048, height=2048,
     back = Image.new('RGBA', (width, height), BACKCOLOR)
     mask = Image.new('RGBA', (width, height))
     # PIL *needs* (!!) [(),()] format [[],[]] wont work
-    if not hasattr(vertices[0][0],"__iter__"):
+    if not is_arraylike(vertices[0][0]):
         vertices = [vertices]
         
     if facecolor is None:
@@ -186,7 +186,7 @@ def get_boxing_polygone(x, y, rangex, width,
     """ """
     from shapely import geometry
     import modefit
-    if not hasattr(dy,"__iter__"):
+    if not is_arraylike(dy):
         dy = np.ones(len(y))*dy
     pfit = modefit.get_polyfit(x, y, dy, degree=polydegree)
     pfit.fit(a0_guess=np.median(y))
@@ -354,7 +354,7 @@ class TraceMatch( BaseObject ):
     def set_trace_masks(self, masks, traceindexes):
         """ Attach to the current instance masks.
         """
-        if hasattr(traceindexes, "__iter__"):
+        if is_arraylike(traceindexes):
             if len(masks) != len(traceindexes):
                 raise ValueError("masks and traceindexes do not have the same size.")
             for i,v in zip(traceindexes, masks):
@@ -622,10 +622,10 @@ class TraceMatch( BaseObject ):
         """ """
         from matplotlib import patches
         # Several indexes given
-        if hasattr(traceindex, "__iter__"):
-            if not hasattr(facecolors, "__iter__"):
+        if is_arraylike(traceindex):
+            if not is_arraylike(facecolors):
                 facecolors = [facecolors]*len(traceindex)
-            if not hasattr(edgecolors, "__iter__"):
+            if not is_arraylike(edgecolors):
                 edgecolors = [edgecolors]*len(traceindex)
                 
             ps = [patches.Polygon(self.trace_vertices[idx_],
@@ -659,10 +659,11 @@ class TraceMatch( BaseObject ):
         self._properties["subpixelization"] = subpixelization
 
         # - 1 Trace, 1 Color !
-        nonunique_RGBA         = np.asarray(zip(np.random.randint(5,90, size=self.ntraces*3),
+        # List because of python3
+        nonunique_RGBA         = np.asarray( list(zip(np.random.randint(5,90, size=self.ntraces*3),
                                                     np.random.randint(91,175, size=self.ntraces*3),
                                                     np.random.randint(176,254, size=self.ntraces*3),
-                                                    [255]*self.ntraces*3))
+                                                    [255]*self.ntraces*3)) )
         
         b = np.ascontiguousarray(nonunique_RGBA).view(np.dtype((np.void,nonunique_RGBA.dtype.itemsize * nonunique_RGBA.shape[1])))
         # This is made for faster identification later on

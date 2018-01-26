@@ -10,14 +10,15 @@ from pyifu.spectroscopy import Slice, Cube
 import shapely
 from propobject          import BaseObject
 from modefit.baseobjects import BaseFitter, BaseModel
-from pyifu.tools     import kwargs_update
+
 
 from astropy.modeling.functional_models import Moffat2D, Gaussian2D
 from astropy.modeling.models import Polynomial2D
 
 from scipy.stats import multivariate_normal, norm
-from pysedm.sedm import IFU_SCALE_UNIT
 
+from ..sedm     import IFU_SCALE_UNIT
+from .tools     import kwargs_update, is_arraylike
 ###########################
 #                         #
 #  Single Slice Fit       #
@@ -293,17 +294,17 @@ class ExtractStar( BaseObject ):
         """
         nlbda = len(self.cube.lbda)
         # - Formatting 
-        if not hasattr(x, "__iter__") or len(x)==1:
+        if not is_arraylike(x) or len(x)==1:
             x = np.ones(nlbda)*x
             
-        if not hasattr(y, "__iter__") or len(y)==1:
+        if not is_arraylike(y) or len(y)==1:
             y = np.ones(nlbda)*y
             
-        if not hasattr(radius, "__iter__") or len(radius)==1:
+        if not is_arraylike(radius) or len(radius)==1:
             radius = np.ones(nlbda)*radius
         if radius_min is None:
             radius_min = [None]*nlbda
-        elif not hasattr(radius_min, "__iter__") or len(radius_min)==1:
+        elif not is_arraylike(radius_min) or len(radius_min)==1:
             radius_min = np.ones(nlbda)*radius_min
             
         # - Aperture per slice

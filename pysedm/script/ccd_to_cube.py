@@ -58,10 +58,6 @@ def build_tracematcher(date, verbose=True, width=None,
     
     
     timedir = io.get_datapath(date)
-    try:
-        os.mkdir(timedir+"ProdPlots/")
-    except:
-        warnings.warn("No Plot directory created. Most likely it already exists.")
         
     if verbose:
         print("Directory affected by Spectral Matcher : %s"%timedir)

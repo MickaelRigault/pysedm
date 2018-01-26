@@ -17,7 +17,7 @@ except ImportError:
     _HASPYNVERSE = False
 # - External Modules
 from propobject              import BaseObject
-from astrobject.spectroscopy import BaseSpectrum
+from pyifu.spectroscopy      import Spectrum
 
 # - Internal Modules
 from pysedm.ccd import CCD
@@ -31,6 +31,85 @@ from pysedm.ccd import CCD
 # http://www.astrosurf.com/buil/us/spe2/hresol4.htm
 #
 
+# From Keck: Hg
+HG_LINES = {"air":[3125.67 , 3131.70 , 3341.48 , 3650.153,
+                  3654.84 , 3663.279, 4046.563, 4077.831,
+                  4358.327, 4916.068, 5460.750, 5769.598,
+                  5790.663],
+            "vacuum":  [3126.580, 3132.463, 3342.445, 3651.198,
+                        3655.883, 3664.327, 4047.708, 4078.988,  
+                        4359.560, 4917.440, 5462.268, 5771.210,
+                        5792.276],
+             "vacuum_blended": [3129.44,3345.04, 3650.87, 3663.18] 
+            }
+    
+CD_LINES = {"air" : [3080.822, 3082.593, 3133.167, 3252.524, 
+                     3261.055, 3403.652, 3466.200, 3467.655, 
+                     3499.952, 3610.508, 3612.873, 3614.453, 
+                     3649.558, 3981.926, 4140.500, 4306.672, 
+                     4412.989, 4662.352, 4678.149, 4799.912, 
+                     5085.822, 5154.660, 6099.142, 6111.490, 
+                     6325.166, 6330.013, 6438.470, 6778.116, 
+                     7345.670],
+                     
+          "vacuum" : [3081.71730, 3083.48870, 3134.07460, 3253.46220, 
+                      3261.99510, 3404.62880, 3467.19230, 3468.64780, 
+                      3500.95320, 3611.53750, 3613.90330, 3615.48370, 
+                      3650.59830, 3983.05200, 4141.46650, 4307.88320, 
+                      4414.22880, 4663.65720, 4679.45870, 4801.25400, 
+                      5087.23930, 5156.09640, 6100.83050, 6113.18700, 
+                      6326.91510, 6331.76360, 6440.24900, 6779.98650, 
+                      7347.69410],
+           "vacuum_blended": [3466.85, 3611.01, 4679.325] 
+                }
+_XE_LINES_AIR = """
+ 7119.614   500  GOOD Xel  #DF WEAK -300 kcts/100s 
+ 7119.614   500  FAIR Xe  #DF WEAK -300 kcts/100s
+7584.6779  GOOD Xel
+7618.5687  GOOD Xe
+7643.9019  BLEND Xe
+7642.0124  BLEND Xel
+7643.9019  BLEND Xel
+7802.6488  GOOD Xel
+8171.0189  GOOD Xel
+ 8206.3393   700  BLEND Xel #badly saturated
+8206.3393  BLEND Xe
+ 8231.6305 10000  BLEND Xel  # badly satureated
+ 8231.6305 10000  GOOD Xe  #DF
+8266.5130  BLEND Xel
+8266.5130  BLEND Xe
+ 8280.1113  7000  BLEND Xel #badly saturated
+8280.1113  GOOD Xe
+ 8346.8112  2000 BLEND Xe #3E6
+8347.2311  BLEND Xe
+ 8346.8112  2000 BLEND Xel #3E6
+8347.2311  BLEND Xel
+ 8408.2036 15000  BLEND Ar # checked - may have blend issues - Xe!
+8409.1843  BLEND Xe
+8692.1974  BLEND Xel
+8696.8562  BLEND Xel
+ 8739.3731   300  BLEND Xel  #700 kcts - subtracted .0117 DF GOOD
+ 8739.3731   300  BLEND Xe  #subtracted .0117 - very unstable
+ 8758.1995   100  GOOD Xel #110 kcts
+ 8819.4029  5000  FAIR Xe  #DF - often rejected
+ 8819.4029  5000  BLEND Xel  #badly saturated
+ 8862.3112   300  BLEND Xel #hidden in saturation
+ 8908.7286   200  GOOD Xel #500kcts
+ 8930.8226   200  GOOD Xel #600kcts
+ 8952.2468  1000  BLEND Xel  #badly saturated
+ 8952.2468  1000  GOOD Xe  #DF:Maybe this is OK
+ 9045.4415   400  BLEND Xel  #badly saturated
+ 9162.6396   500  BLEND Xel  #badly saturatedby 0.0105 ????
+ 9167.5183   100  PBLEND Xe # can't check
+ 9513.3743   200  FBLEND Xe #high RMS, maybe an offset too
+ 9513.3743  BLEND Xel
+ 9685.3175   150  GOOD Xel #360kcts
+ 9718.1586   100  GOOD Xel # 250kcts
+ 9799.6964  2000  BLEND Xel #quite saturated
+"""
+XE_LINES = {"air": [] }
+
+
 # -------------- #
 #  SEDM          #
 # -------------- #
@@ -38,22 +117,24 @@ REFWAVELENGTH = 7000
 
 _REFORIGIN = 69
 
-LINES= {"Hg":{ #5790.66  :  {"ampl":1. ,"mu":202-_REFORIGIN},
+LINES= {"Hg": # IN VACUUM
+            { #5790.66  :  {"ampl":1. ,"mu":202-_REFORIGIN},
                #5769.59  : {"ampl":1. ,"mu":201-_REFORIGIN},
-               5778.0   : {"ampl":13. ,"mu":201-_REFORIGIN,
+               np.mean([5771.210, 5792.276])   : {"ampl":13. ,"mu":201-_REFORIGIN,
                            "doublet":False,
-                        "info":"merge of 5769.59, 5790.66 but too close for SEDM"},
-               5460.735 : {"ampl":62.,"mu":187-_REFORIGIN},
-               4358.4   : {"ampl":50. ,"mu":127-_REFORIGIN},
-               4046.563 : {"ampl":10. ,"mu":105-_REFORIGIN},
+                        "info":"merge of 5771.210, 5792.276 blended"},
+               5462.268 : {"ampl":62.,"mu":187-_REFORIGIN},
+               4359.560   : {"ampl":50. ,"mu":127-_REFORIGIN},
+               4047.708 : {"ampl":10. ,"mu":105-_REFORIGIN}, 
                #3663.27:{"ampl":0.1 ,"mu":3},
                #3654.84:{"ampl":0.1 ,"mu":1},
                #3650.153:{"ampl":1. ,"mu":0},
                },
-        "Cd": {4678.15  : {"ampl":14. ,"mu":146-_REFORIGIN},
-               4799.91  : {"ampl":40. ,"mu":153-_REFORIGIN},
-               5085.822 : {"ampl":60. ,"mu":169-_REFORIGIN},
-               6438.5   : {"ampl":19. ,"mu":227-_REFORIGIN}, # Exact Value To be confirmed
+        "Cd":  # IN VACUUM
+              {4679.325 : {"ampl":14. ,"mu":146-_REFORIGIN}, 
+               4801.254 : {"ampl":40. ,"mu":153-_REFORIGIN},
+               5087.239 : {"ampl":60. ,"mu":169-_REFORIGIN},
+               6440.249 : {"ampl":19. ,"mu":227-_REFORIGIN}, 
                # - Cd and Xe seems to have the same lines
                # Almost same wavelength but diffent enough to save the code
                8280.01  : {"ampl": 1. ,"mu":275-_REFORIGIN,
@@ -119,7 +200,8 @@ def get_wavesolution(*lamps):
 
 def get_arcspectrum(x, y, databound, dy=None, name=None):
     """ """
-    spec = ArcSpectrum(wave=x, flux=y, errors=dy)
+    spec = ArcSpectrum(None)
+    spec.create(lbda=x, data=y, variance=dy**2 if dy is not None else None, logwave=False)
     spec.set_arcname(name)
     spec.set_databounds(*databound)
     return spec
@@ -250,7 +332,7 @@ class WaveSolution( BaseObject ):
         """
         from pysedm.utils.tools import load_pkl
         data = load_pkl(filename)
-        if "wavesolution" not in data.values()[0]:
+        if "wavesolution" not in list(data.values())[0]:
             raise TypeError('The given dictionary file does not seem to be a wavelength solution. No "wavesolution" in the first entry')
         
         self.set_wavesolutions(data)
@@ -620,11 +702,11 @@ class VirtualArcSpectrum( BaseObject ):
     def get_line_shift(self):
         """ Shift of the central line value based on the considered spaxel """
         if self.arcname in ["Hg"]:
-            wavemax = np.max(self.wave[self.get_arg_maxflux(2)])
+            wavemax = np.max(self.lbda[self.get_arg_maxflux(2)])
         elif self.arcname in ["Xe"]:
-            wavemax = np.min(self.wave[self.get_arg_maxflux(2)])
+            wavemax = np.min(self.lbda[self.get_arg_maxflux(2)])
         else:
-            wavemax = self.wave[self.get_arg_maxflux(1)]
+            wavemax = self.lbda[self.get_arg_maxflux(1)]
           
           
         wavemax_expected = self.arclines[self.expected_brightesline]["mu"]
@@ -700,7 +782,8 @@ class VirtualArcSpectrum( BaseObject ):
             self.fit_lineposition(**kwargs)
             
         mus, emus = self._linefit_to_mus_()
-        self._derived_properties["solutionfitter"] = get_polyfit( self.usedlines-REFWAVELENGTH, mus, emus+0.2, wavesolution_degree,
+        self._derived_properties["solutionfitter"] = get_polyfit( self.usedlines-REFWAVELENGTH, mus, emus+0.2,
+                                                                      wavesolution_degree,
                                                                       legendre=legendre)
         
         guesses = {"a0_guess":np.nanmean(mus)}
@@ -756,7 +839,7 @@ class VirtualArcSpectrum( BaseObject ):
         from modefit import get_normpolyfit
         
         # where to look at? (~1ms)
-        flagin = (self.wave>=self.databounds[0])  * (self.wave<=self.databounds[1]) # 1ms
+        flagin = (self.lbda>=self.databounds[0])  * (self.lbda<=self.databounds[1]) # 1ms
 
         # Building guess (~1ms)
         self._normguesses = {}
@@ -775,23 +858,23 @@ class VirtualArcSpectrum( BaseObject ):
 
         # where do you wanna fit? (~1ms)
         if exclude_reddest_part:
-            flagin *= (self.wave<=self._normguesses["mu%d_guess"%(len(self.usedlines)-1)]+red_buffer)
+            flagin *= (self.lbda<=self._normguesses["mu%d_guess"%(len(self.usedlines)-1)]+red_buffer)
         else:
             warnings.warn("part redder than %d *not* removed"%(self._normguesses["mu%d_guess"%(len(self.usedlines)-1)]+red_buffer))
             
         if exclude_bluest_part:
-            flagin *= (self.wave>=self._normguesses["mu0_guess"]-blue_buffer)
+            flagin *= (self.lbda>=self._normguesses["mu0_guess"]-blue_buffer)
         else:
             warnings.warn("part bluer than %d *not* removed"%(self._normguesses["mu0_guess"]-blue_buffer))
 
         # Setup the linefitter (3ms)
         norm = np.nanmean(self.flux[flagin])
-        waves = self.wave[flagin].copy()
-
+        lbdas = self.lbda[flagin].copy()
+        errors = self.errors[flagin]/norm if self.has_errors() else np.nanstd(self.flux[flagin])/norm/5.
+        
         self._derived_properties["linefitter"] = \
-          get_normpolyfit(waves,self.flux[flagin]/norm,
-                              self.errors[flagin]/norm if self.has_errors() else
-                              np.nanstd(self.flux[flagin])/norm/5.,
+          get_normpolyfit(lbdas,self.flux[flagin]/norm,
+                              errors,
                               contdegree, ngauss=len(self.usedlines), legendre=True)
 
     def fit_lineposition(self, contdegree=2, line_shift=None,
@@ -949,9 +1032,11 @@ class VirtualArcSpectrum( BaseObject ):
         """ Has the wavelength solution fitter has been set?"""
         return self.solutionfitter is not None
     
-class ArcSpectrum( BaseSpectrum, VirtualArcSpectrum ):
+class ArcSpectrum( Spectrum, VirtualArcSpectrum ):
     """ Arc lamp Spectrum object containing line fitting and wavelength solution fitting """
+    
     PROPERTIES = ["name"]
+    
     DERIVED_PROPERTIES = ["arclines"]
             
     # ================ #
@@ -1010,6 +1095,20 @@ class ArcSpectrum( BaseSpectrum, VirtualArcSpectrum ):
             self._derived_properties["arclines"] = {}
         return self._derived_properties["arclines"]
 
+    @property
+    def flux(self):
+        """ """
+        return self.data
+    
+    @property
+    def errors(self):
+        """ """
+        return np.sqrt(self.variance) if self.has_variance() else None
+    
+    def has_errors(self):
+        """ """
+        return self.errors is not None
+
 ###########################
 #                         #
 #  Collection of Arcs     #
@@ -1018,7 +1117,7 @@ class ArcSpectrum( BaseSpectrum, VirtualArcSpectrum ):
 class ArcSpectrumCollection( VirtualArcSpectrum ):
     """  """
     PROPERTIES = ["arcspectra"]
-    DERIVED_PROPERTIES = ["arclines"]
+    DERIVED_PROPERTIES = ["arclines", "lbda"]
     
     # ================ #
     #  Main Methods    #
@@ -1294,10 +1393,11 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
     # -----------
     # Fake Spectrum
     @property
-    def wave(self):
+    def lbda(self):
         """ """
-        return self.arcspectra.values()[0].wave \
-          if self.has_spectra() else None
+        if self._derived_properties['lbda'] is None and self.has_spectra():
+            self._derived_properties['lbda'] = list(self.arcspectra.values())[0].lbda
+        return self._derived_properties['lbda']
     
     @property
     def flux(self):
@@ -1359,8 +1459,8 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
         if self._derived_properties["arclines"] is not None and not rebuild:
             return
         di={}
-        for lampname,d in self.arcspectra.items():
-            for k,v in d.arclines.items():
+        for lampname,d in list(self.arcspectra.items()):
+            for k,v in list(d.arclines.items()):
                 if "backup" in v.keys() and v["backup"] in self.arcnames:
                     warnings.warn("line %s skiped since %s loaded"%(k,v["backup"]))
                     d.remove_line(k)

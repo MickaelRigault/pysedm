@@ -6,6 +6,8 @@ import numpy         as np
 from scipy.spatial   import KDTree, distance
 from propobject      import BaseObject
 
+from .tools          import is_arraylike
+
 __all__ = ["get_hexprojection"]
 
 
@@ -216,7 +218,7 @@ class HexagoneProjection( BaseObject ):
 
     def ids_to_index(self, ids):
         """ given the id of the given index """        
-        if hasattr(ids, "__iter__"):
+        if is_arraylike(ids):
             return np.asarray([self.ids_to_index(ids_) for ids_ in ids])
         
         return self.ids_index[ids]
@@ -229,7 +231,7 @@ class HexagoneProjection( BaseObject ):
         """ """
         qr = np.asarray(self.index_to_qr(index)).T
 
-        if not hasattr(index,"__iter__"):
+        if not is_arraylike(index):
             q,r = qr if qr is not None else [np.NaN, np.NaN]
         else:
             q,r = np.asarray([qr_ if qr_ is not None else [np.NaN, np.NaN]

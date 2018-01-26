@@ -7,7 +7,7 @@ import numpy              as np
 import warnings
 
 from pyifu.spectroscopy   import Cube, Spectrum
-from .utils.tools         import kwargs_update
+from .utils.tools         import kwargs_update, is_arraylike
 
 from .io import PROD_CUBEROOT
 
@@ -19,7 +19,7 @@ CALIBFILES = ["Hg.fits","Cd.fits","Xe.fits","dome.fits"]
 
 # --- CCD
 SEDM_CCD_SIZE = [2048, 2048]
-DOME_TRACEBOUNDS = [70,220]
+DOME_TRACEBOUNDS = [70,240]
 TRACE_DISPERSION = 1.3 # PSF (sigma assuming gaussian) of the traces on the CCD. 
 SEDMSPAXELS = np.asarray([[ np.sqrt(3.)/2., 1./2],[0, 1],[-np.sqrt(3.)/2., 1./2],
                           [-np.sqrt(3.)/2.,-1./2],[0,-1],[ np.sqrt(3.)/2.,-1./2]])*2/3.
@@ -30,7 +30,7 @@ INDEX_CCD_CONTOURS = [[_EDGES_X,_EDGES_Y],[_EDGES_X,1700],
                       [300,2040-_EDGES_Y],[2040-_EDGES_X,2040-_EDGES_Y],
                         [2040-_EDGES_X,_EDGES_Y]]
 # --- LBDA
-SEDM_LBDA = np.linspace(3700, 9200, 260)
+SEDM_LBDA = np.linspace(3400, 9800, 280)
 
 # --- ADR
 MLA_ROTATION_RAD= (263) * np.pi / 180.  # degree -> to rad
@@ -414,7 +414,7 @@ class SEDMCube( Cube ):
             sourcex, sourcey = np.ones( len(self.lbda) )*xref,np.ones( len(self.lbda) )*yref
 
         # - Radius 
-        if not hasattr(radius,"__iter__"):
+        if not is_arraylike(radius):
             radius = np.ones(len(self.lbda))*radius
         elif len(radius)!= len(self.lbda):
             raise TypeError("The radius size must be a constant or have the same lenth as self.lbda")

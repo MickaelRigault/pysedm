@@ -211,8 +211,9 @@ def build_backgrounds(date, smoothing=[0,2], start=2, jump=10,
 #  Wavelength Solution     #
 #                          #
 ############################
-def build_wavesolution(date, verbose=False, ntest=None, use_fine_tuned_traces=False,
-                        wavedegree=4, contdegree=3,
+def build_wavesolution(date, verbose=False, ntest=None, idxrange=None,
+                       use_fine_tuned_traces=False,
+                       wavedegree=5, contdegree=3,
                        lamps=["Hg","Cd","Xe"], savefig=True, saveindividuals=False,
                        xybounds=None, rebuild=True):
     """ Create the wavelength solution for the given night.
@@ -256,7 +257,8 @@ def build_wavesolution(date, verbose=False, ntest=None, use_fine_tuned_traces=Fa
         xybounds = INDEX_CCD_CONTOURS
         
     idxall = smap.get_traces_within_polygon(xybounds)
-        
+    if idxrange is not None:
+        idxall = [l for l in idxall if l>=idxrange[0] and l<idxrange[1]]
     idx = idxall if ntest is None else np.random.choice(idxall,ntest, replace=False) 
 
     # - Do The loop and map it thanks to astropy
@@ -273,13 +275,25 @@ def build_wavesolution(date, verbose=False, ntest=None, use_fine_tuned_traces=Fa
             mpl.close("all")
             
     ProgressBar.map(fitsolution, idx)
-    dump_pkl(csolution.wavesolutions, timedir+"%s_WaveSolution.pkl"%date)
+
+    # - output - #
+    outfile = "%s_WaveSolution"%date
+    if idxrange is not None:
+        outfile += "_range_%d_%d"%(idxrange[0],idxrange[1])
+    if ntest is not None:
+        outfile += "_ntest%d"%(ntest)
+        
+    dump_pkl(csolution.wavesolutions, timedir+"%s.pkl"%outfile)
+    
     if savefig:
+        print("Saving Wavesolution plot")
         wsol = io.load_nightly_wavesolution(date)
         hexagrid = io.load_nightly_hexagonalgrid(date)
         pl = wsol.show_dispersion_map(hexagrid,vmin="0.5",vmax="99.5",
                                 outlier_highlight=5, show=False)
         pl['fig'].savefig(timedir+"%s_wavesolution_dispersionmap.pdf"%date)
+
+        
         
     
 ############################

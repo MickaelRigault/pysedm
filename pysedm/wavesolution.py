@@ -74,7 +74,7 @@ XE_LINES = {"air": [ 7119.614 ,  7642.0124,  8231.6305,  8231.6305,  8280.1113,
                        8282.39, 8282.39, 8349.11, 8349.53,
                        8410.52, 8411.50, 8821.83, 8954.71,
                        9047.93, 9165.16, 9515.99, 9515.99,
-                       9687.98, 9720.83, 9802.39]
+                       9687.98, 9720.83, 9802.39],
             "vacuum_blended": [8411.0] 
                 }
 
@@ -127,15 +127,15 @@ LINES= {"Hg": # IN VACUUM
                             
                8821.83    : {"ampl": 11.,"mu":294-_REFORIGIN},
                    
-               np.average([9854.71,9047.93]) : {"ampl": 11.,"mu":298-_REFORIGIN,
+               np.average([8954.71,9047.93]) : {"ampl": 11.,"mu":298-_REFORIGIN,
                              "doublet":True , "info": "merge of lines 9854.71,9047.93"},
-               9165.16    : {"ampl": 4.5,"mu":302-_REFORIGIN},
+               9165.16    : {"ampl": 4.5,"mu":303-_REFORIGIN},
                
                # small lines but isolated
                7644.12    : {"ampl": 1.,"mu":264-_REFORIGIN},
                
-               9425.    : {"ampl": 2.,"mu":309-_REFORIGIN,
-                               "doublet":True , "info": "merge of lines 9400 and 9450"},
+               #9425.    : {"ampl": 2.,"mu":309-_REFORIGIN,
+               #                "doublet":True , "info": "merge of lines 9400 and 9450"},
                
                #9802.8    : {"ampl": 0.4,"mu":317-_REFORIGIN},
                #9938.0    : {"ampl": 0.4,"mu":320-_REFORIGIN},
@@ -185,7 +185,7 @@ def get_arccollection(traceindex, lamps):
 #   MultiProcessing    #
 # -------------------- #
 def fit_spaxel_wavelesolution(arccollection, sequential=True,
-                              contdegree=4, wavedegree=5,
+                              contdegree=3, wavedegree=5,
                               saveplot=None, show=False,
                         plotprop={}):
     """ Fit the wavelength solution of the given trace.

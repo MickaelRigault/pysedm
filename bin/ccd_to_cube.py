@@ -55,6 +55,9 @@ if  __name__ == "__main__":
     parser.add_argument('--wavesol', action="store_true", default=False,
                         help='build the wavelength solution for the given night.')
     
+    parser.add_argument('--spaxelrange', type=str, default="None",
+                        help='Provide a range of spaxel indexe A,B ; only traces with index i>=A and i<B will be loaded. Indicated in saved filename.')
+    
     parser.add_argument('--wavesoltest', type=str, default="None",
                         help='to be used with --wavesol. By setting --wavesoltest N one N random wavelength solution will be performed.')
 
@@ -146,10 +149,14 @@ if  __name__ == "__main__":
     # - Wavelength Solution
     if args.wavesol:
         ntest = None if "None" in args.wavesoltest else int(args.wavesoltest)
+        spaxelrange = None if "None" in args.spaxelrange else np.asarray(args.spaxelrange.split(","), dtype="int")
+
         
         build_wavesolution(date, ntest=ntest, use_fine_tuned_traces=False,
-                       lamps=["Hg","Cd","Xe"], saveindividuals=args.wavesolplots,
-                        savefig=~args.nofig, rebuild=args.rebuild)
+                            idxrange=spaxelrange,
+                            lamps=["Hg","Cd","Xe"], saveindividuals=args.wavesolplots,
+                            savefig = False if args.nofig else True,
+                            rebuild=args.rebuild)
 
     # - Flat Fielding
     if args.flat:

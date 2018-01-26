@@ -20,7 +20,7 @@ from propobject              import BaseObject
 from pyifu.spectroscopy      import Spectrum
 
 # - Internal Modules
-from pysedm.ccd import CCD
+from .ccd import CCD
 
 # Vacuum wavelength
 # from KECK https://www2.keck.hawaii.edu/inst/lris/arc_calibrations.html
@@ -62,52 +62,21 @@ CD_LINES = {"air" : [3080.822, 3082.593, 3133.167, 3252.524,
                       7347.69410],
            "vacuum_blended": [3466.85, 3611.01, 4679.325] 
                 }
-_XE_LINES_AIR = """
- 7119.614   500  GOOD Xel  #DF WEAK -300 kcts/100s 
- 7119.614   500  FAIR Xe  #DF WEAK -300 kcts/100s
-7584.6779  GOOD Xel
-7618.5687  GOOD Xe
-7643.9019  BLEND Xe
-7642.0124  BLEND Xel
-7643.9019  BLEND Xel
-7802.6488  GOOD Xel
-8171.0189  GOOD Xel
- 8206.3393   700  BLEND Xel #badly saturated
-8206.3393  BLEND Xe
- 8231.6305 10000  BLEND Xel  # badly satureated
- 8231.6305 10000  GOOD Xe  #DF
-8266.5130  BLEND Xel
-8266.5130  BLEND Xe
- 8280.1113  7000  BLEND Xel #badly saturated
-8280.1113  GOOD Xe
- 8346.8112  2000 BLEND Xe #3E6
-8347.2311  BLEND Xe
- 8346.8112  2000 BLEND Xel #3E6
-8347.2311  BLEND Xel
- 8408.2036 15000  BLEND Ar # checked - may have blend issues - Xe!
-8409.1843  BLEND Xe
-8692.1974  BLEND Xel
-8696.8562  BLEND Xel
- 8739.3731   300  BLEND Xel  #700 kcts - subtracted .0117 DF GOOD
- 8739.3731   300  BLEND Xe  #subtracted .0117 - very unstable
- 8758.1995   100  GOOD Xel #110 kcts
- 8819.4029  5000  FAIR Xe  #DF - often rejected
- 8819.4029  5000  BLEND Xel  #badly saturated
- 8862.3112   300  BLEND Xel #hidden in saturation
- 8908.7286   200  GOOD Xel #500kcts
- 8930.8226   200  GOOD Xel #600kcts
- 8952.2468  1000  BLEND Xel  #badly saturated
- 8952.2468  1000  GOOD Xe  #DF:Maybe this is OK
- 9045.4415   400  BLEND Xel  #badly saturated
- 9162.6396   500  BLEND Xel  #badly saturatedby 0.0105 ????
- 9167.5183   100  PBLEND Xe # can't check
- 9513.3743   200  FBLEND Xe #high RMS, maybe an offset too
- 9513.3743  BLEND Xel
- 9685.3175   150  GOOD Xel #360kcts
- 9718.1586   100  GOOD Xel # 250kcts
- 9799.6964  2000  BLEND Xel #quite saturated
-"""
-XE_LINES = {"air": [] }
+
+
+XE_LINES = {"air": [ 7119.614 ,  7642.0124,  8231.6305,  8231.6305,  8280.1113,
+                     8280.1113,  8346.8112,  8347.2311,  8408.2036,  8409.1843,
+                     8819.4029,  8952.2468,  9045.4415,  9162.6396,  9513.3743,
+                     9513.3743,  9685.3175,  9718.1586,  9799.6964],
+                     
+            # vacuum DERIVED inversing var_to_air_sdss, see utils.tools.fetch_vac
+            "vacuum": [7121.58, 7644.12, 8233.90, 8233.90,
+                       8282.39, 8282.39, 8349.11, 8349.53,
+                       8410.52, 8411.50, 8821.83, 8954.71,
+                       9047.93, 9165.16, 9515.99, 9515.99,
+                       9687.98, 9720.83, 9802.39]
+            "vacuum_blended": [8411.0] 
+                }
 
 
 # -------------- #
@@ -118,17 +87,14 @@ REFWAVELENGTH = 7000
 _REFORIGIN = 69
 
 LINES= {"Hg": # IN VACUUM
-            { #5790.66  :  {"ampl":1. ,"mu":202-_REFORIGIN},
-               #5769.59  : {"ampl":1. ,"mu":201-_REFORIGIN},
+            { 
                np.mean([5771.210, 5792.276])   : {"ampl":13. ,"mu":201-_REFORIGIN,
                            "doublet":False,
                         "info":"merge of 5771.210, 5792.276 blended"},
                5462.268 : {"ampl":62.,"mu":187-_REFORIGIN},
                4359.560   : {"ampl":50. ,"mu":127-_REFORIGIN},
                4047.708 : {"ampl":10. ,"mu":105-_REFORIGIN}, 
-               #3663.27:{"ampl":0.1 ,"mu":3},
-               #3654.84:{"ampl":0.1 ,"mu":1},
-               #3650.153:{"ampl":1. ,"mu":0},
+              
                },
         "Cd":  # IN VACUUM
               {4679.325 : {"ampl":14. ,"mu":146-_REFORIGIN}, 
@@ -152,25 +118,21 @@ LINES= {"Hg": # IN VACUUM
 #                            "doublet":True,"info":"merge of 8945, 9050"},
 #               }
 
-        "Xe": {8246.6    : {"ampl": 16. ,"mu":280-_REFORIGIN,
+        "Xe": {np.average([8233.90, 8282.39], weights=[2,1])  : {"ampl": 16. ,"mu":280-_REFORIGIN,
                             "doublet":False},# yes but really close
-               8354    : {"ampl": 3. ,"mu":283-_REFORIGIN,
+                            
+               np.average([8349.11, 8411.00], weights=[2,3])   : {"ampl": 3. ,"mu":283-_REFORIGIN,
                             "doublet":False}, # yes but really close
-#               83562.8    : {"ampl": 0.4 ,"mu":285-_REFORIGIN,
-#                            "doublet":False},
-#               84138.2    : {"ampl": 0.2 ,"mu":287-_REFORIGIN,
-#                            "doublet":False},
                             
                             
-               8836.3    : {"ampl": 11.,"mu":294-_REFORIGIN},
-#               8956.5    : {"ampl": 0.6,"mu":297-_REFORIGIN},
-#               9050.5    : {"ampl": 0.6,"mu":299-_REFORIGIN},
-               9006.5    : {"ampl": 11.,"mu":298-_REFORIGIN,
-                             "doublet":True , "info": "merge of lines 8956.5 and 9050.5"},
-               9161.3    : {"ampl": 4.5,"mu":302-_REFORIGIN},
+               8821.83    : {"ampl": 11.,"mu":294-_REFORIGIN},
+                   
+               np.average([9854.71,9047.93]) : {"ampl": 11.,"mu":298-_REFORIGIN,
+                             "doublet":True , "info": "merge of lines 9854.71,9047.93"},
+               9165.16    : {"ampl": 4.5,"mu":302-_REFORIGIN},
                
-               # small lines
-               7642    : {"ampl": 1.,"mu":264-_REFORIGIN},
+               # small lines but isolated
+               7644.12    : {"ampl": 1.,"mu":264-_REFORIGIN},
                
                9425.    : {"ampl": 2.,"mu":309-_REFORIGIN,
                                "doublet":True , "info": "merge of lines 9400 and 9450"},

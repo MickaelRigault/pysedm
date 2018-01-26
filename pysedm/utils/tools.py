@@ -131,6 +131,11 @@ def vac_to_air_sdss(vac):
     """ converts air wavelength [AA] into vacuum wavelengths. Tested. """
     return vac / (1.0 + 2.735182*10**-4 + 131.4182 / vac**2 + 2.76249*10**8 / vac**4)
 
+def fetch_vac(x):
+    from scipy.optimize import fmin
+    def _to_be_min_(x_):
+        return np.abs(x - tools.vac_to_air_sdss(x_))
+    return fmin(_to_be_min_, x, disp=0)
 
 
 ################################

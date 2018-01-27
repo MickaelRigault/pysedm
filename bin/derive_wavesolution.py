@@ -61,7 +61,7 @@ if  __name__ == "__main__":
     # Split it in equal parts:
     k, m      = divmod( len(idxall), nsplit)
     idxbounds = [[i * k + min(i, m),(i + 1) * k + min(i + 1, m)] for i in range(nsplit)]
-    idxbounds = [[100,110],[110,120],[120,130]]
+    
 
     options = []
     if args.nofig:

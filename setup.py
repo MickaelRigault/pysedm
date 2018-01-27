@@ -10,8 +10,8 @@ MAINTAINER = 'Mickael Rigault'
 MAINTAINER_EMAIL = 'mickael.rigault@clermont.in2p3.fr'
 URL = 'https://github.com/MickaelRigault/pysedm/'
 LICENSE = 'BSD (3-clause)'
-DOWNLOAD_URL = 'https://github.com/MickaelRigault/pysedm/tarball/0.6'
-VERSION = '0.6.8'
+DOWNLOAD_URL = 'https://github.com/MickaelRigault/pysedm/tarball/0.7'
+VERSION = '0.7.0'
 
 try:
     from setuptools import setup, find_packages
@@ -60,7 +60,8 @@ if __name__ == "__main__":
           scripts=["bin/ccd_to_cube.py" ,
                    "bin/display_cube.py",
                    "bin/extract_star.py",
-                   "bin/cube_quality.py"],
+                   "bin/cube_quality.py",
+                   "bin/derive_wavesolution.py"],
           packages=packages,
           package_data={'pysedm': []},
           classifiers=[

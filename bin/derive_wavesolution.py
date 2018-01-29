@@ -11,7 +11,7 @@ if  __name__ == "__main__":
     import subprocess
     import argparse
     import pysedm
-
+    import numpy as np
     # ================= #
     #   Options         #
     # ================= #

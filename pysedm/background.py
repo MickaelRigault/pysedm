@@ -246,8 +246,8 @@ class Background( BaseObject ):
             
         # --- Build the HDU
         hdu = [pf.PrimaryHDU(self.background, self.header)] # Background
-
-        params = np.sort(list(self._contvalues.values()[0].keys()))
+        
+        params = np.sort(list(list(self._contvalues.values())[0].keys()))
         header_POLY = pf.Header()
         for i, p in enumerate(params): 
             header_POLY['VALUE%s'%i] = p

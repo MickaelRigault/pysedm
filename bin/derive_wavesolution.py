@@ -59,7 +59,7 @@ if  __name__ == "__main__":
     
     idxall = pysedm.load_nightly_tracematch(date, withmask=False).get_traces_within_polygon(pysedm.sedm.INDEX_CCD_CONTOURS)
     # Split it in equal parts:
-    k, m      = divmod( len(idxall), nsplit)
+    k, m      = divmod( np.nanmax(idxall)+10, nsplit)
     idxbounds = [[i * k + min(i, m),(i + 1) * k + min(i + 1, m)] for i in range(nsplit)]
     
 
@@ -72,8 +72,7 @@ if  __name__ == "__main__":
         print(args.spaxelrange)
         options += ["--spaxelrange","%s,%s"%(args.spaxelrange[0],args.spaxelrange[1])]
 
-    for i,bounds in enumerate(idxbounds):
-        if i==nsplit: bounds[1] += 1            
+    for i,bounds in enumerate(idxbounds):          
         command = ["ccd_to_cube.py", date, "--wavesol","--spaxelrange","%s,%s"%(bounds[0],bounds[1])] + options
         print("launching command: "+" ".join(command))
         subprocess.Popen(command, stdout=subprocess.PIPE)

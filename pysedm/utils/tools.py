@@ -116,15 +116,19 @@ def running_from_notebook():
 
 def _loading_multiprocess():
     """ Black magic function to load to enable pickle in multiprocess """
-    import copy_reg
+    try:
+        import copy_reg as copyreg
+    except:
+        import copyreg
     import types
+    
     def _pickle_method(m):
         if m.im_self is None:
             return getattr, (m.im_class, m.im_func.func_name)
         else:
             return getattr, (m.im_self, m.im_func.func_name)
         
-    copy_reg.pickle(types.MethodType, _pickle_method)
+    copyreg.pickle(types.MethodType, _pickle_method)
 
 
 def vac_to_air_sdss(vac):

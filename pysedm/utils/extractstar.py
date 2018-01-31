@@ -28,7 +28,7 @@ from pysedm.utils.tools import _loading_multiprocess
 _loading_multiprocess()
 
 def fit_slice(slice_, fitbuffer=None,
-              psfmodel="BiGaussianCont", fitted_indexes=None,
+              psfmodel="BiNormalCont", fitted_indexes=None,
               lbda=None, **kwargs):
     """ 
     fitbuffer ignored if fitted_indexes provided
@@ -44,29 +44,23 @@ def _fit_slicepsf_(slicepsf, **kwargs):
     slicepsf.fit( **kwargs_update( slicepsf.get_guesses(), **kwargs) )
     return slicepsf
 
-def fit_cube_per_slice(cube, notebook=True, psfmodel="BiGaussianCont",
-                    fitted_indexes=None, fitbuffer=10, multiprocess=True):
+def fit_cube_per_slice(cube, psfmodel="BiNormalCont", notebook=True):
     """ """
     import multiprocessing
     from astropy.utils.console import ProgressBar
     # ================= #
     #  Loading Slices   #
     # ================= #
-    nlbda      = len(cube.lbda)
-    prop_slice = {"psfmodel":psfmodel, "fitbuffer":fitbuffer, "fitted_indexes":fitted_indexes}
-    all_slices = [SlicePSF(cube.get_slice(index=i_, slice_object=True), **prop_slice)
-                      for i_ in range(nlbda)]
+    nlbda  = len(cube.lbda)
+    bar    = ProgressBar(nlbda, ipython_widget=notebook)
+    res    = {}
+    print("SlicePSF model: %s"%(psfmodel))
     
-    if multiprocess:
-        bar    = ProgressBar(nlbda, ipython_widget=notebook)
-        p, res = multiprocessing.Pool(), {}
-        for j, result in enumerate( p.imap(_fit_slicepsf_, all_slices)):
-            res[j] = result.fitvalues
-            bar.update(j)
-        bar.update(nlbda)
-        return res
-    else:
-        return ProgressBar.map(_fit_slicepsf_, all_slices, step=2)
+    for j, lbda_ in enumerate(cube.lbda):
+        res[j] = fit_slice(cube.get_slice(index=j, slice_object=True), psfmodel=psfmodel).fitvalues
+        bar.update(j)
+    bar.update(nlbda)
+    return res
 
 
 
@@ -80,11 +74,12 @@ def sliceparam_to_cube(x, y, lbda, parameters, psfmodel,
     
     if len(parameters) != len(lbda):
         raise ValueError("lbda and parameters must have the same length (1 serie of parameter per slice)")
-    
+
     model = read_psfmodel( psfmodel )
     data = []
     for l_index in range(len(lbda)):
-        model.setup([parameters[l_index][k_] for k_ in model.freeparameters])
+        param =[parameters[l_index][k_] for k_ in model.freeparameters]
+        model.setup(param)
         data.append(model.get_model(x,y))
 
     if indexes is None: indexes = np.arange(len(x))
@@ -130,10 +125,10 @@ def guess_aperture(x, y, data):
     -------
     x0, y0, std_mean (floats)
     """
-    argmaxes   = np.argwhere( data>np.percentile(data,95) ).flatten()
+    argmaxes   = np.argwhere( data>np.percentile(data[data==data],95) ).flatten()
     x0, stdx   = np.nanmean(x[argmaxes]), np.nanstd(x[argmaxes])
     y0, stdy   = np.nanmean(y[argmaxes]), np.nanstd(y[argmaxes])
-    std_mean   = np.mean([stdx,stdy])
+    std_mean   = np.nanmean([stdx,stdy])
     return x0, y0, std_mean
 
     
@@ -161,9 +156,9 @@ class ExtractStar( BaseObject ):
     #  Cube -> Spectrum   #
     # ------------------- #
     # PSF SPECTROSCOPY
-    def fit_psf(self, psfmodel="BiGaussianCont",
+    def fit_psf(self, psfmodel="BiNormalCont",
                 fixed_buffer=None, buffer_refindex=100,
-                notebook=False, **kwargs):
+                notebook=False, multiprocess=True, **kwargs):
         """ """
         self._derived_properties['slicefitvalues'] = {}
         if fixed_buffer is not None:
@@ -178,10 +173,9 @@ class ExtractStar( BaseObject ):
 
         self._side_properties["psfmodel"]          = psfmodel
         self._derived_properties['slicefitvalues'] = \
-          fit_cube_per_slice(self.cube, notebook=notebook, psfmodel=psfmodel,
-                                 fitted_indexes=fitted_indexes, multiprocess=True)
+          fit_cube_per_slice(self.cube, psfmodel=psfmodel, notebook=notebook)
           
-    def get_slice_psf(self, lbdarange=None, psfmodel="BiGaussianCont", fitbuffer=20, **kwargs):
+    def get_slice_psf(self, lbdarange=None, psfmodel="BiNormalCont", fitbuffer=20, **kwargs):
         """ """
         return fit_slice( self.cube.get_slice(lbda_min=lbdarange[0], lbda_max=lbdarange[1],
                                                   slice_object=True),
@@ -202,7 +196,7 @@ class ExtractStar( BaseObject ):
             raise AttributeError("You need to first run the fit: see fit_psf()")
         
         indexes = np.sort(list(self.slicefitvalues.keys()))
-        return np.asarray([[self.slicefitvalues[i]['amplitude'],self.slicefitvalues[i]['amplitude.err']]
+        return np.asarray([[self.slicefitvalues[i]['amplitude'], self.slicefitvalues[i]['amplitude.err']]
                                     for i in indexes]).T
 
     def get_fitted_centroid(self):
@@ -462,8 +456,8 @@ class SlicePSF( PSFFitter ):
     # =================== #
     def __init__(self, slice_,
                      fitbuffer=None,fit_area=None,
-                     psfmodel="BiGaussianCont",
-                      fitted_indexes=None, lbda=5000):
+                     psfmodel="BiNormalCont",
+                     fitted_indexes=None, lbda=5000):
         """ The SlicePSF fitter object
 
         Parameters
@@ -828,6 +822,7 @@ class BiGaussianCont( PSFSliceScipy ):
     # --------------- #
     def get_guesses(self, x, y, data):
         """ return a dictionary containing simple best guesses """
+        print("Guesses for BiGaussianCont")
         ampl = np.nanmax(data)
         x0   = x[np.argmax(data)]
         y0   = y[np.argmax(data)]
@@ -909,27 +904,35 @@ class BiNormalCont( PSFSliceScipy ):
     # ================== #
     def get_guesses(self, x, y, data):
         """ return a dictionary containing simple best guesses """
+        flagok     = ~np.isnan(x*y*data)
+        x          = x[flagok]
+        y          = y[flagok]
+        data       = data[flagok]
+        
         ampl       = np.nanmax(data)
         argmaxes   = np.argwhere(data>np.percentile(data,95)).flatten()
         x0, stdx   = np.nanmean(x[argmaxes]), np.nanstd(x[argmaxes])
         y0, stdy   = np.nanmean(y[argmaxes]), np.nanstd(y[argmaxes])
-        std_mean   = np.mean([stdx,stdy])
+        std_mean   = np.mean([stdx,stdy]) / np.sqrt(2)
         ell        = 1 - np.nanmin([stdx,stdy])/np.nanmax([stdx,stdy])
         theta      = 0 if stdx>stdy else np.pi/2.
         
-        self._guess = dict(amplitude_guess=ampl * 10,
-                           x_mean_guess=x0, x_mean_boundaries=[x0-10,x0+10],
-                           y_mean_guess=y0, y_mean_boundaries=[y0-10,y0+10],
+        self._guess = dict(amplitude_guess=ampl * 5,
+                           amplitude_boundaries= [ampl/100, ampl*100],
+                           x_mean_guess=x0, x_mean_boundaries=[x0-3,x0+3],
+                           y_mean_guess=y0, y_mean_boundaries=[y0-3,y0+3],
                            # shift of the 2nd gaussian (tails)
                            x_offset_guess=0, x_offset_boundaries=[-2,2], x_offset_fixed=True,
                            y_offset_guess=0, y_offset_boundaries=[-2,2], y_offset_fixed=True,
                            # - STD
-                           stddev_guess = std_mean, stddev_boundaries=[0.5,std_mean*3],
+                           stddev_guess = std_mean,
+                           stddev_boundaries=[0.5,std_mean*3],
                            # - background
                            bkgd_guess=np.percentile(data,10),
                            # Converges faster by allowing degenerated param...
                            theta_guess=theta, theta_boundaries=[-np.pi,np.pi],
                            ell_guess = ell, ell_boundaries= [-0.9, 0.9],
+                           # amplitude ratio
                            amplitude_ratio_guess = 3.5,
                            amplitude_ratio_fixed = True,
                            amplitude_ratio_boundaries = [3,4],

@@ -30,7 +30,7 @@ INDEX_CCD_CONTOURS = [[_EDGES_X,_EDGES_Y],[_EDGES_X,1700],
                       [300,2040-_EDGES_Y],[2040-_EDGES_X,2040-_EDGES_Y],
                         [2040-_EDGES_X,_EDGES_Y]]
 # --- LBDA
-SEDM_LBDA = np.linspace(3400, 9800, 280)
+SEDM_LBDA = np.linspace(3700, 9300, 260)
 
 # --- ADR
 MLA_ROTATION_RAD= (263) * np.pi / 180.  # degree -> to rad
@@ -197,9 +197,10 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
         
 def build_calibrated_sedmcube(cubefile, date=None, calibration_ref=None, kind=None):
     """ """
-    import io
+    
     if calibration_ref is None:
-        calfiles = io.get_night_files(date, "spec.fluxcal")
+        from .io import get_night_files
+        calfiles = get_night_files(date, "spec.fluxcal")
         if len(calfiles)==0:
             warnings.warn("No `fluxcalfiles` for date %s. No calibrated cube created"%date)
             return

@@ -28,11 +28,16 @@ if  __name__ == "__main__":
     
     parser.add_argument('--automodel',  type=str, default="BiNormalCont",
                         help='Name of the model to use for the automatic spectral extraction. ')
+    # - Sky removal
+    parser.add_argument('--nsky',  type=int, default=100,
+                        help='Number of spaxel used to estimate the sky signal. Set this to 0 for no sky subtraction. ')
     
     # - Standard Star object
     parser.add_argument('--std',  action="store_true", default=False,
                         help='Set this to True to tell the program you what to build a calibration spectrum from this object')
-    
+
+    parser.add_argument('--singleprocess',  action="store_true", default=False,
+                        help='Set this to force running in singl')
     
     args = parser.parse_args()
     # ================= #
@@ -54,7 +59,7 @@ if  __name__ == "__main__":
     if args.auto is not None and len(args.auto) >0:
         
         from pyifu.spectroscopy import get_spectrum
-        import shapely
+        from shapely import geometry
         
         print(args.auto)
         for target in args.auto.split(","):
@@ -68,10 +73,16 @@ if  __name__ == "__main__":
                 # ----------------- #
                 print("Automatic extraction of target %s, file: %s"%(target, filecube))
                 cube = get_sedmcube(filecube)
+                if args.nsky>0:
+                    cube.remove_sky( args.nsky )
+                    
                 # Subpart of the cube to fit.
                 x,y =  np.asarray(cube.index_to_xy(cube.indexes)).T
-                x0, y0, std0  = extractstar.guess_aperture(x, y, cube.data[np.argmin(np.abs(cube.lbda-6000))])
-                used_indexes  = cube.get_spaxels_within_polygon(shapely.geometry.Point(x0,y0).buffer(std0*5))
+                data = cube.data[np.argmin(np.abs(cube.lbda-6000))]
+                flagok = ~ np.isnan(x*y*data)
+
+                x0, y0, std0  = extractstar.guess_aperture(x[flagok], y[flagok], data[flagok])
+                used_indexes  = cube.get_spaxels_within_polygon(geometry.Point(x0,y0).buffer(std0*5))
                 slice_to_fit  = range(len(cube.lbda)) # all
                 # -> Cube to fit
                 cube_to_fit = cube.get_partial_cube(used_indexes,slice_to_fit)
@@ -80,12 +91,12 @@ if  __name__ == "__main__":
                 #  Extract Start    #
                 # ================= #
                 es   = extractstar.ExtractStar(cube_to_fit)
-                es.fit_psf(args.automodel)
+                es.fit_psf(psfmodel=args.automodel)
                 
                 # ----------------- #
                 #  Save the cubes   #
                 # ----------------- #
-                x,y =  np.asarray(cube_to_fit.index_to_xy(cube_to_fit.indexes)).T
+                x,y       = np.asarray(cube_to_fit.index_to_xy(cube_to_fit.indexes)).T
                 cubemodel = extractstar.sliceparam_to_cube(x, y, cube_to_fit.lbda, es.slicefitvalues,
                                                             args.automodel, indexes=cube_to_fit.indexes,
                                                             spaxel_vertices=cube_to_fit.spaxel_vertices)

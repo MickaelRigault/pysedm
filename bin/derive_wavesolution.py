@@ -42,6 +42,9 @@ if  __name__ == "__main__":
 
     parser.add_argument('--nofig', action="store_true", default=False,
                         help='')
+    parser.add_argument('--rebuild',  action="store_true", default=False,
+                        help='If the object you want to build already exists, nothing happens except if this is set')
+
 
     # - End
     args = parser.parse_args()
@@ -71,7 +74,11 @@ if  __name__ == "__main__":
     if args.spaxelrange not in ['None']:
         print(args.spaxelrange)
         options += ["--spaxelrange","%s,%s"%(args.spaxelrange[0],args.spaxelrange[1])]
+    if args.rebuild:
+        print(args.rebuild)
+        options += ["--rebuild"]
 
+        
     for i,bounds in enumerate(idxbounds):          
         command = ["ccd_to_cube.py", date, "--wavesol","--spaxelrange","%s,%s"%(bounds[0],bounds[1])] + options
         print("launching command: "+" ".join(command))

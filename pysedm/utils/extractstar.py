@@ -913,7 +913,7 @@ class BiNormalCont( PSFSliceScipy ):
         argmaxes   = np.argwhere(data>np.percentile(data,95)).flatten()
         x0, stdx   = np.nanmean(x[argmaxes]), np.nanstd(x[argmaxes])
         y0, stdy   = np.nanmean(y[argmaxes]), np.nanstd(y[argmaxes])
-        std_mean   = np.mean([stdx,stdy]) / np.sqrt(2)
+        std_mean   = np.mean([stdx,stdy]) / 2
         ell        = 1 - np.nanmin([stdx,stdy])/np.nanmax([stdx,stdy])
         theta      = 0 if stdx>stdy else np.pi/2.
         
@@ -926,18 +926,18 @@ class BiNormalCont( PSFSliceScipy ):
                            y_offset_guess=0, y_offset_boundaries=[-2,2], y_offset_fixed=True,
                            # - STD
                            stddev_guess = std_mean,
-                           stddev_boundaries=[0.5,std_mean*3],
+                           stddev_boundaries=[0.8,std_mean*3],
                            # - background
                            bkgd_guess=np.percentile(data,10),
                            # Converges faster by allowing degenerated param...
-                           theta_guess=theta, theta_boundaries=[-np.pi,np.pi],
-                           ell_guess = ell, ell_boundaries= [-0.9, 0.9],
+                           theta_guess=theta, theta_boundaries=[-0.05,1*np.pi],
+                           ell_guess = ell, ell_boundaries= [-0.1, 0.8],
                            # amplitude ratio
                            amplitude_ratio_guess = 3.5,
                            amplitude_ratio_fixed = True,
                            amplitude_ratio_boundaries = [3,4],
-                           stddev_ratio_guess = 2.2,
-                           stddev_ratio_boundaries = [1.8,4],
+                           stddev_ratio_guess = 2.,
+                           stddev_ratio_boundaries = [1.3,3.5],
                             )
         return self._guess
     

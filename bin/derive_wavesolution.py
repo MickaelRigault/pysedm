@@ -28,9 +28,8 @@ if  __name__ == "__main__":
     parser.add_argument('--nsub',  type=str, default=2,
                         help='Number of subprocess to launch. [default 2]')
     
-    #parser.add_argument('--merge',  action="store_true", default=False,
-    #                    help='Do you want to merge the wavelength solutions at the end to build the night solution?')
-    
+    parser.add_argument('--merge',  action="store_true", default=False,
+                        help='Set this keyword to perform the Wavesolution merging. The rest will be ignored.')
     # --------------- #
     #  Subprocessing  #
     # --------------- #
@@ -42,10 +41,10 @@ if  __name__ == "__main__":
 
     parser.add_argument('--nofig', action="store_true", default=False,
                         help='')
+    
     parser.add_argument('--rebuild',  action="store_true", default=False,
                         help='If the object you want to build already exists, nothing happens except if this is set')
-
-
+    
     # - End
     args = parser.parse_args()
     
@@ -57,6 +56,18 @@ if  __name__ == "__main__":
     #  Date     #
     # --------- #
     date = args.infile
+
+    if args.merge:
+        from pysedm.wavesolution import merge_wavesolutions
+        wsol = merge_wavesolutions( pysedm.load_nightly_wavesolution(date,True))
+        wsol.writeto( pysedm.io.get_datapath(date)+"%s_WaveSolution.pkl"%date)
+        if not args.nofig:
+            hgrid = pysedm.load_nightly_hexagonalgrid(date)
+            wsol.show_dispersion_map(hgrid, vmax="98", vmin="2", outlier_highlight=5,
+                            savefile= pysedm.io.get_datapath(date)+"%s_wavesolution_dispersionmap.pdf"%date)
+        import sys
+        sys.exit(0)
+    
     nsplit = int(args.nsub)
     # - Wavelength Solution
     

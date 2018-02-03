@@ -181,7 +181,7 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000,
 #   BackGround             #
 #                          #
 ############################
-def build_backgrounds(date, smoothing=[0,2], start=2, jump=10, 
+def build_backgrounds(date, smoothing=[0,5], start=2, jump=10, 
                         target=None, lamps=True, only_lamps=False, skip_calib=True,
                         multiprocess=True,
                         savefig=True, notebook=False, **kwargs):

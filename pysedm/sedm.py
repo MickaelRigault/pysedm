@@ -37,7 +37,7 @@ MLA_ROTATION_RAD= (263) * np.pi / 180.  # degree -> to rad
 MLA_ROTMATRIX   = np.asarray([[ np.cos(MLA_ROTATION_RAD),-np.sin(MLA_ROTATION_RAD)], 
                               [ np.sin(MLA_ROTATION_RAD), np.cos(MLA_ROTATION_RAD)]] )
 DEFAULT_REFLBDA = 6000 # In Angstrom
-IFU_SCALE_UNIT  = 0.43
+IFU_SCALE_UNIT  = 0.75
 
 
 # --- Palomar Atmosphere

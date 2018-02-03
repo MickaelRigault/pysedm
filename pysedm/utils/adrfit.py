@@ -41,7 +41,7 @@ def get_cube_adr_param(cube, lbdaref=5000, lbdastep=10, lbdarange=None,
     # 
     adrfit = ADRFitter(cube_partial.adr.copy())
     adrfit.set_data(cube_partial.lbda, xc[0], yc[0], xc[1], yc[1])
-    adrfit.fit(unit_guess=0.4, unit_boundaries=[0.3,1])
+    adrfit.fit(airmass_guess=cube.header["AIRMASS"], airmass_boundaries=[1,cube.header["AIRMASS"]*1.5])
     if show or savefile is not None:
         pl = adrfit.show(show=show, savefile=savefile, refsedmcube=cube_partial )
         
@@ -56,13 +56,28 @@ class ADRFitter( BaseFitter ):
                           "x", "y", "dx","dy"]
     DERIVED_PROPERTIES = []
     
-    def __init__(self, adr, lbdaref=None):
+    def __init__(self, adr, lbdaref=None, base_parangle=0, unit=1):
         """ """
         self._properties['adr'] = adr
         if lbdaref is not None:
             self.adr.set(lbdaref=lbdaref)
             
-        self.set_model( ADRModel(self.adr) )
+        self.set_model( ADRModel(self.adr, base_parangle=base_parangle, unit=unit))
+
+    def get_fitted_rotation(self):
+        """ dictionary containing the effective rotatio (paramgle=base_parangle+fitted_rotation) + details:
+        Returns
+        -------
+        dict:
+              {"parangle":self.fitvalues["parangle"]+self.model.base_parangle,
+                "base_parangle":self.model.base_parangle,
+                "fitted_addition_parangle":self.fitvalues["parangle"]}
+
+        """
+        return {"parangle":self.fitvalues["parangle"]+self.model.base_parangle,
+                "base_parangle":self.model.base_parangle,
+                "fitted_addition_parangle":self.fitvalues["parangle"]
+                }
     
     def set_data(self, lbda, x, y, dx, dy):
         """ set the fundatemental properties of the object. 
@@ -142,8 +157,6 @@ class ADRFitter( BaseFitter ):
         fig.figout(savefile=savefile, show=show)
         return {"ax":ax, "fig":fig, "plot":[scd,scm]}
     
-            
-    
     # ================= #
     #   Properties      #
     # ================= #
@@ -172,29 +185,31 @@ class ADRFitter( BaseFitter ):
         """ y-position errors """
         return self._properties['dy']
 
-    
     @property
     def lbda(self):
         """ wavelength [A] """
         return self._properties['lbda']
     
-
-
+    @property
+    def npoints(self):
+        """ number of data point """
+        return len(self.x)
     
 class ADRModel( BaseModel):
     """ """
     PROPERTIES      = ["adr", "lbdaref"]
-    SIDE_PROPERTIES = [] # could be moved to parameters
-    FREEPARAMETERS  = ["parangle", "unit", "xref", "yref"]
+    SIDE_PROPERTIES = ["base_parangle"] # could be moved to parameters
+    FREEPARAMETERS  = ["parangle", "airmass", "xref", "yref"]
 
     parangle_boundaries = [-180, 180]
     
-    def __init__(self, adr, xref=0, yref=0, base_parangle=0):
+    def __init__(self, adr, xref=0, yref=0, base_parangle=0, unit=1):
         """ """
         self.set_adr(adr)
         self._side_properties['xref'] = xref
         self._side_properties['yref'] = yref
         self._side_properties['base_parangle'] = base_parangle
+        self._unit = unit
         
     def setup(self, parameters):
         """ """
@@ -206,6 +221,8 @@ class ADRModel( BaseModel):
                 self._side_properties['xref'] = parameters[i]
             elif p== "yref":
                 self._side_properties['yref'] = parameters[i]
+            elif p=="parangle":
+                self.adr.set(**{p:(parameters[i]+self.base_parangle)%360})
             else:
                 self.adr.set(**{p:parameters[i]})
 
@@ -250,7 +267,7 @@ class ADRModel( BaseModel):
             adr.set(lbdaref=lbdaref)
             
         self._properties['adr'] = adr
-
+        
     @property
     def adr(self):
         """ pyifu ADR object """
@@ -277,4 +294,7 @@ class ADRModel( BaseModel):
         return self._side_properties['yref']
         
 
-
+    @property
+    def base_parangle(self):
+        """ the parangle is the additional rotation on top of this """
+        return self._side_properties["base_parangle"]

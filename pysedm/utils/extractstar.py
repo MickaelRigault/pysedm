@@ -4,95 +4,220 @@
 """ Extract Star based on Modefit """
 
 import warnings
-import numpy            as np
-from pyifu.spectroscopy import Slice, Cube
+import numpy                 as np
+from scipy.stats         import norm
 
-import shapely
 from propobject          import BaseObject
+
+from pyifu                import adr
+from pyifu.spectroscopy   import Slice
+
+from pysedm.sedm          import IFU_SCALE_UNIT # This is the only SEDM part.
+from pysedm.utils.tools   import kwargs_update, is_arraylike, make_method
+
 from modefit.baseobjects import BaseFitter, BaseModel
 
 
-from astropy.modeling.functional_models import Moffat2D, Gaussian2D
-from astropy.modeling.models import Polynomial2D
-
-from scipy.stats import multivariate_normal, norm
-
-from ..sedm     import IFU_SCALE_UNIT
-from .tools     import kwargs_update, is_arraylike
 ###########################
 #                         #
-#  Single Slice Fit       #
+#  Main Functions         #
 #                         #
 ###########################
-from pysedm.utils.tools import _loading_multiprocess
-_loading_multiprocess()
 
-def fit_slice(slice_, fitbuffer=None,
-              psfmodel="BiNormalCont", fitted_indexes=None,
-              lbda=None, **kwargs):
-    """ 
-    fitbuffer ignored if fitted_indexes provided
+def get_psfmodel(psfdata):
+    """ """
+    psf3d = PSF3D_BiNormalCont()
+    psf3d.set_psfdata(psfdata)
+    return psf3d
+
+
+# ======================== #
+#                          #
+#   High Level Function    #
+#                          #
+# ======================== #
+"""
+Force PSF spectroscopy is made in 2 steps:
+
+1) Get the PSF parameters by fitting several meta-slices:
+
+`fit_psf_parameters()` is made to extract the psfmodel.
+This psf model contain the normalized psf position and shape.
+Only the amplitude remains to be fitted. 
+
+2) Perform ForcePSF3D assuming the PSF shape.
+
+`fit_force_spectroscopy()`
+
+
+"""
+def fit_psf_parameters(cube,lbda_range = [4500,7500], nbins=10,
+                        savedata=None, savefig=None,
+                        return_psfmodel=True):
+    """ Extract the PSF shape parameters for the given cube.
+    = This function is made to fit signle point source cube. =
+
+    Parameters
+    ----------
+    cube: [pyifu.Cube] 
+        wavelength calibrated euro3d cube (pyifu format) containing the point source
+
+    lbda_range: [float, float] -optional-
+        wavelength range between which the slices will be made
+
+    nbins: [int] -optional-
+        the number of bins that will devide the lbda_range to make the slices.
+
+    savefig: [string or None] -optional-
+        if you wnat to save the PSF-fitting procedure figure, provide the path where to save it.
+        
+    return_psfmodel: [bool] -optional-
+        shall this method return a PSF3D object (True) or the psffitter one (False)?
+
+    Returns
+    -------
+    PSF3D or PSFFitter (see return_psfmodel option)
     """
-    slpsf = SlicePSF(slice_, psfmodel=psfmodel,
-                    fitbuffer=fitbuffer, fitted_indexes=fitted_indexes,
-                         lbda=lbda)
-    return _fit_slicepsf_(slpsf, **kwargs)
+    if savefig:
+        params  = np.asarray(["position","stddev","stddev_ratio","ell","theta"])
+        nparams = len(params)
+        # - Figures
+        import matplotlib.pyplot as mpl
+        fig        = mpl.figure(figsize=[2*nparams, 6.5])
+        left, width, span = 0.09, 0.13, 0.05
+        axes_step1 = [fig.add_axes( [left+(width+span)*i, 0.7, width,0.25]) for i in range(nparams)]
+        axes_adr   = fig.add_axes( [left, 0.1, 0.5 , 0.5])
+        axes_stddev= fig.add_axes( [left+ 0.6, 0.1, 0.25, 0.5])
+        
+    psfcube = FitPSF(cube)
+    # ====
+    # Step 1, All Free parameters
+    psfcube.fit_slices(lbda_range=lbda_range, nbins=nbins, 
+                       ell_guess=0.05, ell_boundaries=[0,0.9], ell_fixed=False,
+                       theta_guess=1.5, theta_boundaries=[0,np.pi], theta_fixed=False, 
+                       stddev_ratio_guess=1.7,
+                       stddev_ratio_boundaries=[1.1,4],
+                       stddev_ratio_fixed=False)
+    
+    cont_param = psfcube.get_const_parameters()
 
-# - Internal Method for Multiprocessing
-def _fit_slicepsf_(slicepsf, **kwargs):
-    """ Run the Fitting method from the slicepsf """
-    slicepsf.fit( **kwargs_update( slicepsf.get_guesses(), **kwargs) )
-    return slicepsf
+    # -- Figure Step 1
+    if savefig is not None:
+        psfcube.show(axes=axes_step1, params=params, set_labels=False, show=False)
+        for k,v in cont_param.items():
+            if k not in params: continue
+            which_axe = np.argwhere(params==k).flatten()
+            axes_step1[which_axe[0]].axhline(v, ls="-", lw=1, color="k", alpha=0.8, zorder=1)
+            axes_step1[which_axe[0]].set_title(k)
+            
+        # - alpha the refitted one
+        for ax_ in np.asarray(axes_step1)[[np.argwhere(params==k).flatten()[0] for k in ["position","stddev"]]]:
+            for gc in ax_.get_children():
+                if hasattr(gc,"set_alpha"):
+                    gc.set_alpha(0.5)
+                
+            ax_.tick_params(color="0.5", labelcolor="0.5")
 
-def fit_cube_per_slice(cube, psfmodel="BiNormalCont", notebook=True):
+        fig.tight_layout()
+        axes_step1[-1].text(1.1,0.5, "First Fit Iteration", fontsize="large",
+                            transform = axes_step1[-1].transAxes, rotation=-90,
+                            va="center", ha="left")
+    
+    # ====
+    # Step 2, fix theta, stddev_ratio and ell
+    fitprop = {}
+    for k,v in cont_param.items():
+        fitprop[k+"_guess"] = v
+        fitprop[k+"_fixed"] = True
+
+    psfcube.fit_slices(lbda_range=lbda_range, nbins=nbins, **fitprop)
+    ntry = 0
+    indexes = None
+    while ntry<30:
+        psfcube.fit_adr_param(indexes=indexes)
+        chi2dof = psfcube.adrfitter.fitvalues["chi2"] / psfcube.adrfitter.dof
+        if chi2dof > 10:
+            indexes = np.random.choice(np.arange(nbins), int(nbins*0.7), replace=False)
+            ntry+=1
+            print("Warnings - chi2/dof of %.2f -> refit the adr with 30% out"%chi2dof)
+        else:
+            break
+
+    psfcube.fit_stddev()
+
+    # -- Figure Step 2
+    if savefig is not None:
+        psfcube.show_adr_fit(ax=axes_adr, show_colorbar=False, show=False)
+        axes_adr.set_xlabel("x-position")
+        axes_adr.set_ylabel("y-position")
+
+        psfcube.show_stddev_fit(ax=axes_stddev,ls="-", lw=1, color="k", alpha=0.8, zorder=1, show=False)
+        fig.savefig(savefig)
+        
+    # ====
+    # Output
+    if savedata is not None:
+        psfcube.write_fitted_data(savedata)
+        
+    if return_psfmodel:
+        return get_psfmodel(psfcube.fitted_data)
+    return psfcube
+
+def fit_force_spectroscopy(cube, psfmodel, savefig=None):
+    """ Provide a cube and a psfmodel (normalized 3D psf) and get spectrum and background
+    
+    Parameters
+    ----------
+
+    Returns
+    -------
+    Spectrum, Spectrum (source, background)
+    """
+    forcepsf = ForcePSF(cube, psfmodel)
+    spec,bkgd = forcepsf.fit_forcepsf()
+    if savefig is not None:
+        forcepsf.show(savefile=savefig)
+    return spec, bkgd, forcepsf
+
+#############################
+#                           #
+#  Profiles                 #
+#                           #
+#############################
+
+"""
+# How To build a new profile?
+
+All profile must have the following format:
+```python
+def name_of_the_profile(x,y,
+                        here, define, your, variables,
+                        xcentroid=0, ycentroid=0):
+     ''' ADD Documentation '''
+
+     do_the_job
+
+     return list_of_values (1darray with the same length as x/y)
+```
+The profile should be normalize, but this is not mendatory.
+
+"""
+def binormal_profile(x, y,
+                stddev, stddev_ratio, amplitude_ratio, theta, ell,
+                xcentroid=0, ycentroid=0):
     """ """
-    import multiprocessing
-    from astropy.utils.console import ProgressBar
-    # ================= #
-    #  Loading Slices   #
-    # ================= #
-    nlbda  = len(cube.lbda)
-    bar    = ProgressBar(nlbda, ipython_widget=notebook)
-    res    = {}
-    print("SlicePSF model: %s"%(psfmodel))
+    r = get_elliptical_distance(x, y, xcentroid=xcentroid, ycentroid=ycentroid,  ell=ell, theta=theta)
     
-    for j, lbda_ in enumerate(cube.lbda):
-        res[j] = fit_slice(cube.get_slice(index=j, slice_object=True), psfmodel=psfmodel).fitvalues
-        bar.update(j)
-    bar.update(nlbda)
-    return res
+    n1 = norm.pdf(r, loc=0, scale=stddev)
+    n2 = norm.pdf(r, loc=0, scale=stddev*stddev_ratio)
+            
+    return ( (amplitude_ratio/(1.+amplitude_ratio)) * n1 + (1./(1+amplitude_ratio)) * n2)
 
 
-
-# ======================= #
-#   Conversion            #
-# ======================= #
-def sliceparam_to_cube(x, y, lbda, parameters, psfmodel,
-                      indexes=None, spaxel_vertices=None):
-    """ """
-    from pyifu.spectroscopy import get_cube
-    
-    if len(parameters) != len(lbda):
-        raise ValueError("lbda and parameters must have the same length (1 serie of parameter per slice)")
-
-    model = read_psfmodel( psfmodel )
-    data = []
-    for l_index in range(len(lbda)):
-        param =[parameters[l_index][k_] for k_ in model.freeparameters]
-        model.setup(param)
-        data.append(model.get_model(x,y))
-
-    if indexes is None: indexes = np.arange(len(x))
-    spaxel_mapping = {id_:[x_,y_] for id_,x_,y_ in zip(indexes,x,y)}
-
-    return get_cube(data, lbda=lbda, spaxel_mapping=spaxel_mapping,
-                        spaxel_vertices=spaxel_vertices)
-
-    
-
-# = Method to be externalize
-
-def get_elliptical_distance(x, y, x0=0, y0=0, ell=0, theta=0):
+# ---------------------- #
+#  Interal Tool          #
+# ---------------------- #
+def get_elliptical_distance(x, y, xcentroid=0, ycentroid=0, ell=0, theta=0):
     """
     Parameters
     ----------
@@ -114,232 +239,806 @@ def get_elliptical_distance(x, y, x0=0, y0=0, ell=0, theta=0):
     """
     c, s  = np.cos(theta), np.sin(theta)
     rot   = np.asarray([[c, s], [-s, c]])
-    xx,yy = np.dot(rot, np.asarray([x-x0, y-y0]))
+    xx,yy = np.dot(rot, np.asarray([x-xcentroid, y-ycentroid]))
     return np.sqrt(xx**2 + (yy/(1-ell))**2)
 
 
-def guess_aperture(x, y, data):
-    """ Get the centroid and symmetrized standard deviation of the data given their x, y position 
+#############################
+#                           #
+#  Slice Fitter             #
+#                           #
+#############################
+def fit_slice(slice_, fitbuffer=None,
+              psfmodel="BiNormalCont", fitted_indexes=None,
+              lbda=None, **kwargs):
+    """ Fit PSF Slice without forcing it's shape
+
+    Parameters
+    ----------
 
     Returns
     -------
-    x0, y0, std_mean (floats)
+    SlicePSF
     """
-    argmaxes   = np.argwhere( data>np.percentile(data[data==data],95) ).flatten()
-    x0, stdx   = np.nanmean(x[argmaxes]), np.nanstd(x[argmaxes])
-    y0, stdy   = np.nanmean(y[argmaxes]), np.nanstd(y[argmaxes])
-    std_mean   = np.nanmean([stdx,stdy])
-    return x0, y0, std_mean
+    slpsf = SlicePSF(slice_, psfmodel=psfmodel,
+                    fitbuffer=fitbuffer, fitted_indexes=fitted_indexes,
+                    lbda=lbda)
+    slpsf.fit( **kwargs_update( slpsf.get_guesses(), **kwargs) )
+    return slpsf
 
+
+def fit_forcepsf_slice( data, psfshape, variance = None,
+                        amplitude_guess=None, 
+                        amplitude_boundaries=[0,None], amplitude_fixed=False,
+                        background_guess=None,
+                        background_boundaries=[0,None], background_fixed=False,
+                        print_level=0, errordef=1, full_output=False):
+    """ Force PSF fitter: only fitting amplitude and background assuming the PSF shape.
     
+    Parameters
+    ----------
+    data: [array]
+        nd array containing the data
+        
+    psfshape: [array]
+        nd array containing the normalized model. 
+        = This function will fit an amplitude such that amplitude*psfshape => data
 
-###########################
-#                         #
-#   Extract Star          #
-#                         #
-###########################
+    variance: [array] -optional-
+        nd array containing the variance (error**2) on the data
+        
+    // fit 
 
-class ExtractStar( BaseObject ):
-    """ Object containing the individual SlicePSF fitter """
-    PROPERTIES = ["cube"]
-    SIDE_PROPERTIES    = ['psfmodel']
-    DERIVED_PROPERTIES = ["slicefitvalues"]
+    {amplitude,background}_guess: [float]
+        guess value for the amplitude (or backgorund). If None, an automatic guess will be used
+
+    {amplitude,background}_boundaries: [min, max] -optional-
+        boundaries on the fitted parameter (amplitudes or backgorund). None means, no limit.
+
+    {amplitude,background}_fixed: [bool] -optional-
+        Is the amplitude (background) parameter fixed to its guess value?
+
+
+    // Minuit options
+
+    print_level: [0/1] -optional-
+        set the print_level for this Minuit. 0 is quiet.
+        1 print out at the end of migrad/hesse/minos. 
+
+    errordef: [float] -optional-
+        Amount of increase in fcn to be defined
+        as 1 :math:`\sigma`. If None is given, it will look at
+        `fcn.default_errordef()`. If `fcn.default_errordef()` is not
+        defined or
+        not callable iminuit will give a warning and set errordef to 1.
+        Default None(which means errordef=1 with a warning).
+
+    // return options
+
+    full_output: [bool] -optional-
+        Do you want a dictionary containing the basic fit information (False)
+        or this dictionary plus minuit.migrad full output (True)?
+
+
+    Returns
+    -------
+    dict (or dict + migrad outout, see full_output)
+    """
+    from iminuit import Minuit
+    # = The Data
+    variance = variance if variance is not None else np.ones(len(data)) 
     
-    # =================== #
-    #   Methods           #
-    # =================== #
-    def __init__(self, cube ):
-        """ """
-        self.set_cube(cube)
-        
-    # ------------------- #
-    #  Cube -> Spectrum   #
-    # ------------------- #
-    # PSF SPECTROSCOPY
-    def fit_psf(self, psfmodel="BiNormalCont",
-                fixed_buffer=None, buffer_refindex=100,
-                notebook=False, multiprocess=True, **kwargs):
-        """ """
-        self._derived_properties['slicefitvalues'] = {}
-        if fixed_buffer is not None:
-            slref          = self.cube.get_slice(index=buffer_refindex, slice_object=True)
-            psfref         = SlicePSF(slref, psfmodel=psfmodel)
-            g_             = psfref.get_guesses()
-            x, y           = psfref.model.centroid_guess
-            polynom_buffer = shapely.geometry.Point(x, y).buffer(fixed_buffer)
-            fitted_indexes = slref.get_spaxels_within_polygon(polynom_buffer)
-        else:
-            fitted_indexes = None
-
-        self._side_properties["psfmodel"]          = psfmodel
-        self._derived_properties['slicefitvalues'] = \
-          fit_cube_per_slice(self.cube, psfmodel=psfmodel, notebook=notebook)
-          
-    def get_slice_psf(self, lbdarange=None, psfmodel="BiNormalCont", fitbuffer=20, **kwargs):
-        """ """
-        return fit_slice( self.cube.get_slice(lbda_min=lbdarange[0], lbda_max=lbdarange[1],
-                                                  slice_object=True),
-                            psfmodel=psfmodel, fitbuffer=fitbuffer, lbda=np.mean(lbdarange),**kwargs)
-
-
-    # ====================== #
-    #  Fitted output         #
-    # ====================== #
-    def get_fitted_amplitudes(self):
-        """ get the amplitude (parameter 'amplitude' per slice) for the fitted slices
-        
-        Returns
-        -------
-        [amplitudes, amplitude_errors]
-        """
-        if not self.has_fit_ran():
-            raise AttributeError("You need to first run the fit: see fit_psf()")
-        
-        indexes = np.sort(list(self.slicefitvalues.keys()))
-        return np.asarray([[self.slicefitvalues[i]['amplitude'], self.slicefitvalues[i]['amplitude.err']]
-                                    for i in indexes]).T
-
-    def get_fitted_centroid(self):
-        """ get the amplitude (parameter 'amplitude' per slice) for the fitted slices
-        
-        Returns
-        -------
-        [x0, x0err], [y0, y0err]
-        """
-        if not self.has_fit_ran():
-            raise AttributeError("You need to first run the fit: see fit_psf()")
-        
-        indexes = np.sort(list(self.slicefitvalues.keys()))
-        return np.asarray([[self.slicefitvalues[i]['x_mean'],self.slicefitvalues[i]['x_mean.err']]
-                               for i in indexes]).T,\
-               np.asarray([[self.slicefitvalues[i]['y_mean'],self.slicefitvalues[i]['y_mean.err']]
-                               for i in indexes]).T
-
-    def get_fitted_modelcube(self):
-        """ get the fitted model (a cube)
-        = based on sliceparam_to_cube = 
-        
-        Returns
-        -------
-        Cube
-        """
-        if not self.has_fit_ran():
-            raise AttributeError("You need to first run the fit: see fit_psf()")
-        x,y  = np.asarray(self.cube.index_to_xy(self.cube.indexes)).T
-        return sliceparam_to_cube(x,y, self.cube.lbda, self.slicefitvalues,
-                                  self.psfmodel,
-                                  indexes=self.cube.indexes,
-                                  spaxel_vertices=self.cube.spaxel_vertices)
-
-    def get_fitted_spectrum(self):
-        """ Combines fitted amplitudes with wavelength from given cube to build a spectrum """
-        from pyifu.spectroscopy import get_spectrum
-        flux, error = self.get_fitted_amplitudes()
-        spec = get_spectrum(self.cube.lbda, flux, variance=error**2)
-        spec.header['TYPE']     = ("PSFSpectroscopy", "Nature of the object")
-        spec.header['PSFMODEL'] = (self.psfmodel, "Which model has been used to extract the spectrum")
-        spec.header['SOURCE']   = (self.cube.filename.split('/')[-1] if self.cube.filename is not None else None, "Name of the source cube")
-        return spec
-
+    # = The Function
+    def local_chi2(amplitude, background): 
+        return np.nansum( (data - (amplitude * psfshape+ background))**2 / variance)
+                
+    # = The Guess
+    if amplitude_guess is None:
+        amplitude_guess = np.nanmax(data)
+    if background_guess is None:
+        background_guess      = np.median(data)
+    # Setting the Fitter
+    param_prop = {}
+    inparam = locals()
+    for k in ["amplitude", "background"]:
+        param_prop[k]          = inparam["%s_guess"%k]
+        param_prop["limit_"+k] = inparam["%s_boundaries"%k]
+        param_prop["fix_"+k]   = inparam["%s_fixed"%k]
     
-    def save_results(self):
-        """ """
-        print('To Be Done')
-
-
+    minuit = Minuit(local_chi2,
+                        print_level=print_level, errordef=errordef,
+                        # guess, boundaries and fixed
+                        **param_prop)
         
-    # APERTURE SPECTROSCOPY
-    def get_auto_aperture_spectroscopy(self, radius=10, units="spaxels",
-                                           bkgd_annulus=[1,1.2],
-                                        refindex=100, waverange=20, **kwargs):
-        """
-        radius: [float]
+    # Running the fit
+    _migrad_output_ = minuit.migrad()
         
-        units: [string]
-             For a gaussian distribution, a radius of 
-            - 1   FWHM includes 98.14% of the flux
-            - 1.5 FWHM includes 99.95% of the flux
-        """
-        sliceref   = self.get_slice_psf([self.cube.lbda[refindex]-20,self.cube.lbda[refindex]+20],
-                                        psfmodel="GaussianPlane0", **kwargs)
-        xref, yref = sliceref.model.centroid
-        if units in ["fwhm","FWHM"]:
-            effradius = sliceref.model.fwhm * radius
-        elif units in ['spaxel',"spaxels","spxl"]:
-            effradius = radius
-        else:
-            from astropy import units
-            warnings.warn("Unclear Unit %s. using astropy.units converting to spaxels assuming 1spaxels=0.75arcsec"%units)
-            effradius = (radius * units.Unit(units).to("arcsec") / 0.75).value #spaxel size
+    # Load the output
+    if not _migrad_output_[0]["is_valid"]:
+        print("WARNING: minuit returned 'False' for migrad `is_valid`")
             
-        spec =  self.cube.get_aperture_spec(xref, yref, radius=effradius,
-                                            bkgd_annulus=bkgd_annulus, refindex=refindex)
-        spec.header['TYPE']     = ("ApertureSpectroscopy", "Nature of the object")
-        spec.header['APTYPE']   = ("Auto", "What kind of Aperture Spectroscopy")
-        spec.header['APRADIUS'] = (radius, "Radius used to extract the spectra")
-        spec.header['APRUNITS'] = (units, "Unit of the Aperture radius")
-        return spec
-    
-
+    fitvalues= {"amplitude":minuit.values["amplitude"],
+                "amplitude.err":minuit.errors["amplitude"],
+                "background":minuit.values["background"],
+                "background.err":minuit.errors["background"],
+                "chi2":minuit.fval,
+                "npoints":len(data)}
         
-    def get_aperture_spectroscopy(self, x, y, radius, radius_min=None, **kwargs):
+    # = Output
+    if full_output:
+        return fitvalues, _migrad_output_
+    return fitvalues
+
+###########################
+#                         #
+#  3D PSF Object (Cube)   #
+#                         #
+###########################
+class _PSF3D_( BaseObject ):
+    """ The virtual PSF3D is a flexible method enableling to uncapsulate shape and expected position of a point source """
+    PROPERTIES = ["adr","refposition", "unit",
+                  "profile_param"]
+    DERIVED_PROPERTIES = ["psfdata"]
+    
+    # - DEFINE THIS
+    PROFILE_PARAMETERS = ["ToBeDefined"]
+
+    def __new__(cls,*arg,**kwargs):
+        """ Upgrade of the New function to enable the
+        the _minuit_ black magic
+        """
+        obj = super(_PSF3D_,cls).__new__(cls)
+        exec("@make_method(_PSF3D_)\n"+\
+             "def set_profile_param(self,%s): \n"%(", ".join(obj.PROFILE_PARAMETERS))+\
+             '    """ Set the profile parameters. They could be functions or floats.\n'+\
+             '    If Function they have to be callable as `funct(lbda)` and return lbda-size array or float \n'+\
+             '    """\n'+\
+             "    self._properties['profile_param'] = locals().copy()")
+        return obj
+        
+    # =============== #
+    #  Methods        #
+    # =============== #
+    # --------- #
+    #  I/O      #
+    # --------- #
+    def writeto(self, savefile):
+        """ """
+        import json
+        if not savefile.endswith(".json"):
+            savefile +=".json"
+        with open(savefile, 'w') as fp:
+            json.dump(self.psfdata, fp)
+            
+    def load(self, datafile):
         """ 
-        **kwargs goes to cube.get_slice
+        file containing a dictionary with:
+        {adr:{ADR_PARAMETERS},
+        "profile":{PROFILE_PARAMETERS}
+        }
         """
-        nlbda = len(self.cube.lbda)
-        # - Formatting 
-        if not is_arraylike(x) or len(x)==1:
-            x = np.ones(nlbda)*x
-            
-        if not is_arraylike(y) or len(y)==1:
-            y = np.ones(nlbda)*y
-            
-        if not is_arraylike(radius) or len(radius)==1:
-            radius = np.ones(nlbda)*radius
-        if radius_min is None:
-            radius_min = [None]*nlbda
-        elif not is_arraylike(radius_min) or len(radius_min)==1:
-            radius_min = np.ones(nlbda)*radius_min
-            
-        # - Aperture per slice
-        app = []
-        for id_,x_,y_,r_,r_min in zip(np.arange(nlbda), x, y, radius, radius_min):
-            sl_ = self.cube.get_slice(index=id_, slice_object=True)
-            app.append(sl_.get_aperture(x_,y_,r_,radius_min=r_min, **kwargs))
-            
-        return app
+        self.set_psfdata( load_dict(datafile) )
+
+    def set_psfdata(self, data):
+        """ """
+        raise NotImplementedError("You need to implement the `set_psfdata` method.")
+        
+    # --------- #
+    #  GETTER   #
+    # --------- #
+    def get_psf_param(self, lbda):
+        """ """
+        psf = {}
+        psf["xcentroid"], psf["ycentroid"] = self.adr.refract(self.refposition[0], self.refposition[1],
+                                                  lbda, unit=self.unit)
+        for k in self.PROFILE_PARAMETERS:            
+            psf[k]  = self.profile_param[k](lbda) if callable(self.profile_param[k]) else self.profile_param[k]
+        return psf
+    
     # --------- #
     #  SETTER   #
-    # --------- #
-    def set_cube(self, cube):
-        """ attach a 3D cube to the instance """
-        if Cube not in cube.__class__.__mro__:
-            raise TypeError("the given cube is not a pyifu Cube (of Child of)")
+    # --------- #            
+    def set_adr(self, adr, xref=0, yref=0, unit=1, **kwargs):
+        """ Attach to this method the adr and the coordinate of the centroid at the ADR reference wavelength 
+        **kwargs is passed to the adr.set method
+        """
+        self._properties["adr"] = adr
+        self._properties["refposition"] = [xref, yref]
+        self._properties["unit"] = unit
+        self.adr.set(**kwargs)
         
-        self._properties["cube"] = cube
+    # =============== #
+    #  Properties     #
+    # =============== #
+    # ---------
+    # Profile
+    @property
+    def profile_param(self):
+        """ """
+        return self._properties["profile_param"]
+    # ---------
+    # ADR
+    @property
+    def adr(self):
+        """ Atmospheric Differential Refraction """
+        return self._properties["adr"]
+    
+    @property
+    def refposition(self):
+        """ Coordinate [x,y] of the centroid at the ADR reference wavelength (adr.lbdaref)"""
+        return self._properties["refposition"]
 
-    # =================== #
-    #  Properties         #
-    # =================== #
+    @property
+    def unit(self):
+        """ Unit in arcsec of '1' position shift """
+        return self._properties["unit"]
+
+    # ------
+    # derived
+    @property
+    def psfdata(self):
+        """ """
+        return self._derived_properties["psfdata"]
+
+class PSF3D_BiNormalCont( _PSF3D_ ):
+    """ """
+    PROPERTIES  = ["stddev_ref"]
+    PROFILE_PARAMETERS = ["stddev", "stddev_ratio", "amplitude_ratio",
+                          "theta", "ell"]
+        
+    # =============== #
+    #  Methods        #
+    # =============== #        
+
+        
+    def set_psfdata(self, data):
+        """ Methods to set the dictionary:
+        {adr:{ADR_PARAMETERS},
+        "profile":{PROFILE_PARAMETERS}
+        }
+        """
+        # - ADR
+        adrmodel  = adr.ADR()
+        for k, v in data["adr"].items():
+            if k not in ["xcentroid","ycentroid","position","unit","xref","yref","parangle_ref"] and ".err" not in k:
+                adrmodel.set(**{k:v})
+            
+        self.set_adr(adrmodel, xref=data["adr"]["xref"], yref=data["adr"]["yref"], unit=data["adr"]["unit"])
+        
+        # - Profile
+        self.set_stddev_ref(data["profile"]["stddev_ref"])
+        self.set_profile_param(stddev         = self.get_stddev,
+                              stddev_ratio    = data["profile"]["stddev_ratio"],
+                              amplitude_ratio = data["profile"]["amplitude_ratio"],
+                              theta           = data["profile"]["theta"],
+                              ell             = data["profile"]["ell"])
+        
+        self._derived_properties["psfdata"] = data
+        
+    # -------- #
+    #  SETTER  #
+    # -------- #
+    def set_stddev_ref(self, value):
+        """ """
+        self._properties["stddev_ref"] = value
+
+    # -------- #
+    # GETTER   #
+    # -------- #
+    def get_psf(self, x, y, lbda):
+        """ """
+        return binormal_profile(x, y, **self.get_psf_param(lbda))
+        
+        
+    def get_stddev(self, lbda, rho=-1/5.):
+        """ """
+        return self.stddev_ref * (lbda / self.adr.lbdaref)**(rho)
+    # ================== #
+    #  Properties        #
+    # ================== #
+    @property
+    def stddev_ref(self):
+        """ """
+        return self._properties["stddev_ref"]
+    
+###########################
+#                         #
+#  Force PSF 3D           #
+#                         #
+###########################
+
+class ForcePSF( BaseObject ):
+    """ """
+    PROPERTIES = ["cube","psfmodel"]
+    DERIVED_PROPERTIES = ["cubemodel","spec_source","spec_bkgd"]
+    # ================== #
+    #   Methods          #
+    # ================== #
+    def __init__(self, cube, psfmodel):
+        """ """
+        self.set_cube(cube)
+        self.set_psfmodel(psfmodel)
+
+    # ------------ #
+    #  GETTER      #
+    # ------------ #
+    
+    # ------------ #
+    #  SETTER      #
+    # ------------ #
+    def set_cube(self, cube):
+        """ set to this instance a point source 3d cube """
+        self._properties["cube"] = cube
+        
+    def set_psfmodel(self, psfmodel):
+        """ attach to this instance the PSF3D object containing the position and shape parameter of the PSF"""
+        self._properties['psfmodel'] = psfmodel
+        
+    # ------------ #
+    #  PLOTTER     #
+    # ------------ #
+    def show(self, lbda_range= [[4000,4500],[5500,6000],[7000,7500]],
+                 fig=None, 
+                 show=True, savefile=None):
+        """ """
+        import matplotlib.pyplot as mpl
+        if fig is None:
+            fig  = mpl.figure(figsize=[7,8])
+        
+        axspec = fig.add_axes([0.1,0.71,0.8,0.25])
+        axspec.set_xlabel("Wavelength [AA]", fontsize="large")
+        axspec.set_ylabel("Flux", fontsize="large")
+        axspec.set_title(self.cube.filename.split("/")[-1], fontsize="small")
+        
+        # - The Spectrum
+        pl = self.spec_source.show(ax=axspec, label="ForcePSF spectrum", show=False)
+        _  = self.spec_bkgd.show(ax=axspec, color="C1", label="background")
+        axspec.legend(loc="best", fontsize="small")
+
+        # - The cubes
+        width, span = 0.24, 0.04
+        height = width  /1.5
+        for i, lbda in enumerate(lbda_range):
+    
+            axc = fig.add_axes([0.1+(width+span)*i, 0.03+(height+span)*2, width, height])
+            axm = fig.add_axes([0.1+(width+span)*i, 0.03+(height+span)*1, width, height])
+            axr = fig.add_axes([0.1+(width+span)*i, 0.03+(height+span)*0, width, height])
+            [ax_.set_yticks([]) for ax_ in [axc,axm,axr]]
+            [ax_.set_xticks([]) for ax_ in [axc,axm,axr]]
+            if i==0:
+                axc.set_ylabel("Data")
+                axm.set_ylabel("Model")
+                axr.set_ylabel("Residual")
+        
+            axc.set_title("lbda: [%d, %d]"%(lbda[0],lbda[1]), fontsize="small")
+            # Data
+            slicepf = self.cube.get_slice(lbda[0],lbda[1], slice_object=True)
+            slicepf.show(ax=axc, show_colorbar=False, vmin="2", vmax="98")
+            # Model
+            model  = self.cubemodel.get_slice(lbda[0],lbda[1], slice_object=True)
+            model.show(ax=axm, show_colorbar=False, vmin="2", vmax="98")
+            # Res
+            res  = self.cuberes.get_slice(lbda[0],lbda[1], slice_object=True)
+            res.show(ax=axr, show_colorbar=False, vmin="2", vmax="98")
+
+        if savefile is not None:
+            fig.savefig(savefile)
+        if show:
+            fig.show()
+            
+    # ------------ #
+    #  FITTER      #
+    # ------------ #
+    def fit_forcepsf(self, store_cubemodel=True):
+        """ Fit only the amplitude of each slides assuming the psf shape
+        given by the psfmodel object.
+        
+        The fit is made using a simple chi2.
+        """
+        from pyifu import get_spectrum, get_cube
+        x_,y_ = np.asarray(self.cube.index_to_xy(self.cube.indexes)).T
+        flagok = ~np.isnan(x_*y_)
+        x,y = x_[flagok],y_[flagok]
+
+        flux,errors = [],[]
+        bkgd,bkgderrors = [],[]
+        for i,lbda_ in enumerate(self.cube.lbda):
+            fitvalue = fit_forcepsf_slice(self.cube.data[i], self.psfmodel.get_psf(x, y, lbda_), variance=self.cube.variance[i])
+            # recording
+            flux.append(fitvalue["amplitude"])
+            errors.append(fitvalue["amplitude.err"])
+            bkgd.append(fitvalue["background"])
+            bkgderrors.append(fitvalue["background.err"])
+
+        self._derived_properties['spec_source']  =  get_spectrum(self.cube.lbda, np.asarray(flux), variance=np.asarray(errors)**2, header=self.cube.header)
+        self._derived_properties['spec_bkgd'] =  get_spectrum(self.cube.lbda, np.asarray(bkgd), variance=np.asarray(bkgderrors)**2, header=self.cube.header)
+        if store_cubemodel:
+            datamodel = [self.psfmodel.get_psf(x, y, lbda_)*self.spec_source.data[i] + self.spec_bkgd.data[i]
+                             for i, lbda_ in enumerate(self.cube.lbda)]
+            self._derived_properties['cubemodel'] = get_cube(datamodel, header=None, variance=None, lbda=self.cube.lbda,
+                                     spaxel_mapping=self.cube.spaxel_mapping, spaxel_vertices=self.cube.spaxel_vertices)
+            
+            
+        return self.spec_source, self.spec_bkgd
+
+    # ================== #
+    #  Properties        #
+    # ================== #
     @property
     def cube(self):
-        """ pyifu cube (or child of) """
-        return self._properties['cube']
+        """ Data Cube (x,y,lbda) """
+        return self._properties["cube"]
 
     @property
     def psfmodel(self):
-        """ name of the PSF model used to fit the cube """
-        return self._side_properties['psfmodel']
+        """ PSF3D containing the shape and position parameters of the PSF. """
+        return self._properties['psfmodel']
+    # - Derived
+    @property
+    def spec_source(self):
+        """ The fitted source spectrum """
+        return self._derived_properties['spec_source']
+    @property
+    def spec_bkgd(self):
+        """ The fitted background spectrum """
+        return self._derived_properties['spec_bkgd']
+    @property
+    def cubemodel(self):
+        """ The fitted PSF cube """
+        return self._derived_properties['cubemodel']
+
+    @property
+    def cuberes(self):
+        """ The fitted PSF cube """
+        if self.cubemodel is None:
+            return None
+        return self.cube - self.cubemodel
+
+# ========================= #
+#                           #
+#   PSF Method Fitter       #
+#                           #
+# ========================= #
+# ---------------------- #
+#  Fit PSF Shape         #
+# ---------------------- #
+class FitPSF( BaseObject ):
+    """ Object made to extract the PSF shape parameters 
+    
+    How to fit properly fit the PSF?
+    1) Fit independent slices using fit_slices()
+    2) Fit the ADR using fit_adr_param()
+    3) Fit the stddev using fit_stddev.
+    
+    Once all of that is done. Data will be avialable as `fitted_data`
+
+    Remark: You might want to do a double pass on step 1 while
+            forcing the constante parameters to there mean (clipped) values
+            To do so, between 1 and 2 do:
+            1-a) get the constant paramters using get_const_parameters()
+            1-b) Fit the slices using fit_slices(key_guess=value, key_fixed=True)
+                 where 'key' is the constant parameter and value its mean value.
+
+    """
+    
+    PROPERTIES         = ["cube"]
+    SIDE_PROPERTIES    = ["lbdas","profile"]
+    DERIVED_PROPERTIES = ["slicefits","adrfitter",
+                          "adrmodel","adr_parameters",
+                          "stddev_ref"]
+    
+    def __init__(self, datacube):
+        """ """
+        self.set_cube(datacube)
+        
+    def set_cube(self, cube):
+        """ set to this instance a point source 3d cube """
+        self._properties["cube"] = cube
+
+    # -------------- #
+    #  I/O           #
+    # -------------- #
+    def write_fitted_data(self, datafile):
+        """ """
+        import json
+        if not datafile.endswith(".json"):
+            datafile +=".json"
+        with open(datafile, 'w') as fp:
+            json.dump(self.fitted_data, fp)
+        
+    # -------------- #
+    #  GETTER        #
+    # -------------- #
+    def get_psf_param(self, index, key):
+        """ returns the fitted PSF parameter for the index-th slice. """
+        return np.asarray([self.slicefits[index]["fit"].fitvalues[k]  for k in [key,key+".err"]])
+
+    def get_const_parameters(self):
+        """ Return the mean values of the fitted profile parameters expecteed to be constant at all wavelengths 
+        Returns
+        -------
+        dict
+        """
+        from scipy.stats import sigmaclip
+        from astropy.stats import sigma_clip
+        def get_const_value(k):
+            k_base = np.asarray([self.get_psf_param(i, k) for i in self.slicefits.keys()]).T[0]
+            # means fixed parameter
+            return k_base[0] if len(np.unique(k_base))==1 else np.nanmean(sigma_clip(k_base, 2,2))
+            
+        theta            = get_const_value("theta")
+        stddev_ratio     = get_const_value("stddev_ratio")
+        ell              = get_const_value("ell")
+        amplitude_ratio  = get_const_value("amplitude_ratio")
+        
+        
+        return {"theta":theta,"stddev_ratio":stddev_ratio,"ell":ell, "amplitude_ratio":amplitude_ratio}
+    
+    def get_stddev_trend(self, stdref, lbda):
+        """ """
+        return stdref * (lbda / self.adrmodel.lbdaref)**(-1/6.)
+        
+    # --------------- #
+    #  Fitter         #
+    # --------------- #
+    def fit_slices(self, lbda_range=[4500,7500], nbins=10, profile="BiNormalCont",**kwargs):
+        """ Mother fitting Method.
+
+        use this method to independently fit slices.
+
+        Parameters
+        ----------
+        lbda_range: [float, float] -optional-
+            wavelength range between which the slices will be made
+
+        nbins: [int] -optional-
+            the number of bins that will devide the lbda_range to make the slices.
+
+        profile: [string] -optiona-
+            The PSF profile used to fit the slices. 
+            (so far only 'BiNormalCont' implemented
+
+        **kwargs goes to each individual slice fitting. could give _guess, etc entry
+        
+        Returns
+        -------
+        Void
+        """
+        
+        lbdas = np.linspace(lbda_range[0],lbda_range[1],nbins+1)
+        self._side_properties["lbdas"]   = np.asarray([lbdas[:-1],lbdas[1:]]).T
+        self._side_properties["profile"] = profile
+        
+        # - Da fit
+        for i,l in enumerate(self.lbdas):
+            self.slicefits[i] = {"fit": fit_slice( self.cube.get_slice(l[0],l[1], slice_object=True), psfmodel=profile, **kwargs),
+                "lbda_range":l}
+            
+    def fit_stddev(self, indexes=None):
+        """ Get the `stddev_ref` entry. 
+        e.g. the zeropoint of the wavelength dependency of the `stddev` profile parameter.
+
+        Parameters
+        ----------
+        indexes: [None, list] -optional-
+            List of indexes (slices) to used.
+            If None, all will be used.
+
+        Returns
+        -------
+        float
+        """
+        from scipy.optimize import fmin
+        if indexes is None:
+            indexes = range(len(self.lbdas))
+            lbdas   = np.mean(self.lbdas, axis=1)
+        else:
+            lbdas   = np.mean(self.lbdas[indexes], axis=1)
+        
+        stddev, estddev = np.asarray([self.get_psf_param(i, "stddev") for i in indexes]).T
+
+        def _fmin_(scale_):
+            return np.sum(np.sqrt((stddev-self.get_stddev_trend(scale_, lbdas))**2/estddev**2))
+        
+        self._derived_properties["stddev_ref"] = fmin(_fmin_, np.median(stddev), disp=0)[0]
+        return self.stddev_ref    
+        
+    def fit_adr_param(self, unit_guess=0.5, parangle_guess=70, indexes=None, **kwargs):
+        """ Fir the ADR and set the `adrmodel` attribute.
+
+        Parameters
+        ----------
+        
+        """
+        from pysedm.utils import adrfit
+        
+        
+        if self.cube.adr is None:
+            self.cube.load_adr()
+
+        # - Position Information
+        if indexes is None:
+            indexes = range(len(self.lbdas))
+            lbdas   = np.mean(self.lbdas, axis=1)
+        else:
+            lbdas   = np.mean(self.lbdas[indexes], axis=1)
+        
+        xmean,xmeanerr = np.asarray([self.get_psf_param(i, "xcentroid") for i in indexes ]).T
+        ymean,ymeanerr = np.asarray([self.get_psf_param(i, "ycentroid") for i in indexes ]).T
+        
+        # - Load ADRFitter
+        self._derived_properties["adrfitter"] = adrfit.ADRFitter(self.cube.adr.copy(), base_parangle=0, unit=IFU_SCALE_UNIT)
+        self.adrfitter.set_data(lbdas, xmean, ymean, xmeanerr, ymeanerr)
+        
+        self.adrfitter.fit(airmass_guess=self.cube.header["AIRMASS"], airmass_boundaries=[1,self.cube.header["AIRMASS"]*1.5],
+                            xref_guess= np.mean(xmean), yref_guess= np.mean(ymean),
+                            parangle_guess=(self.cube.header["TEL_PA"]+parangle_guess)%360, **kwargs)
+        
+        self._derived_properties["adr_parameters"] = self.adrfitter.fitvalues
+        self.adr_parameters["header_parangle"]     = self.cube.header["TEL_PA"]
+        self.adr_parameters["lbdaref"]             = self.adrfitter.model.lbdaref
+        self.adr_parameters["unit"]                = IFU_SCALE_UNIT
+        
+        self._derived_properties["adrmodel"] = adr.ADR()
+        self.adrmodel.set(lbdaref    = self.adr_parameters["lbdaref"],
+                          parangle   = self.adr_parameters["parangle"],
+                          pressure      = self.cube.adr.pressure,
+                          relathumidity = self.cube.adr.relathumidity,
+                          temperature   = self.cube.adr.temperature,
+                          airmass       = self.adr_parameters['airmass'])
+        return self.adr_parameters
+    
+    # --------------- #
+    #  PLOTTING       #
+    # --------------- #
+    def show(self, params=["position","theta","stddev","stddev_ratio","ell"],
+                 axes=None, set_labels=True, show=True):
+        """ """
+        import matplotlib.pyplot as mpl
+        
+        nparams = len(params)
+        lbdas   = np.mean(self.lbdas, axis=1)
+        
+        # - Axes
+        if axes is not None:
+            if len(axes) != nparams:
+                raise ValueError("axes and params do not have the same size.")
+            fig = axes[0].figure
+        else:
+            fig = mpl.figure(figsize=[2*len(params),2.5])
+            axes = [fig.add_subplot(1,nparams, 1+i) for i in range(nparams)]
+        
+        # - Position
+        if "position" in params:
+            axpos = axes[0]
+            
+            xmean,xmeanerr = np.asarray([self.get_psf_param(i, "xcentroid") for i,l in enumerate(lbdas)]).T
+            ymean,ymeanerr = np.asarray([self.get_psf_param(i, "ycentroid") for i,l in enumerate(lbdas)]).T
+            
+            axpos.scatter(xmean, ymean, c=lbdas, zorder=3)
+            axpos.errorscatter(xmean, ymean, xmeanerr, ymeanerr, zorder=2)
+            if set_labels:
+                axpos.set_xlabel("xcentroid",fontsize="large")
+                axpos.set_ylabel("ycentroid",fontsize="large")
+                axpos.set_title("position",fontsize="large")
+            params = [p for p in params if "position" != p]
+            
+        # - Keys
+        def show_fitvalue(ax, key):
+            v, dv = np.asarray([self.get_psf_param(i, key) for i,l in enumerate(lbdas)]).T
+            ax.scatter(lbdas, v, c=lbdas, zorder=3)
+            ax.errorscatter(lbdas, v, dy=dv, zorder=2)
+            if set_labels:
+                ax.set_xlabel("mean wavelength")
+                ax.set_title(key)
+
+        for i,k in enumerate(params):
+            show_fitvalue(axes[i+1], k)
+
+        fig.tight_layout()
+        if show:
+            fig.show()
+
+    # - Show Fit results
+    def show_stddev_fit(self, ax=None, show=True, set_labels=True, **kwargs):
+        """ """
+        import matplotlib.pyplot as mpl
+        if ax is None:
+            fig = mpl.figure(figsize=[6,4])
+            ax  = fig.add_subplot(111)
+        else:
+            fig = ax.figure
+
+        lbdas          = np.mean(self.lbdas, axis=1)
+        v, dv = np.asarray([self.get_psf_param(i, "stddev") for i,l in enumerate(lbdas)]).T
+        ax.scatter(lbdas, v, c=lbdas, zorder=3)
+        ax.errorscatter(lbdas, v, dy=dv, zorder=2)
+        
+        lbdas_model = np.linspace(np.nanmin(lbdas)-10,np.nanmax(lbdas)+10,len(lbdas)*100)
+        ax.plot(lbdas_model, self.get_stddev_trend(self.stddev_ref, lbdas_model),
+                    scalex=False, scaley=False, **kwargs)
+        
+        if set_labels:
+            ax.set_xlabel("wavelength [AA]")
+            ax.set_title("stddev")
+            
+        if show:
+            fig.show()
+
+    def show_adr_fit(self, ax=None, savefile=None, show=True, cmap=None, show_colorbar=True,
+                         clabel='Wavelength [A]', refsedmcube=None, **kwargs):
+        """ """
+        return self.adrfitter.show(ax=ax, savefile=savefile, show=show, cmap=cmap,
+                                       show_colorbar=show_colorbar,
+                         clabel=clabel, refsedmcube=refsedmcube, **kwargs)
+
+        
+    # ================== #
+    #   Properties       #
+    # ================== #
+    @property
+    def fitted_data(self):
+        """ the basic information for the 3D PSF model """
+        # - profile
+        dict_profile = self.get_const_parameters()
+        dict_profile["stddev_ref"] = self.stddev_ref
+        dict_profile["name"] = self.profile
+        
+        # - adr
+        adr_profile = self.adrmodel.data.copy()
+        adr_profile["xref"],adr_profile["yref"] = [self.adrfitter.fitvalues[k] for k in ["xref","yref"]]
+        adr_profile["unit"] = self.adrfitter.fitvalues["unit"]
+        adr_profile["unit"] = self.adrfitter.fitvalues["unit"]
+        adr_profile["parangle_ref"] = self.adrfitter.fitvalues["header_parangle"]
+
+        return {"adr":adr_profile, "profile":dict_profile}
+    
+    # - Properties
+    @property
+    def cube(self):
+        """ Data Cube (x,y,lbda) """
+        return self._properties["cube"]
+    
+    # - Side Properties
+    @property
+    def profile(self):
+        """ Which profile has been used """
+        return self._side_properties["profile"]
     
     @property
-    def slicefitvalues(self):
-        """ psf parameter fitted for each slices """
-        return self._derived_properties['slicefitvalues']
+    def lbdas(self):
+        """ range of wavelengths use to define the slices """
+        return self._side_properties["lbdas"]
     
-    def has_fit_ran(self):
-        """ test if the slicefitvalues has been set. True means yes """
-        return not self.slicefitvalues is None
-        
+    # - Derived Properties
+    @property
+    def slicefits(self):
+        """ Slice fitters """
+        if self._derived_properties["slicefits"] is None:
+            self._derived_properties["slicefits"] = {}
+        return self._derived_properties["slicefits"]
+
+    # - STDDEV
+    @property
+    def stddev_ref(self):
+        """ The fitted stddev refence to be used with get_stddev_trend() """
+        return self._derived_properties["stddev_ref"]
+    # - ADR
+    @property
+    def adrfitter(self):
+        """ """
+        return self._derived_properties["adrfitter"]
+    
+    @property
+    def adrmodel(self):
+        """ """
+        return self._derived_properties["adrmodel"]
+    
+    @property
+    def adr_parameters(self):
+        """ """
+        return self._derived_properties["adr_parameters"]
+
 ###########################
 #                         #
 #   The Fitter            #
@@ -383,10 +1082,6 @@ class PSFFitter( BaseFitter ):
         """ provide the spaxel indexes that will be fitted """
         self._derived_properties["fitted_indexes"] = indexes
         self._set_fitted_values_()
-        
-    # --------- #
-    #  GETTER   #
-    # --------- #    
        
     # ================ #
     #  Properties      #
@@ -448,9 +1143,26 @@ class PSFFitter( BaseFitter ):
               
         return self._derived_properties["dataindex"]
 
+
+
+###########################
+#                         #
+#   Model                 #
+#                         #
+###########################
+def read_psfmodel(psfmodel):
+    """ """
     
+    if "BiNormalCont" in psfmodel:
+        return BiNormalCont()
+    else:
+        raise ValueError("Only the 'BiNormalCont' psfmodel has been implemented")
+
+# -------------------- #
+#  Slice PSF Fitter    #
+# -------------------- #
 class SlicePSF( PSFFitter ):
-    """ """    
+    """ """
     # =================== #
     #   Methods           #
     # =================== #
@@ -502,7 +1214,6 @@ class SlicePSF( PSFFitter ):
         # corresponding data entry:
         return self._xfitted, self._yfitted, self._datafitted, self._errorfitted
 
-
     def get_guesses(self):
         return self.model.get_guesses(self._xfitted, self._yfitted, self._datafitted)
 
@@ -519,10 +1230,10 @@ class SlicePSF( PSFFitter ):
     # PLOTTER   #
     # --------- #
     def show(self, savefile=None, show=True,
-                 show_centroid=False, centroid_prop={}, logscale=True,
+                 centroid_prop={}, logscale=True,
                  vmin="2", vmax="98", **kwargs):
         """ """
-        import matplotlib.pyplot as mpl
+        import matplotlib.pyplot            as mpl
         from astrobject.utils.tools     import kwargs_update
         from astrobject.utils.mpladdon  import figout
         # -- Axes Definition
@@ -587,29 +1298,6 @@ class SlicePSF( PSFFitter ):
         _display_data_(axres, res_ if not logscale else np.log10(res_),
                            vmin, vmax, "Residual", **prop)
 
-
-
-
-        """
-        prop_all = prop.copy()
-        prop_all['alpha'] = prop_all.pop("alpha",0.2)/2.
-
-        fmodel = self.model.get_model(self._xfitted,self._yfitted)
-        # - No fitted in light
-        axmodel.scatter(x,y,c=model_, **prop_all)
-        axmodel.scatter(self._xfitted,self._yfitted,
-                c= fmodel if not logscale else np.log(fmodel),
-                    **prop)
-        axmodel.set_title("Model")
-        """
-
-        if show_centroid:
-            print("show centroid option not ready")
-            #centroid = self.get_modelcentroid()
-            #centroidprop = kwargs_update(dict(marker="x", color="0.7", lw=3, ms=10), **centroid_prop)
-            #[ax_.plot(centroid[0][ref_lbdaidx],centroid[1][ref_lbdaidx], **centroidprop)
-            #     for ax_ in fig.axes]
-
         [ax_.set_yticklabels([]) for ax_ in fig.axes[1:]]
         
         fig.figout(savefile=savefile, show=show)
@@ -617,50 +1305,42 @@ class SlicePSF( PSFFitter ):
     # =================== #
     #  Properties         #
     # =================== #
-    
     @property
     def slice(self):
         """ pyifu slice """
         return self._spaxelhandler
-    
-###########################
-#                         #
-#   Model                 #
-#                         #
-###########################
-def read_psfmodel(psfmodel):
-    """ """
-    
-    if "MoffatPlane" in psfmodel:
-        return get_moffatplane( int(psfmodel.replace("MoffatPlane","")) )
-    
-    elif "GaussianPlane" in psfmodel:
-        return get_gaussianplane( int(psfmodel.replace("GaussianPlane","")) )
-                
-    elif "BiNormalCont" in psfmodel:
-        return get_binormalcont()
-            
-    elif "BiGaussianCont" in psfmodel:
-        return get_bigaussiancont()
-    
-    elif "GaussianCont" in psfmodel:
-        return get_gaussiancont()
-    
-    else:
-        raise ValueError("Only the 'MoffatPlane/GaussianPlane/GaussianCont/BiGaussianCont' psfmodel has been implemented")
 
+# -------------------- #
+#  Slice PSF Fitter    #
+# -------------------- #
+class _PSFSliceModel_( BaseModel ):
+    """ Virtual PSFSlice Model Class. You need to define 
+    - get_profile 
+    - get_background 
+    """
+    PROFILE_PARAMETERS    = [] # TO BE DEFINED
+    BACKGROUND_PARAMETERS = [] # TO BE DEFINED
+    
+    def __new__(cls,*arg,**kwarg):
+        """ Black Magic allowing generalization of Polynomial models """
+        # - Profile
+        cls.FREEPARAMETERS     = list(cls.PROFILE_PARAMETERS)+list(cls.BACKGROUND_PARAMETERS)
+        return super( _PSFSliceModel_, cls).__new__(cls)
 
-
-class PSFSlice( BaseModel ):
-    """ """
+    # ================= #
+    #    Method         #
+    # ================= #
+    # ---------- #
+    #  SETTER    #
+    # ---------- #
     def setup(self, parameters):
         """ """
-        self.param_profile    = parameters[:len(self.PROFILE_PARAMETERS)]
-        self.param_background = parameters[len(self.PROFILE_PARAMETERS):]
-
-    # ================= #
-    #   Properties      #
-    # ================= #
+        self.param_profile    = {k:v for k,v in zip( self.PROFILE_PARAMETERS, parameters[:len(self.PROFILE_PARAMETERS)] )}
+        self.param_background = {k:v for k,v in zip( self.BACKGROUND_PARAMETERS, parameters[len(self.PROFILE_PARAMETERS):] )} 
+        
+    # ---------- #
+    #  GETTER    #
+    # ---------- #
     def get_loglikelihood(self, x, y, z, dz):
         """ Measure the likelihood to find the data given the model's parameters.
         Set pdf to True to have the array prior sum of the logs (array not in log=pdf).
@@ -674,39 +1354,7 @@ class PSFSlice( BaseModel ):
         """ the profile + background model. """
         return self.get_profile(x,y) + self.get_background(x,y)
 
-# - Based on Astropy Modeling    
-class PSFSliceAstropy( PSFSlice ):
-    """ """
-    FREEPARAMETERS = []
-    
-    def __new__(cls,*arg,**kwarg):
-        """ Black Magic allowing generalization of Polynomial models """
-        # - Profile
-        cls.PROFILE_PARAMETERS = cls._profile.param_names
-        cls.FREEPARAMETERS     = list(cls.PROFILE_PARAMETERS)+list(cls._background.param_names)
-            
-        return super(PSFSliceAstropy, cls).__new__(cls)
-        
-    def get_profile(self, x, y):
-        """ The profile at the given positions """
-        return self._profile.evaluate(x, y, *self.param_profile)
-    
-    def get_background(self, x, y):
-        """ The background at the given positions """
-        return self._background(x, y, *self.param_background)
-    
-# - Based on Scipy Modeling
-class PSFSliceScipy( PSFSlice ):
-    """ """
-    PROFILE_PARAMETERS    = [] # TO BE DEFINED
-    BACKGROUND_PARAMETERS = [] # TO BE DEFINED
-    
-    def __new__(cls,*arg,**kwarg):
-        """ Black Magic allowing generalization of Polynomial models """
-        # - Profile
-        cls.FREEPARAMETERS     = list(cls.PROFILE_PARAMETERS)+list(cls.BACKGROUND_PARAMETERS)
-        return super(PSFSliceScipy, cls).__new__(cls)
-    
+    # - To Be Defined
     def get_profile(self, x, y):
         """ The profile at the given positions """
         raise NotImplementedError("You must define the get_profile")
@@ -715,188 +1363,18 @@ class PSFSliceScipy( PSFSlice ):
         """ The background at the given positions """
         raise NotImplementedError("You must define the get_background")
 
-
     
-#######################
-#                     #
-# BiGaussian + Const  #
-#     = Scipy =       #
-#######################
-def get_gaussiancont():
-    return GaussianCont()
-
-class GaussianCont( PSFSliceScipy ):
+# -------------------- #
+#  Actual Model        #
+# -------------------- #
+    
+class BiNormalCont( _PSFSliceModel_ ):
     """ """
     PROFILE_PARAMETERS = ["amplitude",
-                          "x_mean","y_mean",
-                          "x_stddev","y_stddev","corr_xy"]
-        
-    BACKGROUND_PARAMETERS = ["bkgd"]
+                          "stddev", "stddev_ratio", "amplitude_ratio",
+                          "theta", "ell",
+                          "xcentroid", "ycentroid"]
     
-    # --------------- #
-    # - Guesses     - #
-    # --------------- #
-    def get_guesses(self, x, y, data):
-        """ return a dictionary containing simple best guesses """
-        ampl = np.nanmax(data)
-        x0   = x[np.argmax(data)]
-        y0   = y[np.argmax(data)]
-        self._guess = dict(amplitude_guess=ampl * 15,
-                           x_mean_guess=x0, y_mean_guess=y0,
-                           x_stddev_guess=2., x_stddev_boundaries=[1.,10],
-                           y_stddev_guess=2., y_stddev_boundaries=[1.,10],
-                           bkgd_guess=np.percentile(data,10),
-                           corr_xy_guess = 0, corr_xy_boundaries= [-0.9, 0.9],
-                           #amplitude_ratio_guess = 0.5,
-                           #amplitude_ratio_boundaries = [0,1],
-                           #stddev_ratio_guess = 2.,
-                           #stddev_ratio_boundaries = [1,10],
-                            )
-        return self._guess
-    
-    # --------------- #
-    # - GETTER      - #
-    # --------------- #
-    def get_profile(self, x, y):
-        """ The profile at the given positions """
-        # param_profile:
-        #["amplitude", "x_mean","y_mean", "x_stddev","y_stddev","corr_xy",
-        # "amplitude_ratio","stddev_ratio"]
-
-        # - Amplitudes
-        ampl = self.param_profile[0]
-        
-        # - centroid
-        mean = self.param_profile[1], self.param_profile[2]
-        
-        # - Covariance Matrix
-        stdx, stdy, corr_xy = self.param_profile[3],self.param_profile[4],self.param_profile[5]
-        
-        cov = np.asarray([[stdx**2, corr_xy*stdx*stdy], [corr_xy*stdx*stdy, stdy**2]])
-        
-        # - The Gaussians
-        normal_1 = multivariate_normal.pdf(np.asarray([x,y]).T, mean=mean, cov=cov)
-        return ampl*normal_1
-    
-    def get_background(self, x, y):
-        """ The background at the given positions """
-        return self.param_background[0]
-    
-    # ============= #
-    #  Properties   #
-    # ============= #
-    @property
-    def centroid_guess(self):
-        """ """
-        return self._guess["x_mean_guess"],self._guess["y_mean_guess"]
-    
-    @property
-    def centroid(self):
-        """ """
-        return self.fitvalues["x_mean"],self.fitvalues["y_mean"]
-    
-    @property
-    def fwhm(self):
-        """ """
-        return "To Be Done"
-
-#######################
-#                     #
-#   Gaussian2D        #
-#    = Astropy =      #
-#######################
-def get_bigaussiancont():
-    return BiGaussianCont()
-
-class BiGaussianCont( PSFSliceScipy ):
-    """ """
-    PROFILE_PARAMETERS = ["amplitude",
-                          "x_mean","y_mean",
-                          "x_stddev","y_stddev","corr_xy",
-                          "amplitude_ratio","stddev_ratio"]
-        
-    BACKGROUND_PARAMETERS = ["bkgd"]
-    
-    # --------------- #
-    # - Guesses     - #
-    # --------------- #
-    def get_guesses(self, x, y, data):
-        """ return a dictionary containing simple best guesses """
-        print("Guesses for BiGaussianCont")
-        ampl = np.nanmax(data)
-        x0   = x[np.argmax(data)]
-        y0   = y[np.argmax(data)]
-        self._guess = dict(amplitude_guess=ampl * 15,
-                           x_mean_guess=x0, y_mean_guess=y0,
-                           x_stddev_guess=1., x_stddev_boundaries=[0.5,5.],
-                           y_stddev_guess=1., y_stddev_boundaries=[0.5,5.],
-                           bkgd_guess=np.percentile(data,10),
-                           corr_xy_guess = 0, corr_xy_boundaries= [-0.9, 0.9],
-                           amplitude_ratio_guess = 0.2,
-                           amplitude_ratio_boundaries = [0,1],
-                           stddev_ratio_guess = 5.,
-                           stddev_ratio_boundaries = [1,10],
-                            )
-        return self._guess
-    
-    # --------------- #
-    # - GETTER      - #
-    # --------------- #
-    def get_profile(self, x, y):
-        """ The profile at the given positions """
-        # param_profile:
-        #["amplitude", "x_mean","y_mean", "x_stddev","y_stddev","corr_xy",
-        # "amplitude_ratio","stddev_ratio"]
-
-        ampl, xmean,ymean, xstd, ystd, corrxy, ampl_ratio, stddev_ratio = self.param_profile        
-        
-        # - Covariance Matrix
-        cov = np.asarray([[xstd**2, corrxy*xstd*ystd], [corrxy*xstd*ystd,ystd**2]])
-        
-        # - The Gaussians
-        normal_1 = multivariate_normal.pdf(np.asarray([x,y]).T, mean=[xmean,ymean], cov=cov)
-        normal_2 = multivariate_normal.pdf(np.asarray([x,y]).T, mean=[xmean,ymean], cov=cov*stddev_ratio**2)
-        return ampl*(normal_1 + normal_2*ampl_ratio)
-    
-    def get_background(self, x, y):
-        """ The background at the given positions """
-        return self.param_background[0]
-    
-    # ============= #
-    #  Properties   #
-    # ============= #
-    @property
-    def centroid_guess(self):
-        """ """
-        return self._guess["x_mean_guess"],self._guess["y_mean_guess"]
-    
-    @property
-    def centroid(self):
-        """ """
-        return self.fitvalues["x_mean"],self.fitvalues["y_mean"]
-    
-    @property
-    def fwhm(self):
-        """ """
-        return "To Be Done"
-
-
-#######################
-#                     #
-#   Gaussian Dist     #
-#    = Astropy =      #
-#######################
-def get_binormalcont():
-    return BiNormalCont()
-
-class BiNormalCont( PSFSliceScipy ):
-    """ """
-    PROFILE_PARAMETERS = ["amplitude",
-                          "x_mean","y_mean",
-                          "stddev","ell","theta",
-                          "amplitude_ratio","stddev_ratio",
-                          "x_offset","y_offset"]
-        
     BACKGROUND_PARAMETERS = ["bkgd"]
     
     # ================== #
@@ -919,11 +1397,8 @@ class BiNormalCont( PSFSliceScipy ):
         
         self._guess = dict(amplitude_guess=ampl * 5,
                            amplitude_boundaries= [ampl/100, ampl*100],
-                           x_mean_guess=x0, x_mean_boundaries=[x0-3,x0+3],
-                           y_mean_guess=y0, y_mean_boundaries=[y0-3,y0+3],
-                           # shift of the 2nd gaussian (tails)
-                           x_offset_guess=0, x_offset_boundaries=[-2,2], x_offset_fixed=True,
-                           y_offset_guess=0, y_offset_boundaries=[-2,2], y_offset_fixed=True,
+                           xcentroid_guess=x0, xcentroid_boundaries=[x0-3,x0+3],
+                           ycentroid_guess=y0, ycentroid_boundaries=[y0-3,y0+3],
                            # - STD
                            stddev_guess = std_mean,
                            stddev_boundaries=[0.8,std_mean*3],
@@ -937,37 +1412,21 @@ class BiNormalCont( PSFSliceScipy ):
                            amplitude_ratio_fixed = True,
                            amplitude_ratio_boundaries = [3,4],
                            stddev_ratio_guess = 2.,
-                           stddev_ratio_boundaries = [1.3,3.5],
+                           stddev_ratio_boundaries = [1.1,3.5],
                             )
         return self._guess
     
     # ================== #
     #  Model             #
     # ================== #
-    def _get_elliptical_distance_(self, x, y, x_offset=0, y_offset=0):
-        """ """
-        return get_elliptical_distance(x,y, x0=self.param_profile[1]+x_offset, y0=self.param_profile[2]+y_offset,
-                                        ell=self.param_profile[4],theta=self.param_profile[5])
-
     def get_profile(self, x, y):
-        """ """    
-        r1 = self._get_elliptical_distance_(x,y, x_offset=0, y_offset=0)
-        if self.param_profile[8] == 0 and self.param_profile[9] == 0:
-            r2 = r1
-        else:
-            r2 = self._get_elliptical_distance_(x,y, x_offset=self.param_profile[6], y_offset=self.param_profile[7])
-        
-        n1 = norm.pdf(r1, loc=0, scale=self.param_profile[3])
-        n2 = norm.pdf(r2, loc=0, scale=self.param_profile[3]*self.param_profile[7])
-        
-        ampl  = self.param_profile[0]
-        ratio = self.param_profile[6]
-        
-        return ampl * ( (ratio/(1.+ratio)) * n1 + (1./(1+ratio)) * n2)
+        """ """
+        amplitude = self.param_profile.pop("amplitude")
+        return amplitude * binormal_profile(x, y, **self.param_profile)
 
     def get_background(self,x,y):
         """ The background at the given positions """
-        return self.param_background[0]
+        return self.param_background["bkgd"]
     
     # ============= #
     #  Properties   #
@@ -975,449 +1434,15 @@ class BiNormalCont( PSFSliceScipy ):
     @property
     def centroid_guess(self):
         """ """
-        return self._guess["x_mean_guess"], self._guess["y_mean_guess"]
+        return self._guess["xcentroid_guess"], self._guess["ycentroid_guess"]
     
     @property
     def centroid(self):
         """ """
-        return self.fitvalues["x_mean"], self.fitvalues["y_mean"]
+        return self.fitvalues["xcentroid"], self.fitvalues["ycentroid"]
     
     @property
     def fwhm(self):
         """ """
         return "To Be Done"
     
-#######################
-#                     #
-#   Moffat + BKGD     #
-#    = Astropy =      #
-#######################
-def get_moffatplane(bkgdegree):
-    """ """
-    class MoffatPlane( MoffatPlaneVirtual ):
-        _background  = Polynomial2D(degree=bkgdegree)
-
-    return MoffatPlane()
-
-class MoffatPlaneVirtual( PSFSliceAstropy ):
-    """ """
-    _profile     = Moffat2D()
-
-    # --------------- #
-    def get_guesses(self, x, y, data):
-        """ return a dictionary containing simple best guesses """
-        ampl = np.nanmax(data)
-        x0   = x[np.argmax(data)]
-        y0   = y[np.argmax(data)]
-        self._guess = dict(amplitude_guess=ampl, x_0_guess=x0, y_0_guess=y0,
-                        gamma_guess=3., alpha_guess=2.5, alpha_boundaries=[1,5],
-                        c0_0_guess=np.percentile(data,10))
-        return self._guess
-    
-    # ============= #
-    #  Properties   #
-    # ============= #
-    @property
-    def centroid_guess(self):
-        """ """
-        return self._guess["x_0_guess"],self._guess["y_0_guess"]
-    
-    @property
-    def centroid(self):
-        """ """
-        return self.fitvalues["x_0"],self.fitvalues["y_0"]
-    
-    @property
-    def fwhm(self):
-        """ """
-        gamma = self.param_profile[3]
-        alpha = self.param_profile[4]
-        return gamma * np.sqrt(2.**(1. / alpha) - 1.)
-        
-#######################
-#                     #
-#  Gaussian + BKGD    #
-#    = Astropy =      #
-#######################
-class GaussianPlaneVirtual( PSFSliceAstropy ):
-    """ """
-    _profile     = Gaussian2D()
-    # --------------- #
-    def get_guesses(self, x, y, data):
-        """ return a dictionary containing simple best guesses """
-        ampl = np.nanmax(data)
-        x0   = x[np.argmax(data)]
-        y0   = y[np.argmax(data)]
-        self._guess = dict(amplitude_guess=ampl,
-                        x_mean_guess=x0, y_mean_guess=y0,
-                        x_stddev_guess=1, x_stddev_boundaries=[0.2,10],
-                        y_stddev_guess=1, y_stddev_boundaries=[0.2,10], 
-                        c0_0_guess=np.percentile(data,10))
-        return self._guess
-    
-    # ============= #
-    #  Properties   #
-    # ============= #
-    @property
-    def centroid_guess(self):
-        """ """
-        return self._guess["x_mean_guess"],self._guess["y_mean_guess"]
-    
-    @property
-    def centroid(self):
-        """ """
-        return self.param_profile[1],self.param_profile[2]
-
-    @property
-    def fwhm(self):
-        """ """
-        xstd = self.param_profile[3]
-        ystd = self.param_profile[4]
-        return 2.355 * np.mean([xstd,ystd])
-
-    
-def get_gaussianplane(bkgdegree):
-    """ """
-    class GaussianPlane( GaussianPlaneVirtual ):
-        _background  = Polynomial2D(degree=bkgdegree)
-        
-    return GaussianPlane()
-
-
-
-
-# ================= #
-# = NOT READY YET = #
-
-
-############################
-############################
-##                        ##
-##  Cube 3D BiNormal      ##
-##                        ##
-############################
-############################
-
-########################
-#                      #
-#     Fitter           #
-#                      #
-########################
-class CubePSF( PSFFitter ):
-    """ """
-    
-    # =================== #
-    #   Methods           #
-    # =================== #
-    def __init__(self, cube_,
-                     fitbuffer=None,fit_area=None,
-                     psfmodel="BiNormalCont3d", refindex=150,
-                      fitted_indexes=None, lbda=5000):
-        """ The SlicePSF fitter object
-
-        Parameters
-        ---------- 
-        cube_: [pyifu Slice] 
-            The slice object that will be fitted
-            
-
-        fitbuffer: [float] -optional- 
-            = Ignored if fit_area or fitted_indexes are given=
-
-        psfmodel: [string] -optional-
-            Name of the PSF model used to fit the slice. 
-            examples: 
-            - MoffatPlane`N`:a Moffat2D profile + `N`-degree Polynomial2D background 
-        
-        """
-        self.set_cube(cube_)
-        if "BiNormalCont3d" in psfmodel:
-            self.set_model(get_binormalcont3d(self.cube.lbda, refindex, self.cube.adr) )
-        else:    
-            raise ValueError("Only the 'BiNormalCont3d' psfmodel has been implemented")
-        
-        if fitted_indexes is not None:
-            self.set_fitted_indexes(fitted_indexes)
-        elif fit_area is not None:
-            self.set_fit_area(fit_area)
-        else:
-            self._set_fitted_values_()
-        # - Which fitter
-        self.use_minuit = True
-
-
-    # --------- #
-    #  FITTING  #
-    # --------- #
-    def _get_model_args_(self):
-        """ see model.get_loglikelihood"""
-        self._set_fitted_values_()
-        # corresponding data entry:
-        return self._xfitted, self._yfitted, None, self._datafitted, self._errorfitted
-
-
-    def get_guesses(self):
-        return self.model.get_guesses(self._xfitted, self._yfitted, self._datafitted)
-
-    
-    # -------------- #
-    #  SETTER        #
-    # -------------- #
-    def set_cube(self, cube):
-        """ """
-        self._set_spaxelhandler_(cube)
-        
-    @property
-    def cube(self):
-        return self._spaxelhandler
-    
-########################
-#                      #
-#     Model            #
-#                      #
-########################
-class PSF3D( BaseModel ):
-    """ """
-    NLBDA = 0
-    PROFILE_PARAMETERS    = [] # TO BE DEFINED
-    BACKGROUND_PARAMETERS = [] # TO BE DEFINED
-
-    # ================== #
-    #   DEfinitions
-    # ================== #
-    def __new__(cls,*arg,**kwarg):
-        """ Black Magic allowing generalization of Polynomial models """
-        # - Profile
-        amplitudes  = ["ampl_%d"%d for d in range(cls.NLBDA)]
-        background  = np.concatenate([["%s_%d"%(p_,d)
-                                           for p_ in cls.BACKGROUND_PARAMETERS]
-                                    for d in range(cls.NLBDA)])
-        cls.FREEPARAMETERS     = amplitudes+list(cls.PROFILE_PARAMETERS)+list(background.flatten())
-        return super(PSF3D, cls).__new__(cls)
-
-    def setup(self, parameters):
-        """ """
-        self.amplitudes       = parameters[:self.NLBDA]
-        self.param_profile    = parameters[self.NLBDA:self.NLBDA+len(self.PROFILE_PARAMETERS)]
-        self.param_background = parameters[self.NLBDA+len(self.PROFILE_PARAMETERS):]
-
-    # ================= #
-    #   Properties      #
-    # ================= #
-    # - Mandatory for modefit
-    def get_loglikelihood(self, x, y, lbda, z, dz):
-        """ Measure the likelihood to find the data given the model's parameters.
-        Set pdf to True to have the array prior sum of the logs (array not in log=pdf).
-        In the Fitter define _get_model_args_() that should return the input of this
-        """
-        res = z - self.get_model(x, y, lbda)
-        chi2 = np.nansum(res.flatten()**2/dz.flatten()**2)
-        return -0.5 * chi2
-
-    # - Structure of the model
-    def get_model(self, x, y, lbda=None):
-        """ the profile + background model. """
-        return self.get_profile(x,y, lbda=None) + self.get_background(x,y, lbda=None)
-
-    def get_profile(self, x, y, lbda):
-        """ The profile at the given positions """
-        raise NotImplementedError("You must define the get_profile")
-    
-    def get_background(self, x, y, lbda):
-        """ The background at the given positions """
-        raise NotImplementedError("You must define the get_background")
-
-
-# - The Model
-def get_binormalcont3d(lbda, refindex, adr):
-    """ """
-    class _BiNormalCont3D_(BiNormalCont3D):
-        NLBDA = len(lbda)
-
-    return _BiNormalCont3D_(lbda, refindex, adr)
-
-        
-class BiNormalCont3D( PSF3D ):
-    """ """
-    # - BaseObject
-    PROPERTIES         = ["lbda","refindex", "adr"]
-    DERIVED_PROPERTIES = ["fixed_source_shift"] #X,Y
-
-    # - Model
-    NLBDA              = -1
-    PROFILE_PARAMETERS = ["x_mean","y_mean",
-                          "stddev","ell","theta",
-                          "amplitude_ratio","stddev_ratio",
-                          "pa_angle","spaxel_unit"] # ADR]
-        
-    BACKGROUND_PARAMETERS = ["bkgd"]
-
-    # ================== #
-    #  Definition        #
-    # ================== #
-    def __init__(self, lbda, refindex, adr ):
-        """ """
-        self.set_lbda(lbda)
-        self.set_adr(adr)
-        self.set_refindex(refindex)
-        
-    # ================== #
-    #  Guess             #
-    # ================== #
-        
-    def get_guesses(self, x, y, data, refindex=150):
-        """ return a dictionary containing simple best guesses """
-        ampl = np.nanmax(data)
-        argmaxes = np.argwhere(data>np.percentile(data[refindex],95)).flatten()
-        x0   = np.nanmean(x[argmaxes])
-        y0   = np.nanmean(y[argmaxes])
-        self._guess = dict(x_mean_guess=x0, x_mean_boundaries=[x0-10,x0+10],
-                           y_mean_guess=y0, y_mean_boundaries=[y0-10,y0+10],
-                           stddev_guess=2., stddev_boundaries=[0.5,5.],
-                           # Converges faster by allowing degenerated param...
-                           theta_guess=0, theta_boundaries=[-np.pi,np.pi],
-                           ell_guess = 0, ell_boundaries= [-0.9, 0.9],
-                           amplitude_ratio_guess = 0.2,
-                           amplitude_ratio_boundaries = [0,1],
-                           stddev_ratio_guess = 5.,
-                           stddev_ratio_boundaries = [1,10],
-                           # - ADR 
-                           pa_angle_guess= self.adr.parangle, pa_angle_fixed=True,
-                           # Spaxel Unit
-                           spaxel_unit_guess=IFU_SCALE_UNIT, spaxel_unit_fixed=True,
-                           spaxel_unit_boundaries=[0.,10],
-                           )
-        
-        spectop = np.percentile(data, 95, axis=1)
-        specsky = np.percentile(data,  5, axis=1)
-        for i in range(self.NLBDA):
-            self._guess["ampl_%d_guess"%i] = spectop[i]
-            self._guess["bkgd_%d_guess"%i] = specsky[i]
-            
-        return self._guess
-    
-    # ================== #
-    #  Model             #
-    # ================== #
-    # - ADR Model Prop - #
-    @property
-    def fixed_adr(self):
-        """ Are the ADR parameters: spaxel_unit and pa_angle fixed?"""
-        return self.param_input["spaxel_unit_fixed"] and self.param_input["pa_angle_fixed"]
-    
-    @property
-    def rotation_matrix(self):
-        c, s = np.cos(self.param_profile[-2]), np.sin(self.param_profile[-2])
-        return np.asarray([[c, s], [-s, c]])
-
-    @property
-    def spaxel_unit(self):
-        return self.param_profile[-1]
-
-    @property
-    def fixed_source_shift(self):
-        """ """
-        if self._derived_properties['fixed_source_shift'] is None:
-            self._derived_properties['fixed_source_shift'] = self.get_source_shift()
-        return self._derived_properties['fixed_source_shift']
-        
-    # -------------------- #
-    def get_psf_centroid(self):
-        if self.fixed_adr:
-            xshift,yshift = self.fixed_source_shift
-        else:
-                xshift,yshift = self.get_source_shift()
-            
-        return self.param_profile[0]+xshift,self.param_profile[1]+yshift
-
-
-    # --------------- #
-    #  Actual Model   #
-    # --------------- #
-    # Centroid Evolution
-    def get_source_shift(self):
-        """  """
-        x_default, y_default = self.adr.refract(0, 0, self.lbda, unit=self.spaxel_unit)
-        return np.dot(self.rotation_matrix, np.asarray([x_default,y_default]))
-
-    # Elliptical distance to the core of the gaussian
-    def _get_elliptical_distance_(self, x, y):
-        """ """
-        x0, y0 = self.get_psf_centroid()
-        return get_elliptical_distance(x, y, x0=self.param_profile[0], y0=self.param_profile[1],
-                                        ell=self.param_profile[3],theta=self.param_profile[4])
-                                        
-    # Elliptical distance to the core of the gaussian
-    def _kolmogorov_width_(self):
-        """ """
-        return self.param_profile[2] * (self.lbda / self.adr.lbdaref)**(-1/5.)
-
-    def get_profile(self, x, y, **kwargs):
-        """ """
-        r = self._get_elliptical_distance_(x,y)
-        scale_base = self._kolmogorov_width_()
-        n1 = norm.pdf(r, loc=0, scale=np.asarray([scale_base]*len(r)).T  )
-        n2 = norm.pdf(r, loc=0, scale=np.asarray([scale_base *self.param_profile[7]]).T)
-        return self.param_profile[0] * (n1 + self.param_profile[6] * n2)
-
-    def get_background(self, x, y,  **kwargs):
-        """ The background at the given positions """
-        return np.asarray([self.param_background]*len(x)).T
-    
-    # ============= #
-    #  Properties   #
-    # ============= #
-    @property
-    def centroid_guess(self):
-        """ """
-        return self._guess["x_mean_guess"],self._guess["y_mean_guess"]
-    
-    @property
-    def centroid(self):
-        """ """
-        return self.fitvalues["x_mean"],self.fitvalues["y_mean"]
-    
-    @property
-    def fwhm(self):
-        """ """
-        return "To Be Done"
-    
-    # ------------- #
-    #  Core Prop  - #
-    # ------------- #
-    # - LBDA
-    @property
-    def lbda(self):
-        return self._properties['lbda']
-    
-    def set_lbda(self, lbda):
-        """ """
-        if len(lbda) != self.NLBDA:
-            raise ValueError("given lbda (array of %d) does not match the NLBDA property (%d)"%(len(lbda),self.NLBDA))
-        self._properties['lbda'] = lbda
-        if self.adr is not None and self.refindex is not None:
-            self.adr.set(lbdaref=self.lbda[self.refindex])
-
-    # - ADR  
-    @property
-    def adr(self):
-        return self._properties['adr']
-    
-    def set_adr(self,adr, **kwargs):
-        
-        self._properties['adr'] = adr
-        self.adr.set(**kwargs)
-        if self.lbda is not None and self.refindex is not None:
-            self.adr.set(lbdaref=self.lbda[self.refindex])
-            
-    # - REFINDEX      
-    @property
-    def refindex(self):
-        """ """
-        return self._properties['refindex']
-    
-    def set_refindex(self,index):
-        """ """
-        self._properties['refindex'] = index
-        if self.lbda is not None and self.adr is not None:
-            self.adr.set(lbdaref=self.lbda[self.refindex])

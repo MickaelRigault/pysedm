@@ -26,19 +26,15 @@ if  __name__ == "__main__":
     parser.add_argument('--auto',  type=str, default=None,
                         help='Shall this run an automatic PSF extraction')
     
-    parser.add_argument('--automodel',  type=str, default="BiNormalCont",
-                        help='Name of the model to use for the automatic spectral extraction. ')
-    # - Sky removal
-    parser.add_argument('--nsky',  type=int, default=100,
-                        help='Number of spaxel used to estimate the sky signal. Set this to 0 for no sky subtraction. ')
-    
     # - Standard Star object
     parser.add_argument('--std',  action="store_true", default=False,
                         help='Set this to True to tell the program you what to build a calibration spectrum from this object')
 
-    parser.add_argument('--singleprocess',  action="store_true", default=False,
-                        help='Set this to force running in singl')
     
+    parser.add_argument('--nofig',    action="store_true", default=False,
+                        help='')
+
+        
     args = parser.parse_args()
     # ================= #
     #   The Scripts     #
@@ -57,14 +53,12 @@ if  __name__ == "__main__":
     # ---------- #
     # - Automatic extraction
     if args.auto is not None and len(args.auto) >0:
-        
-        from pyifu.spectroscopy import get_spectrum
-        from shapely import geometry
-        
         print(args.auto)
+        
         for target in args.auto.split(","):
             filecubes = io.get_night_files(date, "cube.*", target=target.replace(".fits",""))
             print("cube file from which the spectra will be extracted: "+ ", ".join(filecubes))
+            
             # - loop over the file cube
             
             for filecube in filecubes:
@@ -73,69 +67,72 @@ if  __name__ == "__main__":
                 # ----------------- #
                 print("Automatic extraction of target %s, file: %s"%(target, filecube))
                 cube = get_sedmcube(filecube)
-                if args.nsky>0:
-                    cube.remove_sky( args.nsky )
-                    
-                # Subpart of the cube to fit.
-                x,y =  np.asarray(cube.index_to_xy(cube.indexes)).T
-                data = cube.data[np.argmin(np.abs(cube.lbda-6000))]
-                flagok = ~ np.isnan(x*y*data)
+                # --------------
+                # Fitting
+                # --------------
+                # Step 1 fit the PSF shape:
+                output = cube.filename.replace("e3d","psffit_e3d")
+                savedata = output.replace(".fits",".json")
+                savefig = savedata.replace(".json",".pdf") if not args.nofig else None
 
-                x0, y0, std0  = extractstar.guess_aperture(x[flagok], y[flagok], data[flagok])
-                used_indexes  = cube.get_spaxels_within_polygon(geometry.Point(x0,y0).buffer(std0*5))
-                slice_to_fit  = range(len(cube.lbda)) # all
-                # -> Cube to fit
-                cube_to_fit = cube.get_partial_cube(used_indexes,slice_to_fit)
+                psfmodel = extractstar.fit_psf_parameters(cube,
+                                                        lbda_range=[4500,7000], nbins=10,
+                                                        savedata=savedata,savefig=savefig,
+                                                        return_psfmodel=True)
+                # Step 2 ForcePSF spectroscopy:
                 
-                # ================= #
-                #  Extract Start    #
-                # ================= #
-                es   = extractstar.ExtractStar(cube_to_fit)
-                es.fit_psf(psfmodel=args.automodel)
+                output = cube.filename.replace("e3d","forcepsf_e3d")
+                savefig = output.replace(".fits",".pdf") if not args.nofig else None
+                spec, bkgd, forcepsf = extractstar.fit_force_spectroscopy(cube, psfmodel, savefig=savefig)
+                cubemodel = forcepsf.cubemodel
+                cuberes   = forcepsf.cuberes
                 
-                # ----------------- #
-                #  Save the cubes   #
-                # ----------------- #
-                x,y       = np.asarray(cube_to_fit.index_to_xy(cube_to_fit.indexes)).T
-                cubemodel = extractstar.sliceparam_to_cube(x, y, cube_to_fit.lbda, es.slicefitvalues,
-                                                            args.automodel, indexes=cube_to_fit.indexes,
-                                                            spaxel_vertices=cube_to_fit.spaxel_vertices)
+                
+                # --------------
+                # Recording
+                # --------------
                 # Cube Model
                 cubemodel.set_header(cube.header)
                 cubemodel.header["SOURCE"]   = (filecube.split("/")[-1], "This object has been derived from this file")
-                cubemodel.header["PYSEDMT"]  = ("Automatic 3DPSF extraction: Model Cube", "This is the model cube of the PSF extract")
-                cubemodel.header["PSFMODEL"] = (args.automodel, "Name of the 3D PSF model used ")
+                cubemodel.header["PYSEDMT"]  = ("Force 3DPSF extraction: Model Cube", "This is the model cube of the PSF extract")
                 cubemodel.header["PSFTYPE"]  = ("auto", "Kind of PSF extraction")
-                cubemodel.writeto(filecube.replace(io.PROD_CUBEROOT,"psfmodel_"+io.PROD_CUBEROOT))
+                cubemodel.writeto(filecube.replace(io.PROD_CUBEROOT,"forcepsfmodel_"+io.PROD_CUBEROOT))
                 
                 # Cube Residual                
-                cuberes = cube_to_fit - cubemodel
                 cuberes.set_header(cube.header)
                 cuberes.header["SOURCE"]   = (filecube.split("/")[-1], "This object has been derived from this file")
-                cuberes.header["PYSEDMT"]  = ("Automatic 3DPSF extraction: Residual Cube", "This is the residual cube of the PSF extract")
-                cuberes.header["PSFMODEL"] = (args.automodel, "Name of the 3D PSF model used ")
+                cuberes.header["PYSEDMT"]  = ("Force 3DPSF extraction: Residual Cube", "This is the residual cube of the PSF extract")
                 cuberes.header["PSFTYPE"]  = ("auto", "Kind of PSF extraction")
                 cuberes.writeto(filecube.replace(io.PROD_CUBEROOT,"psfres_"+io.PROD_CUBEROOT))
                 
                 # ----------------- #
                 # Save the Spectrum #
                 # ----------------- #
-                flux, dflux = es.get_fitted_amplitudes()
                 # - build the spectrum
-                spec = get_spectrum(cube_to_fit.lbda, flux, variance=dflux**2, header=None)
                 spec.set_header(cube.header)
                 spec.header["SOURCE"]   = (filecube.split("/")[-1], "This object has been derived from this file")
-                spec.header["PYSEDMT"]  = ("Automatic 3DPSF extraction: Spectral Model", "This is the fitted flux spectrum")
-                spec.header["PSFMODEL"] = (args.automodel, "Name of the 3D PSF model used ")
+                spec.header["PYSEDMT"]  = ("Force 3DPSF extraction: Spectral Model", "This is the fitted flux spectrum")
                 spec.header["PSFTYPE"]  = ("auto", "Kind of PSF extraction")
 
-                fileout = filecube.replace(io.PROD_CUBEROOT,io.PROD_SPECROOT+"auto")
-                
+                fileout = filecube.replace(io.PROD_CUBEROOT,io.PROD_SPECROOT+"_forcepsf")
                 spec.writeto(fileout)
                 spec.writeto(fileout.replace(".fits",".txt"), ascii=True)
                 
                 spec._side_properties["filename"] = fileout
-                spec.show(savefile=spec.filename.replace(".fits",".pdf"))
+                if not args.nofig:
+                    spec.show(savefile=spec.filename.replace(".fits",".pdf"))
+
+                # - background
+                bkgd.set_header(cube.header)
+                bkgd.header["SOURCE"]   = (filecube.split("/")[-1], "This object has been derived from this file")
+                bkgd.header["PYSEDMT"]  = ("Force 3DPSF extraction: Spectral Background Model", "This is the fitted flux spectrum")
+                bkgd.header["PSFTYPE"]  = ("auto", "Kind of PSF extraction")
+
+                fileout = filecube.replace(io.PROD_CUBEROOT,io.PROD_SPECROOT+"_forcepsf_bkgd")
+                bkgd.writeto(fileout)
+                bkgd.writeto(fileout.replace(".fits",".txt"), ascii=True)
+
+                # - for the record
                 extracted_objects.append(spec)
                 
     else:

@@ -413,13 +413,15 @@ class TraceMatch( BaseObject ):
         line = geometry.LineString([pointa,pointb])
         return [idx for idx in self.trace_indexes if self.trace_polygons[idx].crosses(line)]
 
-
-
         
     # Boundaries
     def get_trace_xbounds(self, traceindex):
         """ get the extremal x-ccd coordinates covered by the trace """
         return np.asarray(np.round(np.percentile(np.asarray(self.trace_vertices[traceindex]).T[0], [0,100])), dtype="int")
+    
+    def get_trace_ybounds(self, traceindex):
+        """ get the extremal y-ccd coordinates covered by the trace """
+        return np.asarray(np.round(np.percentile(np.asarray(self.trace_vertices[traceindex]).T[1], [0,100])), dtype="int")
     
     def get_trace_vertices(self, traceindex):
         """ traceindex -> vertices 

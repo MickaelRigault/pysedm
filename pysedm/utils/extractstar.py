@@ -139,7 +139,7 @@ def fit_psf_parameters(cube,lbda_range = [4500,7500], nbins=10,
         if chi2dof > 10:
             indexes = np.random.choice(np.arange(nbins), int(nbins*0.7), replace=False)
             ntry+=1
-            print("Warnings - chi2/dof of %.2f -> refit the adr with 30% out"%chi2dof)
+            print("Warnings - chi2/dof of %.2f -> refit the adr with 30percent out"%chi2dof)
         else:
             break
 
@@ -934,8 +934,7 @@ class FitPSF( BaseObject ):
 
         for i,k in enumerate(params):
             show_fitvalue(axes[i+1], k)
-
-        fig.tight_layout()
+            
         if show:
             fig.show()
 

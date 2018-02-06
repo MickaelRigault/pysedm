@@ -60,7 +60,6 @@ if  __name__ == "__main__":
             print("cube file from which the spectra will be extracted: "+ ", ".join(filecubes))
             
             # - loop over the file cube
-            
             for filecube in filecubes:
                 # ----------------- #
                 #  Cube to Fit?     #

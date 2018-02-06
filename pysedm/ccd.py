@@ -224,7 +224,36 @@ class CCD( BaseCCD ):
         
         self._properties['var'] = self.rawdata+(delta_sigma[1]-delta_sigma[0])**2
         
-            
+    # ----------- #
+    #   GETTER    #
+    # ----------- #
+    def get_trace_cutout(self, traceindex, masked=True, on="data"):
+        """ returns a 2D array containg the cutout around the requested trace.
+        The trace could be either with or without tracematch mask (i.e. 0 outside 
+        the trace).
+
+        Parameters
+        ----------
+        traceindex: [int]
+            index of the spaxel trace.
+        
+        masked: [bool] -optional-
+            do you want the data (see `on`) to be masked out (i.e. ==0) outside
+            the trace
+
+        on: [string] -optional-
+            On which data source do you want the trace (e.g. data, rawdata, background, variance)
+
+        Returns
+        -------
+        2d-array
+        """
+        xmin, xmax = self.tracematch.get_trace_xbounds(traceindex)
+        ymin, ymax = self.tracematch.get_trace_ybounds(traceindex)
+        if masked:
+            return self.get_trace_mask(traceindex)[ymin:ymax,xmin:xmax]*eval("self.%s"%on)[ymin:ymax,xmin:xmax]
+        return eval("self.%s"%on)[ymin:ymax,xmin:xmax]
+    
     def get_finetuned_trace(self, traceindex, polydegree=2,
                             width=None, trace_position=False, **kwargs):
         """ The builds a fine tuned trace of the given traceindex.
@@ -736,7 +765,43 @@ class CCD( BaseCCD ):
                  for y_ in self.tracematch.get_traces_crossing_x_ybounds(xpixel)]
             
         fig.figout(savefile=savefile, show=show)
+
+
+    def show_as_slicer(self, traceindexes, vmin=0 , vmax="90",
+                           masked=True, toshow="rawdata"):
+        """ """
+        import matplotlib.pyplot as mpl
+        data = eval("self.%s"%toshow)
+        if vmin is None:
+            vmin = 0
+        if type(vmin) == str:
+            vmin = np.percentile(data, vmin)
+        if vmax is None:
+            vmax = "95"
+        if type(vmax) == str:
+            vmax = np.percentile(data, vmax)
+
+        #  parameters
+        ntraces = len(traceindexes)
+        height = 0.85/ntraces
+
+        #  Build the figure
+        fig = mpl.figure(figsize=[8,4])
+        
+        #  draw the traces
+        for i,index_ in enumerate(traceindexes):
+            ax  = fig.add_axes([0.1,0.1+height*i, 0.8,height])
+            ax.imshow(self.get_trace_cutout(index_, masked=masked, on=toshow), origin="lower", aspect="auto", vmin=vmin, vmax=vmax)
+            ax.set_yticks([])
+            if i>0:
+                ax.set_xticks([])
+            else:
+                ax.set_xlabel("pixels since trace origin")
+                
+        return {"fig":fig}
     
+
+            
     def display_traces(self, ax, traceindex, facecolors="None", edgecolors="k",
                              update_limits=True):
         """ """

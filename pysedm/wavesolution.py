@@ -84,6 +84,9 @@ XE_LINES = {"air": [ 7119.614 ,  7642.0124,  8231.6305,  8231.6305,  8280.1113,
 # -------------- #
 REFWAVELENGTH = 7000
 
+# For Information:
+#    Sodium skyline fitted by SNIFS is at 5892.346 Angstrom
+SODIUM_SKYLINE_LBDA = 5892.29
 _REFORIGIN = 69
 
 LINES= {"Hg": # IN VACUUM
@@ -193,7 +196,6 @@ def merge_wavesolutions(wavesolutions):
         
     return wsol
 
-
 # -------------------- #
 #   MultiProcessing    #
 # -------------------- #
@@ -275,8 +277,196 @@ def _fit_wavesolution_notebook_(lamps, indexes, multiprocess=True):
         return res
     
     # - No multiprocessing 
-    return {indexes[i_]: fit_spaxel_wavelesolution(arccollection) for i_,arccollection in enumerate(arccollections)}
+    return {indexes[i_]: fit_spaxel_wavelesolution(arccollection)
+                for i_,arccollection in enumerate(arccollections)}
 
+
+###########################
+#                         #
+#  Flexure Correction     #
+#                         #
+###########################
+class Flexure( BaseObject ):
+    """ """
+    PROPERTIES = ["cube","mapper"]
+    DERIVED_PROPERTIES = ["fitvalues_sodiumlines"]
+
+    def __init__(self, cube, mapper=None):
+        """ """
+        self.set_cube(cube)
+        self.set_mapper(mapper)
+    # ================== #
+    #   Method           #
+    # ================== #
+    # --------- #
+    #  SETTER   #
+    # --------- #
+    def set_cube(self, cube_):
+        """ attach to this intance a cube """
+        self._properties["cube"] = cube_
+        
+    def set_mapper(self, mapper_):
+        """ attach to this intance a mapper object containing the 
+        ccd to cube coordinates conversions """
+        self._properties["mapper"] = mapper_
+        
+    # --------- #
+    #  GETTER   #
+    # --------- #
+    def get_i_shift(self, sodium_reference=SODIUM_SKYLINE_LBDA,
+                        as_slice=True):
+        """ assuming the flexure is purely a i [x-ccd coord] shift, 
+        how much would explaint the difference with respect to the sodium_reference
+        
+        i_shift such as `observed_position - reference_position`
+        Returns
+        """
+        mu_eff, mu_efferr = self.get_cube_sodiumline_wavelength(array=False)
+        
+        ijs_eff  = self.mapper.get_lbda_ij(mu_eff)
+        ijs_reff = self.mapper.get_lbda_ij(sodium_reference)
+        delta_i  = [ijs_reff[traceindex][0]-ijs_eff[traceindex][0]
+                        for traceindex in self.mapper.traceindexes]
+        if not as_slice:
+            return {i:d for i,d in zip(self.mapper.traceindexes, delta_i)}
+
+        from pyifu import get_slice
+        return get_slice(delta_i, self.mapper.traceindex_to_xy(self.mapper.traceindexes), 
+                            spaxel_vertices=self.cube.spaxel_vertices, 
+                           indexes=self.mapper.traceindexes)
+    
+    def get_cube_sodiumline_wavelength(self, array=False):
+        """ """
+        mus, muserr = np.asarray([[v["mu0"],v["mu0.err"]] for v in self.fitvalues_sodiumlines]).T
+        if array:
+            return mus, muserr
+        return np.average(mus, weights=1/muserr**2), np.std(mus)/np.sqrt(len(mus)-1)
+    
+    
+    # --------- #
+    #  FITTER   #
+    # --------- #
+    def fit_sodiumlines(self, spectrum, sodium_reference=SODIUM_SKYLINE_LBDA,
+                            lbda_buffer=400, show=False):
+        """ fit the sodium line on the given spectrum and returns the fitvalue dictionary.
+        = This method using modefit.get_normpolyfit() to fit the emission line=
+
+        Remark: See the `fit_cube_sodiumlines()` method for the entire cube fit.
+
+        Parameters
+        ----------
+        spectrum: [pyifu.Spectrum]
+            wavelength calibrated spectrum containing the sodium emmision line 
+            
+        sodium_reference: [float] -optional-
+            wavelength of the sodium sky line. 
+
+        lbda_buffer: [float] -optional-
+            how many wavelength above and below the sodium_reference will be used for the fit.
+        
+        show: [bool] -optional-
+            Do you want to display the fit result?
+
+        Returns
+        -------
+        dict (fitvalues)
+        """
+        from modefit import get_normpolyfit
+        flagout = (spectrum.lbda<SODIUM_SKYLINE_LBDA-lbda_buffer) + (spectrum.lbda>SODIUM_SKYLINE_LBDA+lbda_buffer)
+        flagout*= np.isnan(spectrum.data*spectrum.variance)
+        norm    = np.nanmean(spectrum.data[~flagout])
+        nfit    = get_normpolyfit(spectrum.lbda[~flagout], spectrum.data[~flagout]/norm, 
+                                    spectrum.variance[~flagout]/norm**2*2 if spectrum.has_variance() else None, 
+                                degree=3, ngauss=1)
+        
+        nfit.fit(**{"ampl0_guess": 100,
+                    "ampl0_boundaries": [1,1000],
+                    "mu0_guess":  5890,"mu0_boundaries":  [5890-lbda_buffer/2.,5890+lbda_buffer/2.],
+                    "sig0_guess": 30,"sig0_boundaries": [15,50],
+                    "a0_guess": 1, "a1_guess": 0})
+        if show:
+            nfit.show()
+            
+        return nfit.fitvalues
+    
+    def fit_cube_sodiumlines(self, sodium_reference=SODIUM_SKYLINE_LBDA,
+                                 nspaxels=50, averaging=20):
+        """ """
+        index_to_fit = np.asarray(self.cube.get_faintest_spaxels(nspaxels*averaging))
+        np.random.shuffle(index_to_fit)
+        self._indexes = index_to_fit.reshape(nspaxels,averaging)
+        self._derived_properties["fitvalues_sodiumlines"] = []
+        for index_ in self._indexes:
+            try:
+                fv = self.fit_sodiumlines(self.cube.get_spectrum(index_,"data"),
+                                          sodium_reference=sodium_reference, show=False)
+            except:
+                warnings.warn("FAILING the %i ")
+            self.fitvalues_sodiumlines.append(fv)
+            
+    # --------- #
+    #  PLOTTER  #
+    # --------- #
+    def show(self, savefile=None, show=True, sodium_reference=SODIUM_SKYLINE_LBDA):
+        """" """
+        import matplotlib.pyplot as mpl
+        fig = mpl.figure()
+        ax  = fig.add_subplot(111)
+
+        # - Data
+        mus, mus_err         = self.get_cube_sodiumline_wavelength(True)
+        meanmus, meanmus_err = self.get_cube_sodiumline_wavelength(False)
+        
+        ax.hist(mus, bins="auto", normed=True)
+        ax.set_xlabel(r"Fitted sodium line on spaxels.", fontsize="large")
+        
+        ax.axvline( sodium_reference, ls="-", color="C1", label="Exp. Sodium SkyLine (%.1f)"%sodium_reference)
+
+        ax.axvline( meanmus, ls="--", color="C2")
+        ax.axvspan( meanmus-meanmus_err,meanmus+meanmus_err, color="C2", alpha=0.5,
+                        label=r"Obs. Sodium SkyLine $(%.1f \pm %.1f)$"%(meanmus,meanmus_err))
+        
+        ax.legend(loc="upper left",fontsize="small")
+        
+        ax.text(0.98,0.98,"%d spectra made by \n averaging over %d spaxels"%(len(self._indexes),len(self._indexes[0])),
+                    va="top",ha="right", transform=ax.transAxes, color="0.5")
+        
+        mean_shift_i = np.mean( list(self.get_i_shift(as_slice=False).values()) )
+        
+        ax.text(0.5,0.05,"corresponds to a typical ccd 'i'-shift of %.2f pixels"%(mean_shift_i),
+                    va="bottom",ha="center", transform=ax.transAxes, color="k",
+                    bbox={'facecolor':'w', 'alpha':0.7,'edgecolor':'0.5', "boxstyle":"round"})
+        
+        ax.set_title("obs: %s | airmass: %.2f"%(self.cube.filename.split("/")[-1],self.cube.header["AIRMASS"]),
+                fontsize="medium", color="0.5")
+
+        ax.set_ylim(0, ax.get_ylim()[-1]*1.2 )
+        if savefile is not None:
+            fig.savefig(savefile)
+        if show:
+            fig.show()
+
+        
+    # ================== #
+    #   Properties       #
+    # ================== #
+    @property
+    def cube(self):
+        """ pyifu 3d cube """
+        return self._properties["cube"]
+    
+    @property
+    def mapper(self):
+        """ object containing the ccd to 3d cube conversion tools """
+        return self._properties["mapper"]
+
+    # -- derived
+    @property
+    def fitvalues_sodiumlines(self):
+        """ """
+        if self._derived_properties["fitvalues_sodiumlines"] is None:
+            raise AttributeError("fitvalues_sodiumlines has not yet be derived. See the `fit_cube_sodiumlines()` method")
+        return self._derived_properties["fitvalues_sodiumlines"]
 
 ###########################
 #                         #

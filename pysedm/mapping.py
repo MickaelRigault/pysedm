@@ -23,7 +23,6 @@ INVERTED_LBDA_X = True
 #   The Mapping Class    #
 #                        #
 ##########################
-
 class Mapper( BaseObject ):
     """ """
     PROPERTIES = ["tracematch","hexagrid", "wavesolution"]
@@ -275,3 +274,4 @@ class Mapper( BaseObject ):
         if self._derived_properties["spaxel_polygon"] is None:
             raise AttributeError("spaxel_mapping not defined. See `derive_spaxel_mapping()` method")
         return self._derived_properties["spaxel_polygon"]
+

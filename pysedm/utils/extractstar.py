@@ -94,7 +94,8 @@ def fit_psf_parameters(cube,lbda_range = [4500,7500], nbins=10,
     # Step 1, All Free parameters
     psfcube.fit_slices(lbda_range=lbda_range, nbins=nbins, 
                        ell_guess=0.05, ell_boundaries=[0,0.9], ell_fixed=False,
-                       theta_guess=1.5, theta_boundaries=[0,np.pi], theta_fixed=False, 
+                       theta_guess=1.5, theta_boundaries=[0,np.pi], theta_fixed=False,
+                       stddev_boundaries=[1.1, 5],
                        stddev_ratio_guess=1.7,
                        stddev_ratio_boundaries=[1.1,4],
                        stddev_ratio_fixed=False)
@@ -130,6 +131,7 @@ def fit_psf_parameters(cube,lbda_range = [4500,7500], nbins=10,
         fitprop[k+"_guess"] = v
         fitprop[k+"_fixed"] = True
 
+    fitprop["stddev_boundaries"] = [1,5]
     psfcube.fit_slices(lbda_range=lbda_range, nbins=nbins, **fitprop)
     ntry = 0
     indexes = None
@@ -1400,7 +1402,7 @@ class BiNormalCont( _PSFSliceModel_ ):
                            ycentroid_guess=y0, ycentroid_boundaries=[y0-3,y0+3],
                            # - STD
                            stddev_guess = std_mean,
-                           stddev_boundaries=[0.8,std_mean*3],
+                           stddev_boundaries=[0.8,std_mean*2],
                            # - background
                            bkgd_guess=np.percentile(data,10),
                            # Converges faster by allowing degenerated param...

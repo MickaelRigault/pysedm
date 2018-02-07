@@ -203,9 +203,6 @@ def get_boxing_polygone(x, y, rangex, width,
     
     return  geometry.Polygon(vertices)
 
-
-
-
 # ------------------------- # 
 #   MultiProcessing Tracing #
 # ------------------------- #
@@ -269,8 +266,8 @@ class TraceMatch( BaseObject ):
     """
     PROPERTIES         = ["trace_vertices","subpixelization"]
     SIDE_PROPERTIES    = ["trace_masks"]
-    DERIVED_PROPERTIES = ["tracecolor", "facecolor","maskimage",
-                          "rmap","gmap","bmap",
+    DERIVED_PROPERTIES = ["tracecolor", "facecolor", "maskimage",
+                          "rmap", "gmap", "bmap",
                           "trace_polygons"]
 
     # ===================== #
@@ -365,7 +362,9 @@ class TraceMatch( BaseObject ):
     # --------- #
     #  GETTER   #
     # --------- #
-
+    def get_trace_central_line(self, traceindex):
+        """ """
+        
     # Trace crossing 
     def get_traces_crossing_x(self, xpixel, ymin=-1, ymax=1e5):
         """ traceindexes of the traces crossing the 'xpixel' vertical line

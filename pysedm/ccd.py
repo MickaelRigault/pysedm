@@ -459,7 +459,7 @@ class CCD( BaseCCD ):
             self.set_background( self._background.background, force_it=True)
             
     def extract_spectrum(self, traceindex, cubesolution, lbda=None, kind="cubic",
-                             get_spectrum=True, finetune=False):
+                             get_spectrum=True, pixel_shift=0.):
         """ Build the `traceindex` spectrum based on the given wavelength solution.
         The returned object could be an pyifu's Spectrum or three arrays, lbda, flux, variance.
         
@@ -503,14 +503,14 @@ class CCD( BaseCCD ):
         Spectrum or
         array, array, array/None (lbda, flux, variance)
         """
-        f = self.get_spectrum(traceindex, finetune=finetune)
-        v = self.get_spectrum(traceindex, finetune=finetune, on="var") if self.has_var() else None
-        pixs = np.arange(len(f))[::-1]
+        f = self.get_spectrum(traceindex, finetune=False)
+        v = self.get_spectrum(traceindex, finetune=False, on="var") if self.has_var() else None
+        pixs = np.arange(len(f))[::-1] 
         minpix, maxpix = self.tracematch.get_trace_xbounds(traceindex)
         mask = pixs[(pixs>minpix)* (pixs<maxpix)][::-1]
         if lbda is not None:
             from scipy.interpolate     import interp1d
-            pxl_wanted = cubesolution.lbda_to_pixels(lbda, traceindex)
+            pxl_wanted = cubesolution.lbda_to_pixels(lbda, traceindex) + pixel_shift
             flux = interp1d(pixs[mask], f[mask], kind=kind)(pxl_wanted)
             var  = interp1d(pixs[mask], v[mask], kind=kind)(pxl_wanted) if v is not None else v
         else:
@@ -530,8 +530,8 @@ class CCD( BaseCCD ):
     #  Extract Cube   #
     # --------------- #
     def extract_cube(self, wavesolution, lbda,
-                         hexagrid=None, traceindexes=None,
-                         finetune_trace=False, show_progress=False):
+                         hexagrid=None, traceindexes=None, show_progress=False,
+                         pixel_shift=0.):
         """ Create a cube from the ccd.
 
         ------------------------------------
@@ -573,10 +573,6 @@ class CCD( BaseCCD ):
             If not given (None) this will used all the traceindexes for which there 
             is a wavelength solution (wavesolution)
         
-        finetune_trace: [bool] -optional-
-            DECREPEATED
-            Should this use the finetuning traces for the masking of the ccd.
-
         show_progress: [bool] -optional-
             Should the progress within the loop over traceindexes should be 
             shown (using astropy's ProgressBar)
@@ -607,17 +603,18 @@ class CCD( BaseCCD ):
         # MultiProcess #
         # ------------ #
         def _build_ith_flux_(i_):
-            try:
-                lbda_, flux_, variance_ = self.extract_spectrum(i_, wavesolution, lbda=lbda,
-                                                                get_spectrum=False, finetune=finetune_trace)
-                cubeflux_[i_] = flux_
-                if cubevar_ is not None:
-                    cubevar_[i_] = variance_
-            except:
-                warnings.warn("FAILED FOR %s. Most likely, the requested wavelength are not fully covered by the trace"%i_)
-                cubeflux_[i_] = np.zeros(len(lbda))*np.NaN
-                if cubevar_ is not None:
-                    cubevar_[i_] = np.zeros(len(lbda))*np.NaN
+                
+            lbda_, flux_, variance_ = self.extract_spectrum(i_, wavesolution, lbda=lbda,
+                                                                get_spectrum=False,
+                                                                pixel_shift=pixel_shift)
+            cubeflux_[i_] = flux_
+            if cubevar_ is not None:
+                cubevar_[i_] = variance_
+            #except:
+            #    warnings.warn("FAILED FOR %s. Most likely, the requested wavelength are not fully covered by the trace"%i_)
+            #    cubeflux_[i_] = np.zeros(len(lbda))*np.NaN
+            #    if cubevar_ is not None:
+            #        cubevar_[i_] = np.zeros(len(lbda))*np.NaN
                     
         # ------------ #
         # - MultiThreading to speed this up
@@ -799,8 +796,6 @@ class CCD( BaseCCD ):
                 ax.set_xlabel("pixels since trace origin")
                 
         return {"fig":fig}
-    
-
             
     def display_traces(self, ax, traceindex, facecolors="None", edgecolors="k",
                              update_limits=True):

@@ -66,15 +66,18 @@ def get_palomar_extinction():
     spec._source = "Hayes & Latham 1975"
     return spec
 
-
 # ------------------ #
 #  Builder           #
 # ------------------ #
 def build_sedmcube(ccd, date, lbda=None, flatfield=None,
                    wavesolution=None, hexagrid=None,
+                   flexure_corrected=True,
+                   pixel_shift=0,
                    flatfielded=True, atmcorrected=True,
                    calibration_ref=None,
-                   build_calibrated_cube=False):
+                   build_calibrated_cube=False,
+                   savefig=True,
+                   return_cube=False):
     """ Build a cube from the an IFU ccd image. This image 
     should be bias corrected and cosmic ray corrected.
 
@@ -95,6 +98,9 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
         wavelength array used to build the cube. 
         If not given the default sedm wavelength range will be used. 
         See pysedm.sedm.SEDM_LBDA.
+        
+    return_cube: [bool] -optional-
+        Shall this function return the cube (True) or save it (False)?
 
     // Cube Calibrator //
     
@@ -110,6 +116,9 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
         Object containing the relative transmission of the IFU spaxels.
         If None, this will be loaded using `date`.
 
+    pixel_shift: [float] -optional-
+        number of i-ccd pixel shift (usually a fraction of pixel) caused by flexure.
+        
     // Action Selection //
     
     flatfielded: [bool] -optional-
@@ -133,9 +142,16 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
 
     Returns
     -------
-    Void
+    Void (or Cube if return_cube set to True)
     """
     from . import io
+    # - IO information
+    if np.any([calibkey_ in ccd.filename for calibkey_ in CALIBFILES]):
+        filout = "%s"%(ccd.filename.split("/")[-1].split(".fits")[0])
+    else:
+        filout = "%s_%s"%(ccd.filename.split("/")[-1].split(".fits")[0], ccd.objname)
+    fileout =    io.get_datapath(date)+"%s_%s.fits"%(PROD_CUBEROOT,filout)
+    
     # - INPUT [optional]
     if hexagrid is None:
         hexagrid     = io.load_nightly_hexagonalgrid(date)
@@ -151,7 +167,8 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
         flatfield = io.load_nightly_flat(date)
         
     # - Build the Cube
-    cube = ccd.extract_cube(wavesolution, lbda, hexagrid=hexagrid, show_progress=True)
+    cube = ccd.extract_cube(wavesolution, lbda, hexagrid=hexagrid, show_progress=True,
+                            pixel_shift=pixel_shift)
 
     # - passing the header inforation
     for k,v in ccd.header.items():
@@ -159,7 +176,7 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
             cube.header[k] = v
 
     cube.header['ORIGIN'] = (ccd.filename.split('/')[-1], "CCD filename used to build the cube")
-    
+
     # - Flat Field the cube
     if flatfielded:
         cube.scale_by(flatfield.data)
@@ -179,16 +196,47 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
         cube.header['ATMSCALE'] = (np.nanmean(extinction), "Mean atm correction over the entire wavelength range")
     else:
         cube.header['ATMCORR']  = (False, "Has the Atmosphere extinction been corrected?")
-
         
-    # - Saving it
-    
-    if np.any([calibkey_ in ccd.filename for calibkey_ in CALIBFILES]):
-        filout = "%s"%(ccd.filename.split("/")[-1].split(".fits")[0])
+    # - Flexure Correction
+    if flexure_corrected:
+        print("Flexure Correction ongoing ")
+        from .wavesolution import Flexure
+        from .mapping import Mapper
+        mapper = Mapper(tracematch= ccd.tracematch, wavesolution = wavesolution, hexagrid=hexagrid)
+        mapper.derive_spaxel_mapping( list(wavesolution.wavesolutions.keys()) )
+        
+        flexure = Flexure(cube, mapper=mapper)
+        flexure.fit_cube_sodiumlines()
+        if savefig:
+            cube._side_properties["filename"] = fileout
+            savefile= fileout.replace(PROD_CUBEROOT,"flex_sodiumline_"+PROD_CUBEROOT).replace(".fits",".pdf")
+            flexure.show(savefile=savefile,show=False)
+            
+        i_shift = np.mean(list(flexure.get_i_shift(as_slice=False).values()))
+        
+        print("Getting the flexure corrected cube. ")
+        cube = build_sedmcube(ccd, date, lbda=lbda, flatfield=flatfield,
+                                  wavesolution=wavesolution, hexagrid=hexagrid,
+                                  flatfielded=flatfielded, atmcorrected=atmcorrected,
+                                  calibration_ref=calibration_ref,
+                                  build_calibrated_cube=build_calibrated_cube,
+                                  savefig=savefig,
+                                  # Flexure Change
+                                  flexure_corrected=False,
+                                  pixel_shift= i_shift,
+                                  return_cube=True)
+        cube.header['FLXCORR']  = (True, "Has the Flexure been corrected?")
+        cube.header['FLXSCALE'] = (i_shift, "Number of i (ccd-x) pixel shifted")
     else:
-        filout = "%s_%s"%(ccd.filename.split("/")[-1].split(".fits")[0], ccd.objname)
+        cube.header['FLXCORR']  = (False, "Has the Flexure been corrected?")
+        cube.header['FLXSCALE'] = (0, "Number of i (ccd-x) pixel shifted")
         
-    fileout =    io.get_datapath(date)+"%s_%s.fits"%(PROD_CUBEROOT,filout) 
+            
+    
+    # - Return it.
+    if return_cube:
+        return cube
+    
     cube.writeto(fileout)
 
     # - Build Also a flux calibrated cube?
@@ -394,7 +442,6 @@ def display_on_hexagrid(value, traceindexes,
 #    SEDMachine Cube            #
 #                               #
 #################################
-    
 class SEDMCube( Cube ):
     """ SEDM Cube """
     DERIVED_PROPERTIES = ["sky"]

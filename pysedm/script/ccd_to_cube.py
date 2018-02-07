@@ -14,7 +14,7 @@ from .. import io
 
 from ..ccd import get_ccd
 from ..spectralmatching import get_tracematcher, illustrate_traces, load_trace_masks
-from ..wavesolution import get_wavesolution
+from ..wavesolution import get_wavesolution, Flexure
 
 from ..sedm import INDEX_CCD_CONTOURS, TRACE_DISPERSION, build_sedmcube, build_calibrated_sedmcube, SEDM_LBDA
 
@@ -324,8 +324,9 @@ def build_night_cubes(date, target=None, lamps=True, only_lamps=False,
 def build_cubes(ccdfiles,  date, lbda=None,
                 tracematch=None, wavesolution=None, hexagrid=None,
                 flatfielded=True, flatfield=None,
-                atmcorrected=True, 
-                build_calibrated_cube=True, calibration_ref=None):
+                atmcorrected=True, flexure_corrected=True, 
+                build_calibrated_cube=True, calibration_ref=None,
+                savefig=True):
     """ Build a cube from the an IFU ccd image. This image 
     should be bias corrected and cosmic ray corrected.
 
@@ -362,7 +363,12 @@ def build_cubes(ccdfiles,  date, lbda=None,
         If None, this will be loaded using `date`.
 
     // Action Selection //
-    
+    flexure_corrected: [bool] -optional-
+        Shall the cube be flexure corrected ?
+        - Remark, this means the cube will be built twice: 
+            - 1 time to estimated the flexure
+            - 1 time with flexure correction applied.
+
     flatfielded: [bool] -optional-
         Shall the cube be flatfielded?
         - This information will be saved in the header-
@@ -404,7 +410,9 @@ def build_cubes(ccdfiles,  date, lbda=None,
 
     if flatfielded and flatfield is None:
         flatfield = io.load_nightly_flat(date)
-
+    # - In Summary, a Mapper
+    
+    
     # ---------------- #
     # Loading the CCDS #
     # ---------------- #
@@ -422,12 +430,20 @@ def build_cubes(ccdfiles,  date, lbda=None,
     # ---------------- #
     # internal routine 
     def _build_cubes_(ccdin):
-        build_sedmcube(ccdin,
-                        date, lbda=lbda, wavesolution=wavesolution, hexagrid=hexagrid,
-                        flatfielded=flatfielded, flatfield=flatfield,
-                        atmcorrected=atmcorrected,  
-                        build_calibrated_cube=build_calibrated_cube,
-                        calibration_ref=calibration_ref)
+        print(ccdin.filename)
+        prop = dict(lbda=lbda, wavesolution=wavesolution, hexagrid=hexagrid,
+                    flexure_corrected=flexure_corrected,
+                    flatfielded=flatfielded, flatfield=flatfield,
+                    atmcorrected=atmcorrected, 
+                    build_calibrated_cube=build_calibrated_cube,
+                    calibration_ref=calibration_ref,
+                    savefig=savefig)
+        try:
+            build_sedmcube(ccdin, date,  **prop)
+        except:
+            warnings.warn("FAILED building cube for ccd: %s"%ccdin.filename.split("/")[-1])
+            
+            
     # The actual build
     if len(ccds)>1:
         from astropy.utils.console import ProgressBar

@@ -38,6 +38,7 @@ PRODSTRUCT_RE = {"ccd":{"lamp":"^(dome|Hg|Cd|Xe)",
               }
 
 __all__ = ["get_night_files",
+               "load_nightly_mapper",
                "load_nightly_tracematch","load_nightly_hexagonalgrid",
                "load_nightly_wavesolution","load_nightly_flat"]
 
@@ -167,6 +168,24 @@ def is_stdstars(header):
 #   NIGHT SOLUTION      #
 #                       #
 #########################
+# - Mapper
+def load_nightly_mapper(YYYYMMDD, within_ccd_contours=True):
+    """ High level object to do i,j<->x,y,lbda """
+    from .mapping import Mapper
+    
+    tracematch = load_nightly_tracematch(YYYYMMDD)
+    wsol       = load_nightly_wavesolution(YYYYMMDD)
+    hgrid      = load_nightly_hexagonalgrid(YYYYMMDD)
+    if within_ccd_contours:
+        from .sedm import INDEX_CCD_CONTOURS
+        indexes = tracematch.get_traces_within_polygon(INDEX_CCD_CONTOURS)
+    else:
+        indexes = tracematch.trace_indexes
+    
+    mapper = Mapper(tracematch= tracematch, wavesolution = wsol, hexagrid=hgrid)
+    mapper.derive_spaxel_mapping( indexes )
+    return mapper
+
 # - TraceMatch
 def load_nightly_tracematch(YYYYMMDD, withmask=False):
     """ Load the spectral matcher.

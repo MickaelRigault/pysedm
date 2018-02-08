@@ -119,7 +119,6 @@ def fit_psf_parameters(cube,lbda_range = [4500,7500], nbins=10,
                 
             ax_.tick_params(color="0.5", labelcolor="0.5")
 
-        fig.tight_layout()
         axes_step1[-1].text(1.1,0.5, "First Fit Iteration", fontsize="large",
                             transform = axes_step1[-1].transAxes, rotation=-90,
                             va="center", ha="left")

@@ -46,6 +46,14 @@ TELLURIC_REGIONS = {
     "H2O":[[5880.5,5959.6],[6466.5,6522.2],[6979.3,7067.2],[7143.3,7398.2],[7887.6,8045.8],[8083.9,8420.8],[8916.0,9929.8]]
     }
 
+def load_telluric_spectrum(filename, filter=None):
+    """ """
+    spec_ = TelluricLines(None)
+    spec_.load(filename)
+    if filter is not None:
+        return spec_.filter(filter)
+    return spec_
+
 def get_telluric_spectrum(lbda, flux, variance=None, header=None,
                           filter=None):
     """ """

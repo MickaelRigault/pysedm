@@ -164,19 +164,27 @@ if  __name__ == "__main__":
             speccal.writeto(filename_inv)
                                 
             # - Checkplot
-            pl = speccal.show(color="C1", lw=2, show=False, savefile=None)
-            ax = pl["ax"]
-            ax.set_ylabel('Inverse Sensitivity')
-            ax.set_yscale("log")
-            # telluric
-            ax.axvspan(7500,7800, color="0.7", alpha=0.4) 
-            ax.text(7700,ax.get_ylim()[-1],  "O2 Telluric ", 
-                        va="top", ha="center",  rotation=90,color="0.2", zorder=9)
-            # reference            
-            axrspec = ax.twinx()
-            spec.show(ax=axrspec, color="C0",  label="obs.", show=False, savefile=None)
-            axrspec.set_yticks([])
-            axrspec.legend(loc="upper right")
-            axrspec.set_title("Source:%s | Airmass:%.2f"%(spec.filename.split('/')[-1],spec.header['AIRMASS']),
-                    fontsize="small", color="0.5")
-            ax.figure.figout(savefile=speccal.filename.replace(".fits",".pdf"))
+            if not args.nofig:
+                pl = speccal.show(color="C1", lw=2, show=False, savefile=None)
+                ax = pl["ax"]
+                ax.set_ylabel('Inverse Sensitivity')
+                ax.set_yscale("log")
+                # telluric
+                ax.axvspan(7580,7710, color="0.7", alpha=0.4) 
+                ax.text(7700,ax.get_ylim()[-1],  "O2 Telluric ", 
+                        va="top", ha="center",  rotation=90,color="0.2",
+                        zorder=9, fontsize=11)
+                
+                ax.axvspan(6850,7000, color="0.7", alpha=0.2) 
+                ax.text(6900,ax.get_ylim()[-1],  "O2 Telluric ", 
+                        va="top", ha="center",  rotation=90,color="0.1",
+                        zorder=9, fontsize=11)
+                
+                # reference            
+                axrspec = ax.twinx()
+                spec.show(ax=axrspec, color="C0",  label="obs.", show=False, savefile=None)
+                axrspec.set_yticks([])
+                axrspec.legend(loc="upper right")
+                axrspec.set_title("Source:%s | Airmass:%.2f"%(spec.filename.split('/')[-1],spec.header['AIRMASS']),
+                                      fontsize="small", color="0.5")
+                ax.figure.figout(savefile=speccal.filename.replace(".fits",".pdf"))

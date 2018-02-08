@@ -11,13 +11,14 @@ MAINTAINER_EMAIL = 'mickael.rigault@clermont.in2p3.fr'
 URL = 'https://github.com/MickaelRigault/pysedm/'
 LICENSE = 'BSD (3-clause)'
 DOWNLOAD_URL = 'https://github.com/MickaelRigault/pysedm/tarball/0.8'
-VERSION = '0.8.0'
+VERSION = '0.8.2'
 
 try:
     from setuptools import setup, find_packages
-    _has_setuptools = True
+    _has_setuptools = False
 except ImportError:
     from distutils.core import setup
+
 
 def check_dependencies():
     install_requires = []
@@ -63,7 +64,8 @@ if __name__ == "__main__":
                    "bin/cube_quality.py",
                    "bin/derive_wavesolution.py"],
           packages=packages,
-          package_data={'pysedm': []},
+          include_package_data=True,
+          package_data={'pysedm': ['data/*.*']},
           classifiers=[
               'Intended Audience :: Science/Research',
               'Programming Language :: Python :: 2.7',

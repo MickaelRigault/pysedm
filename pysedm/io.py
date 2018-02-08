@@ -10,7 +10,7 @@ from glob import glob
 
 
 REDUXPATH   = os.getenv('SEDMREDUXPATH',default="~/redux/")
-
+_PACKAGE_ROOT = os.path.abspath(os.path.dirname(__file__))+"/"
 ############################
 #                          #
 #  PROD/DB STRUCTURE       #
@@ -226,3 +226,26 @@ def load_nightly_flat(YYYYMMDD):
     """
     from pyifu.spectroscopy import load_slice
     return load_slice(get_datapath(YYYYMMDD)+"%s_Flat.fits"%(YYYYMMDD))
+
+
+#########################
+#                       #
+#   Atmophere           #
+#                       #
+#########################
+def load_telluric_line(filter=None):
+    """ return a TelluricSpectrum (child of pyifu Spectrum) containing the telluric emission line
+    from Kitt Peak National Observatory.
+    
+    Source:
+       Buton et al. 2013 (SNIFS, Buton, C., Copin, Y., Aldering, G., et al. 2013, A&A, 549, A8) 
+       using data from
+       Hinkle, K. H., Wallace, L., & Livingston, W. 2003, BAAS, 35, 1260.
+       _Please cite both._
+       
+    Returns
+    -------
+    TelluricSpectrum (child of pyifu Spectrum)
+    """
+    from .utils.atmosphere import load_telluric_spectrum
+    return load_telluric_spectrum(_PACKAGE_ROOT+"data/KPNO_lines.fits", filter=filter)

@@ -336,11 +336,22 @@ class Flexure( BaseObject ):
                            indexes=self.mapper.traceindexes)
     
     def get_cube_sodiumline_wavelength(self, array=False):
-        """ """
+        """ get the cube sodium line position.
+        If array=True: the fitted sodium lines and there errors are returns
+        otherwise, a robust esitmation of the mean sodium (and error) line is returned
+
+        Robustness: cases more than 2 nMAD times away from the median are excluded.
+        """
+        from astropy.stats import mad_std
         mus, muserr = np.asarray([[v["mu0"],v["mu0.err"]] for v in self.fitvalues_sodiumlines]).T
         if array:
             return mus, muserr
-        return np.average(mus, weights=1/muserr**2), np.std(mus)/np.sqrt(len(mus)-1)
+        
+        # - robust calc:
+        median  = np.nanmedian(mus)
+        nmad    = mad_std(mus[mus==mus])
+        flagin = np.abs(mus-median) <= nmad*2.
+        return np.mean(mus[flagin]), np.std(mus[flagin])/np.sqrt(len(mus[flagin])-1)
     
     
     # --------- #

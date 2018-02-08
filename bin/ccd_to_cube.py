@@ -157,7 +157,6 @@ if  __name__ == "__main__":
         ntest = None if "None" in args.wavesoltest else int(args.wavesoltest)
         spaxelrange = None if "None" in args.spaxelrange else np.asarray(args.spaxelrange.split(","), dtype="int")
 
-        
         build_wavesolution(date, ntest=ntest, use_fine_tuned_traces=False,
                             idxrange=spaxelrange,
                             lamps=["Hg","Cd","Xe"], saveindividuals=args.wavesolplots,

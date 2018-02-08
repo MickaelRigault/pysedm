@@ -286,12 +286,15 @@ def build_wavesolution(date, verbose=False, ntest=None, idxrange=None,
     dump_pkl(csolution.wavesolutions, timedir+"%s.pkl"%outfile)
     
     if savefig:
-        print("Saving Wavesolution plot")
-        wsol = io.load_nightly_wavesolution(date)
-        hexagrid = io.load_nightly_hexagonalgrid(date)
-        pl = wsol.show_dispersion_map(hexagrid,vmin="0.5",vmax="99.5",
-                                outlier_highlight=5, show=False)
-        pl['fig'].savefig(timedir+"%s_wavesolution_dispersionmap.pdf"%date)
+        if ntest is not None or idxrange is not None:
+            print("No WaveSolution saving plot when ntest or idxrange are set. ")
+        else:
+            print("Saving Wavesolution plot")
+            wsol = io.load_nightly_wavesolution(date)
+            hexagrid = io.load_nightly_hexagonalgrid(date)
+            pl = wsol.show_dispersion_map(hexagrid,vmin="0.5",vmax="99.5",
+                                              outlier_highlight=5, show=False)
+            pl['fig'].savefig(timedir+"%s_wavesolution_dispersionmap.pdf"%date)
 
         
         

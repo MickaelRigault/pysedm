@@ -34,7 +34,8 @@ PRODSTRUCT_RE = {"ccd":{"lamp":"^(dome|Hg|Cd|Xe)",
                          "forcepsf":"^(%s_forcepsf).((?!cal))"%PROD_SPECROOT, # starts w/ e3d & not containing cal
                          "calibrated":"^(%s_cal)"%PROD_SPECROOT,
                          "defaultcalibrated":"^(%s_defcal)"%PROD_SPECROOT,
-                         "invsensitivity":"^(%s)"%PROD_SENSITIVITYROOT}
+                         "invsensitivity":"^(%s)"%PROD_SENSITIVITYROOT},
+                "psf": {"param":"^(%s)(?=.*json)"%"psf"} #.json files containing the psf fitvalues and fitted adr.
               }
 
 __all__ = ["get_night_files",
@@ -116,9 +117,11 @@ def get_night_files(date, kind, target=None, extention=".fits"):
                  (target is None or re.search(r'%s'%target, f)) and
                  (extention is None or re.search(r'%s'%extention, f))]
 
-# ---------------- #
-#  Reading the DB  #
-# ---------------- #
+#########################
+#                       #
+#   Reading the DB      #
+#                       #
+#########################
 def get_datapath(YYYYMMDD):
     """ Return the full path of the current date """
     return REDUXPATH+"/%s/"%YYYYMMDD
@@ -227,10 +230,29 @@ def load_nightly_flat(YYYYMMDD):
     from pyifu.spectroscopy import load_slice
     return load_slice(get_datapath(YYYYMMDD)+"%s_Flat.fits"%(YYYYMMDD))
 
+#########################
+#                       #
+#   PSF Product         #
+#                       #
+#########################
+def get_psf_parameters(date, target=None, filepath=False):
+    """ """
+    path = get_datapath(date)
+    if target == "*":
+        target = None
+    json_files =  [path+f for f in os.listdir(get_datapath(date))
+                       if re.search(r'%s'%PRODSTRUCT_RE["psf"]["param"], f)
+                       and (target is None or re.search(r'%s'%target, f))]
+    if filepath:
+        return json_files
+    import json
+    return {f.split("/")[-1]:json.load( open(f) ) for f in json_files}
+                    
+
 
 #########################
 #                       #
-#   Atmophere           #
+#   References          #
 #                       #
 #########################
 def load_telluric_line(filter=None):

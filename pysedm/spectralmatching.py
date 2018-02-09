@@ -235,7 +235,8 @@ def verts_to_mask(verts):
     return maskfull.T
     
 
-def load_trace_masks(tmatch, traceindexes=None, multiprocess=True, notebook=True):
+def load_trace_masks(tmatch, traceindexes=None, multiprocess=True,
+                         notebook=True, ncore=None):
     """ """
     if traceindexes is None:
         traceindexes = tmatch.trace_indexes
@@ -243,7 +244,12 @@ def load_trace_masks(tmatch, traceindexes=None, multiprocess=True, notebook=True
     if multiprocess:
         import multiprocessing
         bar = ProgressBar( len(traceindexes), ipython_widget=notebook)
-        p = multiprocessing.Pool()
+        if ncore is None:
+            ncore = multiprocessing.cpu_count() - 1
+            if ncore==0:
+                ncore = 1
+                
+        p = multiprocessing.Pool(ncore)
         for j, mask in enumerate( p.imap(verts_to_mask, [tmatch.trace_vertices[i_] for i_ in traceindexes])):
             tmatch.set_trace_masks(sparse.csr_matrix(mask), traceindexes[j])
             bar.update(j)

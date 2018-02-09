@@ -418,7 +418,9 @@ class _PSF3D_( BaseObject ):
         "profile":{PROFILE_PARAMETERS}
         }
         """
-        self.set_psfdata( load_dict(datafile) )
+        import json
+        
+        self.set_psfdata( json.load(open(datafile)) )
 
     def set_psfdata(self, data):
         """ """
@@ -986,9 +988,11 @@ class FitPSF( BaseObject ):
         
         # - adr
         adr_profile = self.adrmodel.data.copy()
-        adr_profile["xref"],adr_profile["yref"] = [self.adrfitter.fitvalues[k] for k in ["xref","yref"]]
-        adr_profile["unit"] = self.adrfitter.fitvalues["unit"]
-        adr_profile["unit"] = self.adrfitter.fitvalues["unit"]
+        adr_profile["xref"],    adr_profile["yref"] = [self.adrfitter.fitvalues[k] for k in ["xref","yref"]]
+        adr_profile["xref.err"],adr_profile["yref.err"] = [self.adrfitter.fitvalues[k] for k in ["xref.err","yref.err"]]
+        adr_profile["unit"]         = self.adrfitter.fitvalues["unit"]
+        adr_profile["airmass.err"]  = self.adrfitter.fitvalues["airmass.err"]
+        adr_profile["parangle.err"] = self.adrfitter.fitvalues["parangle.err"]
         adr_profile["parangle_ref"] = self.adrfitter.fitvalues["header_parangle"]
 
         return {"adr":adr_profile, "profile":dict_profile}

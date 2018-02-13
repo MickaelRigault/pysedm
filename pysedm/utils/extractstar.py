@@ -485,15 +485,13 @@ class _PSF3D_( BaseObject ):
 
 class PSF3D_BiNormalCont( _PSF3D_ ):
     """ """
-    PROPERTIES  = ["stddev_ref"]
+    PROPERTIES  = ["stddev_ref","stddev_rho"]
     PROFILE_PARAMETERS = ["stddev", "stddev_ratio", "amplitude_ratio",
                           "theta", "ell"]
         
     # =============== #
     #  Methods        #
     # =============== #        
-
-        
     def set_psfdata(self, data):
         """ Methods to set the dictionary:
         {adr:{ADR_PARAMETERS},
@@ -510,6 +508,7 @@ class PSF3D_BiNormalCont( _PSF3D_ ):
         
         # - Profile
         self.set_stddev_ref(data["profile"]["stddev_ref"])
+        self.set_stddev_rho(data["profile"]["stddev_rho"])
         self.set_profile_param(stddev         = self.get_stddev,
                               stddev_ratio    = data["profile"]["stddev_ratio"],
                               amplitude_ratio = data["profile"]["amplitude_ratio"],
@@ -524,6 +523,10 @@ class PSF3D_BiNormalCont( _PSF3D_ ):
     def set_stddev_ref(self, value):
         """ """
         self._properties["stddev_ref"] = value
+        
+    def set_stddev_rho(self, value):
+        """ """
+        self._properties["stddev_rho"] = value
 
     # -------- #
     # GETTER   #
@@ -532,9 +535,9 @@ class PSF3D_BiNormalCont( _PSF3D_ ):
         """ """
         return binormal_profile(x, y, **self.get_psf_param(lbda))
         
-        
-    def get_stddev(self, lbda, rho=-1/5.):
+    def get_stddev(self, lbda, rho=None):
         """ """
+        if rho is None: rho = self.stddev_rho
         return self.stddev_ref * (lbda / self.adr.lbdaref)**(rho)
     # ================== #
     #  Properties        #
@@ -543,6 +546,13 @@ class PSF3D_BiNormalCont( _PSF3D_ ):
     def stddev_ref(self):
         """ """
         return self._properties["stddev_ref"]
+    
+    @property
+    def stddev_rho(self):
+        """ """
+        if self._properties["stddev_rho"] is None:
+            self._properties["stddev_rho"] = -1/5.
+        return self._properties["stddev_rho"]
     
 ###########################
 #                         #
@@ -728,7 +738,7 @@ class FitPSF( BaseObject ):
     SIDE_PROPERTIES    = ["lbdas","profile"]
     DERIVED_PROPERTIES = ["slicefits","adrfitter",
                           "adrmodel","adr_parameters",
-                          "stddev_ref"]
+                          "stddev_ref","stddev_rho"]
     
     def __init__(self, datacube):
         """ """
@@ -777,9 +787,9 @@ class FitPSF( BaseObject ):
         
         return {"theta":theta,"stddev_ratio":stddev_ratio,"ell":ell, "amplitude_ratio":amplitude_ratio}
     
-    def get_stddev_trend(self, stdref, lbda):
+    def get_stddev_trend(self, stdref, lbda, rho):
         """ """
-        return stdref * (lbda / self.adrmodel.lbdaref)**(-1/6.)
+        return stdref * (lbda / self.adrmodel.lbdaref)**(rho)
         
     # --------------- #
     #  Fitter         #
@@ -840,11 +850,12 @@ class FitPSF( BaseObject ):
         
         stddev, estddev = np.asarray([self.get_psf_param(i, "stddev") for i in indexes]).T
 
-        def _fmin_(scale_):
-            return np.sum(np.sqrt((stddev-self.get_stddev_trend(scale_, lbdas))**2/estddev**2))
-        
-        self._derived_properties["stddev_ref"] = fmin(_fmin_, np.median(stddev), disp=0)[0]
-        return self.stddev_ref    
+        def _fmin_(param):
+            scale_, rho_ = param
+            return np.sum(np.sqrt((stddev-self.get_stddev_trend(scale_, lbdas, rho=rho_))**2/estddev**2))
+
+        self._derived_properties["stddev_ref"],self._derived_properties["stddev_rho"] = fmin(_fmin_, [np.median(stddev), -1/5.], disp=0)
+        return self.stddev_ref, self.stddev_rho
         
     def fit_adr_param(self, unit_guess=0.5, parangle_guess=70, indexes=None, **kwargs):
         """ Fir the ADR and set the `adrmodel` attribute.
@@ -957,7 +968,7 @@ class FitPSF( BaseObject ):
         ax.errorscatter(lbdas, v, dy=dv, zorder=2)
         
         lbdas_model = np.linspace(np.nanmin(lbdas)-10,np.nanmax(lbdas)+10,len(lbdas)*100)
-        ax.plot(lbdas_model, self.get_stddev_trend(self.stddev_ref, lbdas_model),
+        ax.plot(lbdas_model, self.get_stddev_trend(self.stddev_ref, lbdas_model, self.stddev_rho),
                     scalex=False, scaley=False, **kwargs)
         
         if set_labels:
@@ -984,6 +995,7 @@ class FitPSF( BaseObject ):
         # - profile
         dict_profile = self.get_const_parameters()
         dict_profile["stddev_ref"] = self.stddev_ref
+        dict_profile["stddev_rho"] = self.stddev_rho
         dict_profile["name"] = self.profile
         
         # - adr
@@ -1027,6 +1039,10 @@ class FitPSF( BaseObject ):
     def stddev_ref(self):
         """ The fitted stddev refence to be used with get_stddev_trend() """
         return self._derived_properties["stddev_ref"]
+    @property
+    def stddev_rho(self):
+        """ The fitted stddev power low coef to be used with get_stddev_trend() """
+        return self._derived_properties["stddev_rho"]
     # - ADR
     @property
     def adrfitter(self):

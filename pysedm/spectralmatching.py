@@ -245,9 +245,7 @@ def load_trace_masks(tmatch, traceindexes=None, multiprocess=True,
         import multiprocessing
         bar = ProgressBar( len(traceindexes), ipython_widget=notebook)
         if ncore is None:
-            ncore = multiprocessing.cpu_count() - 1
-            if ncore==0:
-                ncore = 1
+            ncore = np.max([multiprocessing.cpu_count() - 1,1])
                 
         p = multiprocessing.Pool(ncore)
         for j, mask in enumerate( p.imap(verts_to_mask, [tmatch.trace_vertices[i_] for i_ in traceindexes])):
@@ -271,7 +269,7 @@ class TraceMatch( BaseObject ):
     
     """
     PROPERTIES         = ["trace_vertices","subpixelization"]
-    SIDE_PROPERTIES    = ["trace_masks"]
+    SIDE_PROPERTIES    = ["trace_masks","ij_offset"]
     DERIVED_PROPERTIES = ["tracecolor", "facecolor", "maskimage",
                           "rmap", "gmap", "bmap",
                           "trace_polygons"]
@@ -333,7 +331,14 @@ class TraceMatch( BaseObject ):
         if "trace_masks" in data.keys():
             self._side_properties['trace_masks'] = data["trace_masks"]
             
-            
+
+    def add_trace_offset(self, i_offset, j_offset):
+        """ """
+        new_verts = {i:v + np.asarray([i_offset, j_offset]) for i,v in self.trace_vertices.items()}
+        self._side_properties['ij_offset'] = np.asarray([i_offset, j_offset])
+        self.set_trace_vertices(new_verts)
+        self._side_properties['trace_masks'] = None
+        
     # --------- #
     #  SETTER   #
     # --------- #
@@ -355,8 +360,7 @@ class TraceMatch( BaseObject ):
             self.build_tracemasking(**kwargs)
 
     def set_trace_masks(self, masks, traceindexes):
-        """ Attach to the current instance masks.
-        """
+        """ Attach to the current instance masks. """
         if is_arraylike(traceindexes):
             if len(masks) != len(traceindexes):
                 raise ValueError("masks and traceindexes do not have the same size.")
@@ -368,9 +372,7 @@ class TraceMatch( BaseObject ):
     # --------- #
     #  GETTER   #
     # --------- #
-    def get_trace_central_line(self, traceindex):
-        """ """
-        
+    
     # Trace crossing 
     def get_traces_crossing_x(self, xpixel, ymin=-1, ymax=1e5):
         """ traceindexes of the traces crossing the 'xpixel' vertical line
@@ -654,7 +656,7 @@ class TraceMatch( BaseObject ):
     # ------------ #
     #  Methods     #
     # ------------ #
-    def build_tracemasking(self, subpixelization=1, width=2048, height=2048):
+    def build_tracemasking(self, subpixelization=5, width=2048, height=2048):
         """ 
         This will build the internal tools to identify the connections between
         traceindex and ccd-pixels
@@ -738,6 +740,14 @@ class TraceMatch( BaseObject ):
         if not _HAS_SHAPELY:
             raise ImportError("You do not have shapely. this porpoerty needs it. pip install Shapely")
         return self._derived_properties["trace_polygons"]
+
+    @property
+    def ij_offset(self):
+        """ By how much the traces are offseted in comparison to the night_tracematch """
+        if self._side_properties["ij_offset"] is None:
+            return [0,0]
+        return self._side_properties["ij_offset"]
+    
     # ------------ #
     #  Masks       #
     # ------------ #

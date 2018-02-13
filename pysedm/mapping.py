@@ -91,7 +91,24 @@ class Mapper( BaseObject ):
         lbda       = self.ij_to_lbda(i, traceindex)
         x,y        = self.traceindex_to_xy(traceindex)
         return np.asarray([x,y,lbda])
-    
+
+    def get_expected_j(self, i,j):
+        """ fetch the traceindex associated to the i,j coordinates
+        and then returns where the j is supposed to be if the trace where perfectly 
+        aligned. 
+        
+        Reminder: i,j are the CCD coordinates
+                  q,r are the MLA hexagonal coordiates
+                  x,y are the MLA coordinate (in spaxels)
+                  traceindex is the unique ID of a spaxel on the ccd
+            
+        """
+        traceindex = self.ij_to_traceindex(i,j)
+        if is_arraylike(traceindex):
+            return [self.traceindexi_to_j(t_,i) for t_ in traceindex]
+        
+        return self.traceindexi_to_j(traceindex,i)[1]
+            
     # ------------- #
     #  CONVERSION   #
     # ------------- #
@@ -108,17 +125,17 @@ class Mapper( BaseObject ):
         Remark: j is the center of the trace for the column corresponding to the wavelength 
         """
         i =  self.wavesolution.lbda_to_pixels(lbda, traceindex)
-        return self._traceindexi_to_j(traceindex, i)
+        return self.traceindexi_to_j(traceindex, i)
     
-    def _traceindexi_to_j(self, traceindex, i, maxlines=1e4):
+    def traceindexi_to_j(self, traceindex, i, maxlines=1e4):
         """ get thethe center of the trace `traceindex` for the column `i`"""
         if is_arraylike(i):
-            return np.asarray([self._traceindexi_to_j(traceindex, i_) for _ in i])
+            return np.asarray([self.traceindexi_to_j(traceindex, i_) for _ in i])
         
         if i is None: return np.asarray([None,None])
         i_eff = (CCD_SHAPE[1]-1)-i if INVERTED_LBDA_X else i # -1 because starts at 0
-        return np.mean(self.tracematch.trace_polygons[traceindex].intersection(LineString([[i_eff,0],[i_eff, maxlines]])), axis=0)
-    
+        return i,np.mean(self.tracematch.trace_polygons[traceindex].intersection(LineString([[i_eff,0],[i_eff, maxlines]])), axis=0)[1]
+
     # .................... #
     #  i,j <-> traceindex  #
     # .................... #

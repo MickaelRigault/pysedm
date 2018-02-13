@@ -78,7 +78,6 @@ if  __name__ == "__main__":
     parser.add_argument('--flatlbda',  type=str, default="7000,9000",
                         help='The wavelength range for the flat field. Format: min,max [in Angstrom] ')
     
-
     # ----------------- #
     #  Short Cuts       #
     # ----------------- #
@@ -145,7 +144,7 @@ if  __name__ == "__main__":
     # ----------- 
     # - TraceMatch
     if args.tracematch or args.tracematchnomasks:
-        build_tracematcher(date, save_masks=args.tracematch,
+        build_tracematcher(date, save_masks= True if not args.tracematchnomasks else False,
                            notebook=False, rebuild=args.rebuild)
         
     # - Hexagonal Grid        

@@ -99,11 +99,11 @@ def fit_background(ccd, start=2, jump=10, multiprocess=True,
 
 
 def _fit_background_notebook_(ccd, start=2, jump=10, multiprocess=True,
-                                  is_std=False,
+                                  is_std=False, ncore=None,
                                   ipython_widget=True):
     """ calling `get_contvalue` for each ccd column (xslice).
     This uses astropy's ProgressBar.map 
-
+s
     ===
     This version of the code is made to be called from fit_background
     when this software detects that ipython is running from an notebook
@@ -119,7 +119,11 @@ def _fit_background_notebook_(ccd, start=2, jump=10, multiprocess=True,
     # - Multiprocessing 
     if multiprocess:
         import multiprocessing
-        p = multiprocessing.Pool()
+        if ncore is None:
+            ncore = multiprocessing.cpu_count() - 1
+            if ncore==0:
+                ncore = 1
+        p = multiprocessing.Pool(ncore)
         res = {}
         for j, result in enumerate( p.imap(get_contvalue if not is_std else get_contvalue_sdt,
                                                          [ccd.get_xslice(i_) for i_ in index_column])):

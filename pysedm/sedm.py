@@ -19,7 +19,7 @@ CALIBFILES = ["Hg.fits","Cd.fits","Xe.fits","dome.fits"]
 
 # --- CCD
 SEDM_CCD_SIZE = [2048, 2048]
-DOME_TRACEBOUNDS = [70,240]
+DOME_TRACEBOUNDS = [70,230]
 TRACE_DISPERSION = 1.3 # PSF (sigma assuming gaussian) of the traces on the CCD. 
 SEDMSPAXELS = np.asarray([[ np.sqrt(3.)/2., 1./2],[0, 1],[-np.sqrt(3.)/2., 1./2],
                           [-np.sqrt(3.)/2.,-1./2],[0,-1],[ np.sqrt(3.)/2.,-1./2]])*2/3.
@@ -243,21 +243,16 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
     if build_calibrated_cube:
         build_calibrated_sedmcube(fileout, date=date, calibration_ref=calibration_ref)
         
-def build_calibrated_sedmcube(cubefile, date=None, calibration_ref=None, kind=None):
+def build_calibrated_sedmcube(cubefile, date=None, calibration_ref=None, kindout=None):
     """ """
     
     if calibration_ref is None:
-        from .io import get_night_files
-        calfiles = get_night_files(date, "spec.fluxcal")
-        if len(calfiles)==0:
-            warnings.warn("No `fluxcalfiles` for date %s. No calibrated cube created"%date)
-            return
-        calibration_ref = calfiles[-1]
-        if kind is None: kind="defcal"
+        from .io import fetch_nearest_fluxcal
+        calibration_ref =  fetch_nearest_fluxcal(date, cubefile)
+        if kindout is None: kindout="defcal"
         print("using %s as a flux calibration reference"%calibration_ref.split("/")[-1] )
-        
     else:
-        if kind is None: kind="cal"
+        if kindout is None: kindout="cal"
         
     # - Inverse Sensitivity
     spec = Spectrum(calibration_ref)
@@ -265,11 +260,11 @@ def build_calibrated_sedmcube(cubefile, date=None, calibration_ref=None, kind=No
     cube = get_sedmcube(cubefile)
     # - Do it
     cube.scale_by(1./spec.data)
-    cube.header['SOURCE']  = (fileout.split('/')[-1] , "the original cube")
+    cube.header['SOURCE']  = (cubefile.split('/')[-1] , "the original cube")
     cube.header['FCALSRC'] = (calibration_ref.split('/')[-1], "the calibration source reference")
     cube.header['PYSEDMT'] = ("Flux Calibrated Cube")
     # - Save it
-    cube.writeto(cubefile.replace("%s"%PROD_CUBEROOT,"%s_%s"%(PROD_CUBEROOT,kind)))
+    cube.writeto(cubefile.replace("%s"%PROD_CUBEROOT,"%s_%s"%(PROD_CUBEROOT,kindout)))
     
 # ------------------ #
 #  Main Functions    #

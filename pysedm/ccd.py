@@ -432,7 +432,8 @@ class CCD( BaseCCD ):
     def fit_background(self, start=2, jump=10, multiprocess=True, set_it=True, smoothing=[0,2], **kwargs):
         """ """
         from .background import get_background, fit_background 
-        self._background = get_background( fit_background(self, start=start, jump=jump, multiprocess=multiprocess, **kwargs),
+        self._background = get_background( fit_background(self, start=start, jump=jump,
+                                                            multiprocess=multiprocess, **kwargs),
                                                smoothing=smoothing )
         if set_it:
             self.set_background(self._background.background, force_it=True)

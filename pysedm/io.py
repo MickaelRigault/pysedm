@@ -126,6 +126,47 @@ def get_datapath(YYYYMMDD):
     """ Return the full path of the current date """
     return REDUXPATH+"/%s/"%YYYYMMDD
 
+def fetch_header(date, target, kind="ccd.crr", getkey=None):
+    """ Look for a night file (using get_night_files()) and returns its header 
+    or a value from it stored with the given getkey."""
+    datafile = get_night_files(date, kind, target=target)
+    if len(datafile)==0:
+        return None
+    # Get the entire header
+    if getkey is None:
+        from astropy.io.fits import getheader
+        if len(datafile)==1:
+            return getheader(datafile[0])
+        return {d.split("/"):getheader(d) for d in datafile}
+    # Or just a key value from it?
+    else:
+        from astropy.io.fits import getval
+        if len(datafile)==1:
+            return getval(datafile[0],getkey)
+
+        return {d.split("/")[-1]:getval(d,getkey) for d in datafile}
+
+
+def fetch_nearest_fluxcal(date, file, kind="spec.fluxcal"):
+    """ """
+    filefluxcal = get_night_files(date, kind)
+    if len(filefluxcal)==0:
+        raise IOError("No %s file for the night %s"%(kind, date))
+    if len(filefluxcal)==1:
+        warnings.warn("Only 1 file of kind %s for the night %s"%(kind, date))
+        return filefluxcal[0]
+
+    import numpy as np
+    target_mjd_obs  = fetch_header(date, filename_to_id(date,file), getkey="MJD_OBS")
+    fluxcal_mjd_obs = [fetch_header(date, filename_to_id(date,f), getkey="MJD_OBS") 
+                       for f in filefluxcal]
+    
+    return filefluxcal[ np.argmin( np.abs( target_mjd_obs - np.asarray(fluxcal_mjd_obs) ) ) ]
+
+def filename_to_id(date, filename):
+    """ """
+    return filename.split("/")[-1].split(date)[-1][1:9]
+
 def filename_to_background_name(filename):
     """ predefined structure for background naming """
     last = filename.split("/")[-1]

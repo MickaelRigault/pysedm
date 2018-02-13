@@ -20,9 +20,6 @@ from ..sedm import INDEX_CCD_CONTOURS, TRACE_DISPERSION, build_sedmcube, build_c
 
 
 
-
-
-
 ############################
 #                          #
 #  Spectral Matcher        #
@@ -140,6 +137,7 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000,
         wcol._load_full_solutions_()
         # - Build a cube
         build_sedmcube(ccdref, date, lbda=None, wavesolution=wcol, hexagrid=hgrid,
+                        flexure_corrected=False,
                         flatfielded=False, build_calibrated_cube=False,atmcorrected=False)
         
     # ---------------------- #

@@ -587,6 +587,7 @@ class CCD( BaseCCD ):
         # - index check
         if traceindexes is None:
             traceindexes = np.sort(list(wavesolution.wavesolutions.keys()))
+            
         elif np.any(~np.in1d(traceindexes, list(wavesolution.wavesolutions.keys()))):
             raise ValueError("At least some given indexes in `used_indexes` do not have a wavelength solution")
         

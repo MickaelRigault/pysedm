@@ -24,11 +24,11 @@ TRACE_DISPERSION = 1.3 # PSF (sigma assuming gaussian) of the traces on the CCD.
 SEDMSPAXELS = np.asarray([[ np.sqrt(3.)/2., 1./2],[0, 1],[-np.sqrt(3.)/2., 1./2],
                           [-np.sqrt(3.)/2.,-1./2],[0,-1],[ np.sqrt(3.)/2.,-1./2]])*2/3.
 
-_EDGES_Y = 20
-_EDGES_X = 100
-INDEX_CCD_CONTOURS = [[_EDGES_X,_EDGES_Y],[_EDGES_X,1700],
-                      [300,2040-_EDGES_Y],[2040-_EDGES_X,2040-_EDGES_Y],
-                        [2040-_EDGES_X,_EDGES_Y]]
+_EDGES_Y = 40
+_EDGES_X = [120,50]
+INDEX_CCD_CONTOURS = [[_EDGES_X[0],_EDGES_Y],[_EDGES_X[0],1700],
+                      [300, SEDM_CCD_SIZE[1]-_EDGES_Y],[SEDM_CCD_SIZE[0]-_EDGES_X[1],SEDM_CCD_SIZE[1]-_EDGES_Y],
+                        [SEDM_CCD_SIZE[0]-_EDGES_X[1],_EDGES_Y]]
 # --- LBDA
 SEDM_LBDA = np.linspace(3700, 9300, 260)
 
@@ -71,12 +71,16 @@ def get_palomar_extinction():
 # ------------------ #
 def build_sedmcube(ccd, date, lbda=None, flatfield=None,
                    wavesolution=None, hexagrid=None,
+                   # Flexure
                    flexure_corrected=True,
                    pixel_shift=0,
+                   # Flat and Atm
                    flatfielded=True, atmcorrected=True,
+                   # Flux Calibration
                    calibration_ref=None,
                    build_calibrated_cube=False,
-                   savefig=True,
+                   # Output
+                   savefig=True,verbose=False,
                    return_cube=False):
     """ Build a cube from the an IFU ccd image. This image 
     should be bias corrected and cosmic ray corrected.
@@ -85,6 +89,9 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
     (see flatfielded) and corrected for atmosphere extinction 
     (see atmcorrected). A second cube will be flux calibrated 
     if possible (see build_calibrated_cube).
+    
+    = Remark, any TraceFlexure correction on ccd.tracematch should be 
+      made prior calling build_sedmcube =
 
     Parameters
     ----------
@@ -151,7 +158,9 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
     else:
         filout = "%s_%s"%(ccd.filename.split("/")[-1].split(".fits")[0], ccd.objname)
     fileout =    io.get_datapath(date)+"%s_%s.fits"%(PROD_CUBEROOT,filout)
-    
+
+        
+        
     # - INPUT [optional]
     if hexagrid is None:
         hexagrid     = io.load_nightly_hexagonalgrid(date)
@@ -231,8 +240,6 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
         cube.header['FLXCORR']  = (False, "Has the Flexure been corrected?")
         cube.header['FLXSCALE'] = (0, "Number of i (ccd-x) pixel shifted")
         
-            
-    
     # - Return it.
     if return_cube:
         return cube

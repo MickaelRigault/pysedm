@@ -314,7 +314,6 @@ def build_night_cubes(date, target=None, lamps=True, only_lamps=False,
         if skip_calib: crrfiles = [f for f in crrfiles if "Calib" not in fits.getval(f,"Name")]            
         fileccds += crrfiles
 
-
     print(fileccds)
     build_cubes(fileccds, date, **kwargs)
 

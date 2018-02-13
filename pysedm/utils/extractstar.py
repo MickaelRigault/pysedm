@@ -651,12 +651,12 @@ class ForcePSF( BaseObject ):
         from pyifu import get_spectrum, get_cube
         x_,y_ = np.asarray(self.cube.index_to_xy(self.cube.indexes)).T
         flagok = ~np.isnan(x_*y_)
-        x,y = x_[flagok],y_[flagok]
-
+        x, y = x_[flagok],y_[flagok]
+        
         flux,errors = [],[]
         bkgd,bkgderrors = [],[]
         for i,lbda_ in enumerate(self.cube.lbda):
-            fitvalue = fit_forcepsf_slice(self.cube.data[i], self.psfmodel.get_psf(x, y, lbda_), variance=self.cube.variance[i])
+            fitvalue = fit_forcepsf_slice(self.cube.data[i][flagok], self.psfmodel.get_psf(x, y, lbda_), variance=self.cube.variance[i][flagok])
             # recording
             flux.append(fitvalue["amplitude"])
             errors.append(fitvalue["amplitude.err"])
@@ -666,7 +666,7 @@ class ForcePSF( BaseObject ):
         self._derived_properties['spec_source']  =  get_spectrum(self.cube.lbda, np.asarray(flux), variance=np.asarray(errors)**2, header=self.cube.header)
         self._derived_properties['spec_bkgd'] =  get_spectrum(self.cube.lbda, np.asarray(bkgd), variance=np.asarray(bkgderrors)**2, header=self.cube.header)
         if store_cubemodel:
-            datamodel = [self.psfmodel.get_psf(x, y, lbda_)*self.spec_source.data[i] + self.spec_bkgd.data[i]
+            datamodel = [self.psfmodel.get_psf(x_, y_, lbda_)*self.spec_source.data[i] + self.spec_bkgd.data[i]
                              for i, lbda_ in enumerate(self.cube.lbda)]
             self._derived_properties['cubemodel'] = get_cube(datamodel, header=None, variance=None, lbda=self.cube.lbda,
                                      spaxel_mapping=self.cube.spaxel_mapping, spaxel_vertices=self.cube.spaxel_vertices)
@@ -857,7 +857,7 @@ class FitPSF( BaseObject ):
         self._derived_properties["stddev_ref"],self._derived_properties["stddev_rho"] = fmin(_fmin_, [np.median(stddev), -1/5.], disp=0)
         return self.stddev_ref, self.stddev_rho
         
-    def fit_adr_param(self, unit_guess=0.5, parangle_guess=70, indexes=None, **kwargs):
+    def fit_adr_param(self, parangle_guess=263, indexes=None, **kwargs):
         """ Fir the ADR and set the `adrmodel` attribute.
 
         Parameters
@@ -883,10 +883,10 @@ class FitPSF( BaseObject ):
         # - Load ADRFitter
         self._derived_properties["adrfitter"] = adrfit.ADRFitter(self.cube.adr.copy(), base_parangle=0, unit=IFU_SCALE_UNIT)
         self.adrfitter.set_data(lbdas, xmean, ymean, xmeanerr, ymeanerr)
-        
         self.adrfitter.fit(airmass_guess=self.cube.header["AIRMASS"], airmass_boundaries=[1,self.cube.header["AIRMASS"]*1.5],
                             xref_guess= np.mean(xmean), yref_guess= np.mean(ymean),
-                            parangle_guess=(self.cube.header["TEL_PA"]+parangle_guess)%360, **kwargs)
+                            parangle_guess=(self.cube.header["TEL_PA"]+parangle_guess)%360,
+                            parangle_boundaries=[0,360],**kwargs)
         
         self._derived_properties["adr_parameters"] = self.adrfitter.fitvalues
         self.adr_parameters["header_parangle"]     = self.cube.header["TEL_PA"]

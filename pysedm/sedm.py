@@ -255,7 +255,11 @@ def build_calibrated_sedmcube(cubefile, date=None, calibration_ref=None, kindout
     
     if calibration_ref is None:
         from .io import fetch_nearest_fluxcal
-        calibration_ref =  fetch_nearest_fluxcal(date, cubefile)
+        try:
+            calibration_ref =  fetch_nearest_fluxcal(date, cubefile)
+        except IOError:
+            warnings.warn("No fluxcalibration file available. No calibrated cube built")
+            return
         if kindout is None: kindout="defcal"
         print("using %s as a flux calibration reference"%calibration_ref.split("/")[-1] )
     else:

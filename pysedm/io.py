@@ -224,7 +224,7 @@ def load_nightly_mapper(YYYYMMDD, within_ccd_contours=True):
         from .sedm import INDEX_CCD_CONTOURS
         indexes = tracematch.get_traces_within_polygon(INDEX_CCD_CONTOURS)
     else:
-        indexes = tracematch.trace_indexes
+        indexes = list(wsol.wavesolutions.keys())
     
     mapper = Mapper(tracematch= tracematch, wavesolution = wsol, hexagrid=hgrid)
     mapper.derive_spaxel_mapping( indexes )

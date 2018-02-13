@@ -133,8 +133,9 @@ class Mapper( BaseObject ):
             return np.asarray([self.traceindexi_to_j(traceindex, i_) for _ in i])
         
         if i is None: return np.asarray([None,None])
-        i_eff = (CCD_SHAPE[1]-1)-i if INVERTED_LBDA_X else i # -1 because starts at 0
-        return i,np.mean(self.tracematch.trace_polygons[traceindex].intersection(LineString([[i_eff,0],[i_eff, maxlines]])), axis=0)[1]
+        i_eff = i
+        
+        return i, np.mean(self.tracematch.trace_polygons[traceindex].intersection(LineString([[i_eff,0],[i_eff, maxlines]])), axis=0)[1]
 
     # .................... #
     #  i,j <-> traceindex  #

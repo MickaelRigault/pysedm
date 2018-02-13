@@ -324,9 +324,10 @@ def build_night_cubes(date, target=None, lamps=True, only_lamps=False,
 def build_cubes(ccdfiles,  date, lbda=None,
                 tracematch=None, wavesolution=None, hexagrid=None,
                 flatfielded=True, flatfield=None,
+                traceflexure_corrected=True,
                 atmcorrected=True, flexure_corrected=True, 
                 build_calibrated_cube=True, calibration_ref=None,
-                savefig=True):
+                savefig=True, verbose=True, notebook=False):
     """ Build a cube from the an IFU ccd image. This image 
     should be bias corrected and cosmic ray corrected.
 
@@ -392,11 +393,14 @@ def build_cubes(ccdfiles,  date, lbda=None,
     -------
     Void
     """
+    if traceflexure_corrected:
+        from ..flexure import TraceFlexure
+        from ..mapping import Mapper
     # ------------------ #
     # Loading the Inputs #
     # ------------------ #
     if tracematch is None:
-        tracematch   = io.load_nightly_tracematch(date, withmask=True) 
+        tracematch   = io.load_nightly_tracematch(date, withmask=False if traceflexure_corrected else True) 
         
     if hexagrid is None:
         hexagrid     = io.load_nightly_hexagonalgrid(date)
@@ -410,15 +414,33 @@ def build_cubes(ccdfiles,  date, lbda=None,
 
     if flatfielded and flatfield is None:
         flatfield = io.load_nightly_flat(date)
+        
     # - In Summary, a Mapper
-    
-    
+    if traceflexure_corrected:
+        indexes = tracematch.get_traces_within_polygon(INDEX_CCD_CONTOURS)
+        mapper = Mapper(tracematch=tracematch.copy(), hexagrid=hexagrid, wavesolution=wavesolution)
+        mapper.derive_spaxel_mapping(list(wavesolution.wavesolutions.keys()))
+        
     # ---------------- #
     # Loading the CCDS #
     # ---------------- #
     ccds = []
     for ccdfile in ccdfiles:
-        ccd_    = get_ccd(ccdfile, tracematch = tracematch, background = 0)
+        ccd_    = get_ccd(ccdfile, tracematch = tracematch.copy(), background = 0)
+        if traceflexure_corrected:
+            flex = TraceFlexure(ccd_, mapper=mapper)
+            flex.derive_j_offset(verbose=verbose)
+            ccd_.tracematch.add_trace_offset(0, flex.j_offset)
+            if savefig:
+                flex.show_lbda_on_ccd(show=False, savefile=ccd_.filename.replace("crr","flexuretrace_crr").replace(".fits",".pdf"))
+            ccd_.header["FLXTRACE"] =  (True, "Is TraceMatch corrected for j flexure?")
+            ccd_.header["FLXTRVAL"] =  (flex.j_offset, "amplitude in pixel of the  j flexure Trace correction")
+            if verbose: print("Loading the %d traces"%len(mapper.traceindexes))
+            load_trace_masks(ccd_.tracematch, mapper.traceindexes, notebook=notebook)
+        else:
+            ccd_.header["FLXTRACE"] =  (False, "Is TraceMatch corrected for j flexure?")
+            ccd_.header["FLXTRVAL"] =  (0, "amplitude in pixel of the  j flexure Trace correction")
+            
         ccd_.fetch_background(set_it=True, build_if_needed=True)
         # - Variance
         if not ccd_.has_var():

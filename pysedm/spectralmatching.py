@@ -220,18 +220,22 @@ def verts_to_mask(verts):
     -------
     [NxM] array (size of semd.SEDM_CCD_SIZE)
     """
+    from shapely.vectorized import contains
     verts = verts+np.asarray([0.5,0.5])
     
     xlim, ylim = np.asarray(np.round(np.percentile(verts, [0,100], axis=0)), dtype="int").T + np.asarray([-1,1])
     polytrace  = geometry.Polygon(verts)
         
-    sqgrid     = np.asarray([[geometry.Polygon(_BASEPIX + np.asarray([x_,y_]))
+    sqgrid     = np.asarray([[_BASEPIX + np.asarray([x_,y_])
                                   for y_ in np.arange(*ylim)] for x_ in np.arange(*xlim)]
-                                ).ravel()
+                                ).reshape((ylim[1]-ylim[0]) * (xlim[1]-xlim[0]),*np.shape(_BASEPIX))
+    
+    maskins = vectorized.contains(polytrace, *sqgrid.T).T
+    
     maskfull = np.zeros(SEDM_CCD_SIZE)
     maskfull[xlim[0]:xlim[1],ylim[0]:ylim[1]] = \
-      (np.asarray([polytrace.intersection(sq_).area if polytrace.intersects(sq_) or polytrace.contains(sq_) else 0
-                     for sq_ in sqgrid]).reshape(xlim[1]-xlim[0],ylim[1]-ylim[0]))
+      (np.asarray([  0 if not np.any(maskin_) else 1 if np.all(maskin_) else polytrace.intersection(geometry.Polygon(sq_)).area
+            for maskin_,sq_ in zip(maskins,sqgrid)]).reshape(xlim[1]-xlim[0],ylim[1]-ylim[0]))
     return maskfull.T
     
 

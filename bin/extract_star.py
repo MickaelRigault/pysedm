@@ -45,7 +45,7 @@ if  __name__ == "__main__":
     date = args.infile
 
     if not args.nofig:
-        from pysedm.utils import fig_backend_test
+        from pysedm.utils.tools import fig_backend_test
         fig_backend_test()
     # ================= #
     #   Actions         #

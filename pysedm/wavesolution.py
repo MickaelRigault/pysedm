@@ -350,8 +350,8 @@ class Flexure( BaseObject ):
         # - robust calc:
         median  = np.nanmedian(mus)
         nmad    = mad_std(mus[mus==mus])
-        flagin = np.abs(mus-median) <= nmad*2.
-        return np.mean(mus[flagin]), np.std(mus[flagin])/np.sqrt(len(mus[flagin])-1)
+        flagin = (np.abs(mus-median) <= nmad*2.) * (mus==mus)
+        return np.nanmean(mus[flagin]), np.std(mus[flagin])/np.sqrt(len(mus[flagin])-1)
     
     
     # --------- #
@@ -428,7 +428,7 @@ class Flexure( BaseObject ):
         mus, mus_err         = self.get_cube_sodiumline_wavelength(True)
         meanmus, meanmus_err = self.get_cube_sodiumline_wavelength(False)
         
-        ax.hist(mus, bins="auto", normed=True)
+        ax.hist(mus[mus==mus], bins="auto", normed=True)
         ax.set_xlabel(r"Fitted sodium line on spaxels.", fontsize="large")
         
         ax.axvline( sodium_reference, ls="-", color="C1", label="Exp. Sodium SkyLine (%.1f)"%sodium_reference)

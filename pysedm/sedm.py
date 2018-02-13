@@ -210,7 +210,7 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
     if flexure_corrected:
         print("Flexure Correction ongoing ")
         from .wavesolution import Flexure
-        from .mapping import Mapper
+        from .mapping      import Mapper
         mapper = Mapper(tracematch= ccd.tracematch, wavesolution = wavesolution, hexagrid=hexagrid)
         mapper.derive_spaxel_mapping( list(wavesolution.wavesolutions.keys()) )
         

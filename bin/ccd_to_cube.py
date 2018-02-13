@@ -34,6 +34,9 @@ if  __name__ == "__main__":
     parser.add_argument('--noflexure', action="store_true", default=False,
                         help='build cubes without flexure correction')
     
+    parser.add_argument('--notraceflexure', action="store_true", default=False,
+                        help='build cubes without trace flexure (j-ccd correction)')
+    
     parser.add_argument('--buildbkgd',  type=str, default=None,
                         help='Build a ccd background of the given target or target list (csv) e.g. --build dome or --build dome,Hg,Cd')
 
@@ -122,7 +125,8 @@ if  __name__ == "__main__":
                              lamps=True, only_lamps=False, skip_calib=True,
                              # - options
                              savefig = False if args.nofig else True,
-                             flexure_corrected = False if args.noflexure else True)
+                             flexure_corrected = False if args.noflexure else True,
+                             traceflexure_corrected = False if args.notraceflexure else True)
 
     if args.buildcal is not None:
         if args.buildcal=="*": args.buildcal=args.build

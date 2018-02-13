@@ -125,15 +125,15 @@ class Mapper( BaseObject ):
         Remark: j is the center of the trace for the column corresponding to the wavelength 
         """
         i =  self.wavesolution.lbda_to_pixels(lbda, traceindex)
-        return self.traceindexi_to_j(traceindex, i)
+        return self.traceindexi_to_j(traceindex, i, inverted=INVERTED_LBDA_X)
     
-    def traceindexi_to_j(self, traceindex, i, maxlines=1e4):
+    def traceindexi_to_j(self, traceindex, i, maxlines=1e4, inverted=False):
         """ get thethe center of the trace `traceindex` for the column `i`"""
         if is_arraylike(i):
             return np.asarray([self.traceindexi_to_j(traceindex, i_) for _ in i])
         
         if i is None: return np.asarray([None,None])
-        i_eff = i
+        i_eff = (CCD_SHAPE[1]-1)-i if inverted else i # -1 because starts at 0
         
         return i, np.mean(self.tracematch.trace_polygons[traceindex].intersection(LineString([[i_eff,0],[i_eff, maxlines]])), axis=0)[1]
 

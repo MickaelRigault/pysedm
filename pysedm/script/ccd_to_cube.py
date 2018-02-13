@@ -460,10 +460,10 @@ def build_cubes(ccdfiles,  date, lbda=None,
                     build_calibrated_cube=build_calibrated_cube,
                     calibration_ref=calibration_ref,
                     savefig=savefig)
-        try:
-            build_sedmcube(ccdin, date,  **prop)
-        except:
-            warnings.warn("FAILED building cube for ccd: %s"%ccdin.filename.split("/")[-1])
+        #try:
+        build_sedmcube(ccdin, date,  **prop)
+        #except:
+        #    warnings.warn("FAILED building cube for ccd: %s"%ccdin.filename.split("/")[-1])
             
             
     # The actual build

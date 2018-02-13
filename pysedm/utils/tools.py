@@ -54,6 +54,15 @@ def is_arraylike(a):
     return isinstance(a, (list, tuple, np.ndarray) )
 
 
+def fig_backend_test(backup='Agg'):
+    """ """
+    try:
+        import matplotlib.pyplot as mpl
+        fig = mpl.figure()
+    except:
+        import matplotlib
+        matplotlib.use(backup)
+
 def make_method(obj):
     """Decorator to make the function a method of *obj*.
 

@@ -117,7 +117,10 @@ if  __name__ == "__main__":
     # ================= #
     #   Actions         #
     # ================= #
-    
+    if not args.nofig:
+        from pysedm.utils import fig_backend_test
+        fig_backend_test()
+            
     # - Builds
     if args.build is not None and len(args.build) >0:
         for target in args.build.split(","):

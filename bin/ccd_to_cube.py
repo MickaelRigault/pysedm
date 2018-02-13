@@ -10,7 +10,7 @@ from glob import glob
 if  __name__ == "__main__":
     
     import argparse
-
+    from pysedm.script.ccd_to_cube import *
     # ================= #
     #   Options         #
     # ================= #
@@ -95,15 +95,10 @@ if  __name__ == "__main__":
     args = parser.parse_args()
 
     # Matplotlib
-    if not args.nofig:
-        from pysedm.utils.tools import fig_backend_test
-        fig_backend_test()
-
-        
     # ================= #
     #   The Scripts     #
     # ================= #
-    from pysedm.script.ccd_to_cube import *
+
     # --------- #
     #  Date     #
     # --------- #

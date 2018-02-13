@@ -11,6 +11,9 @@ if  __name__ == "__main__":
     
     import argparse
     import numpy as np
+    from pysedm.utils import extractstar
+    from pysedm       import get_sedmcube, io
+
     # ================= #
     #   Options         #
     # ================= #
@@ -34,17 +37,10 @@ if  __name__ == "__main__":
 
         
     args = parser.parse_args()
-
-    # Backend
-    if not args.nofig:
-        from pysedm.utils.tools import fig_backend_test
-        fig_backend_test()
         
     # ================= #
     #   The Scripts     #
     # ================= #
-    from pysedm.utils import extractstar
-    from pysedm       import get_sedmcube, io
 
     # --------- #
     #  Date     #

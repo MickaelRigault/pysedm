@@ -1005,13 +1005,16 @@ class CCDSlice( Spectrum ):
     PROPERTIES = ["tracebounds"]
     DERIVED_PROPERTIES = ["tracemasks", "contmodel", "flagin"]
 
-    def fit_continuum(self, degree=5, legendre=True, clipping=[5,5],
+    def fit_continuum(self, degree=5, legendre=True, clipping=[2,2],
                           ngauss=0):
         """ """
+        from astropy.stats import mad_std
         from modefit import get_polyfit, get_normpolyfit
         y = self.data[self.tracemaskout]
-        
-        self._derived_properties["flagin"] = ((np.nanmean(y) - clipping[0] * np.nanstd(y)) < y) *  (y< (np.nanmean(y) + clipping[1] * np.nanstd(y)))
+
+        nmad = mad_std(y[y==y])
+        median = np.nanmedian(y)
+        self._derived_properties["flagin"] = ((median - clipping[0] * nmad < y) &  (y< median + clipping[1] * nmad)) & (y==y)
 
         guesses = dict(a0_guess=np.nanmedian(self.data[self.tracemaskout][self.flagin]))
         if ngauss > 0:
@@ -1028,7 +1031,7 @@ class CCDSlice( Spectrum ):
         else:
             self._derived_properties["contmodel"] = \
               get_polyfit(self.lbda[self.tracemaskout][self.flagin], self.data[self.tracemaskout][self.flagin],
-                           np.sqrt(self.variance[self.tracemaskout][self.flagin]), degree, legendre=legendre)
+                           np.sqrt(np.abs(self.variance[self.tracemaskout][self.flagin])), degree, legendre=legendre)
         
         self.contmodel.use_minuit = True
         self.contmodel.fit(**guesses)
@@ -1053,8 +1056,10 @@ class CCDSlice( Spectrum ):
         ax.specplot(self.lbda, dataout, var=None, color="C1")
 
         if show_model and self.contmodel is not None:
+            ax.plot(self.contmodel.xdata, self.contmodel.data,
+                        color="C0", zorder=6, ls="None", marker="x",  ms=4)
             ax.plot(self.lbda[self.tracemaskout][self.flagin], self.contmodel.model.get_model(),
-                        color="C0", zorder=6)
+                        color="C0", zorder=7)
             
         fig.figout(savefile=savefile, show=show)
 

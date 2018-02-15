@@ -14,7 +14,7 @@ from propobject   import BaseObject
 from .utils.tools import kwargs_update, load_pkl, dump_pkl
 from .sedm        import SEDM_CCD_SIZE
 
-DEGREE = 10
+DEGREE = 20
 LEGENDRE = True
 
 NGAUSS = 1
@@ -133,7 +133,7 @@ s
         return res
     
     # - No multiprocessing 
-    return {index_column[i_]: get_contvalue(spec) if not is_std else get_contvalue_sdt(spec) for i_,spec in enumerate(bar)}
+    return {index_column[i_]: get_contvalue(ccd.get_xslice(spec_)) if not is_std else get_contvalue_sdt(ccd.get_xslice(spec_)) for i_,spec_ in enumerate(bar)}
 
 def _get_xaxis_polynomial_(xyv, degree=DEGREE, legendre=LEGENDRE,
                          xmodel=None, clipping = [5,5]):

@@ -3,6 +3,7 @@
 
 
 import numpy as np
+import warnings
 from propobject import BaseObject
 
 
@@ -71,20 +72,23 @@ class TraceFlexure( BaseObject ):
     # ----------- #
     #  PLOTTER    #
     # ----------- #
-    def show_lbda_on_ccd(self, show_sepobjects=False, zoomin=[600, 1800, 1300, 1350],
+    def show_j_flexure_ccd(self, show_sepobjects=False, zoomin=[600, 1800, 1300, 1350],
                              show=True, savefile=None):
         """ """
         import matplotlib.pyplot as mpl
         if self._derived_properties['js'] is None:
-            raise AttributeError("j offset not measured yet. see derive_j_offset()")
+            _NO_JS = True
+            warnings.warn("j offset not measured yet. see derive_j_offset()")
+        else:
+            _NO_JS = False
+
         
         fig    = mpl.figure(figsize=[10,3.5])
         axccd  = fig.add_axes([0.36,0.15,0.61,0.8])
         axhist = fig.add_axes([0.03,0.15,0.25,0.8])
         axccd.set_xlabel("i [ccd coordinates in pixels]", fontsize="large")
         axccd.set_ylabel("j [ccd coordinates in pixels]", fontsize="large")
-        axhist.set_xlabel(r"$\Delta$ j for %d ellipses"%(len(self._flag_sepused[self._flag_sepused])),
-                         fontsize="large")
+        
         pl = self.ccd.show(ax=axccd, show=False)
         self.mapper.tracematch.display_traces(axccd, self.mapper.traceindexes, edgecolors="0.7", linestyle="--")
         self.ccd.tracematch.display_traces(axccd, self.mapper.traceindexes, edgecolors="w")
@@ -96,11 +100,17 @@ class TraceFlexure( BaseObject ):
                 ell.set_clip_box(axccd.bbox)
                 ell.set_facecolor("None")
                 ell.set_edgecolor("r")
-
-        axhist.hist(self.delta_js[self.delta_js==self.delta_js])
-        axhist.axvline(self.j_offset, ls="--",color="k")
-        axhist.text(self.j_offset, 0.5, "j trace offset %+.2f pixels"%self.j_offset,
-                   va="bottom",ha="right", rotation=90)
+        if not _NO_JS:
+            axhist.hist(self.delta_js[self.delta_js==self.delta_js])
+            axhist.axvline(self.j_offset, ls="--",color="k")
+            axhist.text(self.j_offset, 0.5, "j trace offset %+.2f pixels"%self.j_offset,
+                    va="bottom",ha="right", rotation=90)
+            axhist.set_xlabel(r"$\Delta$ j for %d ellipses"%(len(self._flag_sepused[self._flag_sepused])),
+                         fontsize="large")
+        else:
+            axhist.text(0.5, 0.5, "j offset not measured yet. \n see derive_j_offset()",
+                    va="center",ha="center", rotation=45, transform=axhist.transAxes)
+            
         axccd.figure.canvas.draw()
         axccd.set_xlim(*zoomin[:2])
         axccd.set_ylim(*zoomin[2:])

@@ -670,7 +670,6 @@ class TraceMatch( BaseObject ):
         Void
         """
         self._properties["subpixelization"] = subpixelization
-
         # - 1 Trace, 1 Color !
         # List because of python3
         nonunique_RGBA         = np.asarray( list(zip(np.random.randint(5,90, size=self.ntraces*3),
@@ -682,7 +681,7 @@ class TraceMatch( BaseObject ):
         # This is made for faster identification later on
         self._derived_properties['facecolor']  = nonunique_RGBA[np.unique(b, return_index=True)[1]][:self.ntraces]
         self._derived_properties['tracecolor'] = {i:c for i,c in zip(self.trace_indexes,self._facecolors)}
-        verts = [self.trace_vertices[i]*self.subpixelization for i in self.trace_indexes]
+        verts = [(self.trace_vertices[i]+np.asarray([0.5,0.5]))*self.subpixelization for i in self.trace_indexes]
 
         self._derived_properties['maskimage'] = \
           np.asarray(polygon_mask(verts, width*self.subpixelization, height*self.subpixelization,

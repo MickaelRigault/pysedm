@@ -432,7 +432,7 @@ def build_cubes(ccdfiles,  date, lbda=None,
             flex.derive_j_offset(verbose=verbose)
             ccd_.tracematch.add_trace_offset(0, flex.j_offset)
             if savefig:
-                flex.show_lbda_on_ccd(show=False, savefile=ccd_.filename.replace("crr","flexuretrace_crr").replace(".fits",".pdf"))
+                flex.show_j_flexure_ccd(show=False, savefile=ccd_.filename.replace("crr","flexuretrace_crr").replace(".fits",".pdf"))
             ccd_.header["FLXTRACE"] =  (True, "Is TraceMatch corrected for j flexure?")
             ccd_.header["FLXTRVAL"] =  (flex.j_offset, "amplitude in pixel of the  j flexure Trace correction")
             if verbose: print("Loading the %d traces"%len(mapper.traceindexes))

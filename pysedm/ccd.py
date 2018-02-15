@@ -429,7 +429,7 @@ class CCD( BaseCCD ):
         
         return slice_
 
-    def fit_background(self, start=2, jump=10, multiprocess=True, set_it=True, smoothing=[0,2], **kwargs):
+    def fit_background(self, start=2, jump=10, multiprocess=True, set_it=True, smoothing=[0,5], **kwargs):
         """ """
         from .background import get_background, fit_background 
         self._background = get_background( fit_background(self, start=start, jump=jump,

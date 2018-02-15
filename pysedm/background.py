@@ -26,7 +26,7 @@ LEGENDRE_GAUSS= False
 #  Builder           #
 # ------------------ #
 def build_background(ccd,
-                    smoothing=[0,2],
+                    smoothing=[0,5],
                     start=2, jump=10, multiprocess=True,notebook=False,
                     savefile=None):
     """ """
@@ -44,7 +44,7 @@ def build_background(ccd,
 #  Main Functions    #
 # ------------------ #
 
-def get_background(contvalues, size=SEDM_CCD_SIZE, smoothing=[0,2]):
+def get_background(contvalues, size=SEDM_CCD_SIZE, smoothing=[0,5]):
     """ """
     back = Background()
     back.create(contvalues)
@@ -70,7 +70,7 @@ def get_contvalue_sdt(spec):
     spec.fit_continuum(CONTDEGREE_GAUSS, legendre=LEGENDRE_GAUSS, ngauss=NGAUSS)
     return spec.contmodel.fitvalues
 
-def fit_background(ccd, start=2, jump=10, multiprocess=True,
+def fit_background(ccd, start=2, jump=10, multiprocess=True, ncore=None,
                        notebook=True, is_std=False):
     """ calling `get_contvalue` for each ccd column (xslice).
     This uses astropy's ProgressBar.map 
@@ -181,7 +181,7 @@ class Background( BaseObject ):
         self._properties['contvalues']    = contvalues
         self._derived_properties['input_columns'] = None
         
-    def build(self, width, height, smoothing= [0,2]):
+    def build(self, width, height, smoothing= [0,5]):
         """ """
         self._derived_properties['background'] = self.get_background(height, width, smoothing=smoothing)
         
@@ -202,7 +202,7 @@ class Background( BaseObject ):
         return model
 
 
-    def get_background(self, width, height, smoothing = [0,2]):
+    def get_background(self, width, height, smoothing = [0,5]):
         """ """
         from scipy import ndimage, interpolate
         # get the blured image

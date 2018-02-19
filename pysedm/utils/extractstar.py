@@ -605,7 +605,7 @@ class ForcePSF( BaseObject ):
         
         # - The Spectrum
         pl = self.spec_source.show(ax=axspec, label="ForcePSF spectrum", show=False)
-        _  = self.spec_bkgd.show(ax=axspec, color="C1", label="background")
+        _  = self.spec_bkgd.show(ax=axspec, color="C1", label="background", show=False)
         axspec.legend(loc="best", fontsize="small")
 
         # - The cubes
@@ -626,13 +626,13 @@ class ForcePSF( BaseObject ):
             axc.set_title("lbda: [%d, %d]"%(lbda[0],lbda[1]), fontsize="small")
             # Data
             slicepf = self.cube.get_slice(lbda[0],lbda[1], slice_object=True)
-            slicepf.show(ax=axc, show_colorbar=False, vmin="2", vmax="98")
+            slicepf.show(ax=axc, show_colorbar=False, vmin="2", vmax="98", show=False)
             # Model
             model  = self.cubemodel.get_slice(lbda[0],lbda[1], slice_object=True)
-            model.show(ax=axm, show_colorbar=False, vmin="2", vmax="98")
+            model.show(ax=axm, show_colorbar=False, vmin="2", vmax="98", show=False)
             # Res
             res  = self.cuberes.get_slice(lbda[0],lbda[1], slice_object=True)
-            res.show(ax=axr, show_colorbar=False, vmin="2", vmax="98")
+            res.show(ax=axr, show_colorbar=False, vmin="2", vmax="98", show=False)
 
         if savefile is not None:
             fig.savefig(savefile)

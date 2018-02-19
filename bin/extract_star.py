@@ -123,7 +123,7 @@ if  __name__ == "__main__":
                 
                 spec._side_properties["filename"] = fileout
                 if not args.nofig:
-                    spec.show(savefile=spec.filename.replace(".fits",".pdf"))
+                    spec.show(savefile=spec.filename.replace(".fits",".pdf"), show=False)
 
                 # - background
                 bkgd.set_header(cube.header)

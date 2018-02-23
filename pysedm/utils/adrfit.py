@@ -10,9 +10,10 @@ from pyifu.adr      import ADR
 
 from propobject import BaseObject
 from modefit.baseobjects import BaseModel, BaseFitter
+from ..sedm import DEFAULT_REFLBDA
 
-
-def get_cube_adr_param(cube, lbdaref=5000, lbdastep=10, lbdarange=None,
+def get_cube_adr_param(cube, lbdaref=DEFAULT_REFLBDA,
+                           lbdastep=10, lbdarange=None,
                            show=True, savefile=None):
     """ """
     import shapely
@@ -90,7 +91,8 @@ class ADRFitter( BaseFitter ):
         self._properties['lbda'] = np.asarray(lbda)
 
         indexref = np.argmin(np.abs(self.lbda-self.adr.lbdaref))
-        self.model.set_reference(self.lbda[indexref], self.x[indexref], self.y[indexref])
+        # - Initial Guess
+        self.model.set_reference(self.adr.lbdaref, self.x[indexref], self.y[indexref])
         
     def _get_model_args_(self):
         """ see model.get_loglikelihood"""
@@ -101,6 +103,7 @@ class ADRFitter( BaseFitter ):
     # ---------- #
     def show(self, ax=None, savefile=None, show=True, cmap=None,
                  show_colorbar=True, clabel="Wavelength [A]",
+                 labelkey=None,
                  refsedmcube=None, **kwargs):
         """ Plotting method for the ADR fit.
         
@@ -147,8 +150,12 @@ class ADRFitter( BaseFitter ):
             
             
         ax.legend(loc="best", frameon=True, ncol=2)
-        ax.text(0.5,1.01, " ; ".join(["%s: %.2f"%(k,self.fitvalues[k]) for k in self.model.FREEPARAMETERS]) + " | %s: %.1f"%("lbdaref",self.model.adr.lbdaref),
-                    transform=ax.transAxes, va="bottom", ha="center")
+        if labelkey is None:
+            textlabel = " ; ".join(["%s: %.2f"%(k,self.fitvalues[k]) for k in self.model.FREEPARAMETERS]) + " | %s: %.1f"%("lbdaref",self.model.adr.lbdaref)
+        else:
+            textlabel = " ; ".join(["%s: %.2f"%(k,self.fitvalues[k]) for k in labelkey])
+            
+        ax.text(0.5,1.01, textlabel, transform=ax.transAxes, va="bottom", ha="center")
         if show_colorbar:
             axc = ax.insert_ax("right", shrunk=0.89)
             axc.colorbar(cmap, vmin=vmin, vmax=vmax,
@@ -199,6 +206,7 @@ class ADRModel( BaseModel):
     """ """
     PROPERTIES      = ["adr", "lbdaref"]
     SIDE_PROPERTIES = ["base_parangle"] # could be moved to parameters
+    
     FREEPARAMETERS  = ["parangle", "airmass", "xref", "yref"]
 
     parangle_boundaries = [-180, 180]

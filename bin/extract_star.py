@@ -23,9 +23,16 @@ if  __name__ == "__main__":
 
     parser.add_argument('infile', type=str, default=None,
                         help='cube filepath')
-    
+
+    # // AUTOMATIC EXTRACTION
     parser.add_argument('--auto',  type=str, default=None,
                         help='Shall this run an automatic PSF extraction')
+
+    parser.add_argument('--autorange',  type=str, default="4500,7000",
+                        help='Wavelength range [in Angstrom] for measuring the metaslice PSF')
+    
+    parser.add_argument('--autobins',  type=int, default=10,
+                        help='Number of bins within the wavelength range (see --autorange)')
     
     # - Standard Star object
     parser.add_argument('--std',  action="store_true", default=False,
@@ -73,13 +80,17 @@ if  __name__ == "__main__":
                 # --------------
                 # Fitting
                 # --------------
+                # - wavelengthes used
+                lbda_range = np.asarray(args.autorange.split(","), dtype="float")
+                lbdas_ = np.linspace(lbda_range[0],lbda_range[1],args.autobins+1)
+                lbdas  = np.asarray([lbdas_[:-1],lbdas_[1:]]).T
+
                 # Step 1 fit the PSF shape:
                 output = cube.filename.replace("e3d","psffit_e3d")
                 savedata = output.replace(".fits",".json")
                 savefig = savedata.replace(".json",".pdf") if not args.nofig else None
 
-                psfmodel = extractstar.fit_psf_parameters(cube,
-                                                        lbda_range=[4500,7000], nbins=10,
+                psfmodel = extractstar.fit_psf_parameters(cube, lbdas,
                                                         savedata=savedata,savefig=savefig,
                                                         return_psfmodel=True)
                 # Step 2 ForcePSF spectroscopy:
@@ -94,47 +105,8 @@ if  __name__ == "__main__":
                 # --------------
                 # Recording
                 # --------------
-                # Cube Model
-                cubemodel.set_header(cube.header)
-                cubemodel.header["SOURCE"]   = (filecube.split("/")[-1], "This object has been derived from this file")
-                cubemodel.header["PYSEDMT"]  = ("Force 3DPSF extraction: Model Cube", "This is the model cube of the PSF extract")
-                cubemodel.header["PSFTYPE"]  = ("auto", "Kind of PSF extraction")
-                cubemodel.writeto(filecube.replace(io.PROD_CUBEROOT,"forcepsfmodel_"+io.PROD_CUBEROOT))
+                io._saveout_forcepsf_(filecube, cube, cuberes, cubemodel, spec, bkgd)
                 
-                # Cube Residual                
-                cuberes.set_header(cube.header)
-                cuberes.header["SOURCE"]   = (filecube.split("/")[-1], "This object has been derived from this file")
-                cuberes.header["PYSEDMT"]  = ("Force 3DPSF extraction: Residual Cube", "This is the residual cube of the PSF extract")
-                cuberes.header["PSFTYPE"]  = ("auto", "Kind of PSF extraction")
-                cuberes.writeto(filecube.replace(io.PROD_CUBEROOT,"psfres_"+io.PROD_CUBEROOT))
-                
-                # ----------------- #
-                # Save the Spectrum #
-                # ----------------- #
-                # - build the spectrum
-                spec.set_header(cube.header)
-                spec.header["SOURCE"]   = (filecube.split("/")[-1], "This object has been derived from this file")
-                spec.header["PYSEDMT"]  = ("Force 3DPSF extraction: Spectral Model", "This is the fitted flux spectrum")
-                spec.header["PSFTYPE"]  = ("auto", "Kind of PSF extraction")
-
-                fileout = filecube.replace(io.PROD_CUBEROOT,io.PROD_SPECROOT+"_forcepsf")
-                spec.writeto(fileout)
-                spec.writeto(fileout.replace(".fits",".txt"), ascii=True)
-                
-                spec._side_properties["filename"] = fileout
-                if not args.nofig:
-                    spec.show(savefile=spec.filename.replace(".fits",".pdf"), show=False)
-
-                # - background
-                bkgd.set_header(cube.header)
-                bkgd.header["SOURCE"]   = (filecube.split("/")[-1], "This object has been derived from this file")
-                bkgd.header["PYSEDMT"]  = ("Force 3DPSF extraction: Spectral Background Model", "This is the fitted flux spectrum")
-                bkgd.header["PSFTYPE"]  = ("auto", "Kind of PSF extraction")
-
-                fileout = filecube.replace(io.PROD_CUBEROOT,io.PROD_SPECROOT+"_forcepsf_bkgd")
-                bkgd.writeto(fileout)
-                bkgd.writeto(fileout.replace(".fits",".txt"), ascii=True)
-
                 # - for the record
                 extracted_objects.append(spec)
                 
@@ -174,7 +146,7 @@ if  __name__ == "__main__":
                 ax.set_ylabel('Inverse Sensitivity')
                 ax.set_yscale("log")
                 # telluric
-                ax.axvspan(7580,7710, color="0.7", alpha=0.4) 
+                ax.axvspan(7550,7700, color="0.7", alpha=0.4) 
                 ax.text(7700,ax.get_ylim()[-1],  "O2 Telluric ", 
                         va="top", ha="center",  rotation=90,color="0.2",
                         zorder=9, fontsize=11)

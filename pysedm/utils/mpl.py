@@ -55,7 +55,6 @@ def figout(fig,savefile=None,show=True,add_thumbnails=False,
 # SEDMachine Plotting special #
 #                             #
 ###############################
-
 class InteractiveCubeandCCD( InteractiveCube ):
     PROPERTIES = ["ccd", "axccd"]
 

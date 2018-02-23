@@ -10,6 +10,7 @@
 if  __name__ == "__main__":
     
     import argparse
+    import sys
     from pysedm import get_sedmcube
     # ================= #
     #   Options         #
@@ -21,6 +22,9 @@ if  __name__ == "__main__":
     parser.add_argument('infile', type=str, default=None,
                         help='cube filepath')
 
+    parser.add_argument('--picker',  action="store_true", default=False,
+                        help='Launch as Picker mode')
+    
     parser.add_argument('--rmsky',  action="store_true", default=False,
                         help='Removes the sky component from the cube')
     
@@ -37,8 +41,22 @@ if  __name__ == "__main__":
     #  The Scripts      #
     # ================= #
     cube = get_sedmcube(args.infile)
+    
     if args.rmsky:
         cube.remove_sky(nspaxels=args.nskyspaxels, usemean=False)
+
+    if args.picker:
+        import pysedm
+        from pysedm.utils import psfextractor
+        
+        date = cube.header["OBSDATE"].replace("-","")
+        psfbuilder = psfextractor.PSFBuilder(pysedm.io.load_psf_param(date,["MJD_OBS","AIRMASS","RA","DEC","TEL_PA"]))
+        psfpicker = psfextractor.ForcePSFPicker(cube)
+        psfpicker.set_psfbuilder(psfbuilder)
+        psfpicker.launch(notebook=False)
+        sys.exit(0)
+        
+        
     if args.ccd is not None:
         from pysedm import io, get_ccd
         if args.date is None:

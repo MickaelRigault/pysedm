@@ -107,6 +107,7 @@ class TelluricLines( Spectrum ):
 
         for o2r in TELLURIC_REGIONS["O2"]:
             ax.axvspan(o2r[0],o2r[1], color=mpl.cm.Blues(0.3,0.3))
+            
         for h2or in TELLURIC_REGIONS["H2O"]:
             ax.axvspan(h2or[0],h2or[1], color=mpl.cm.binary(0.3,0.2))
             

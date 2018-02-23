@@ -51,9 +51,13 @@ Only the amplitude remains to be fitted.
 
 
 """
-def fit_psf_parameters(cube,lbda_range = [4500,7500], nbins=10,
-                        savedata=None, savefig=None,
-                        return_psfmodel=True):
+def fit_psf_parameters(cube, lbdas,
+                       centroid_guesses=None,
+                       centroid_errors=1.,
+                       savedata=None, savefig=None, show=False,
+                       return_psfmodel=True,
+                       propagate_centroid=True,
+                       adr_prop={}, allow_adr_trials=True):
     """ Extract the PSF shape parameters for the given cube.
     = This function is made to fit signle point source cube. =
 
@@ -62,11 +66,8 @@ def fit_psf_parameters(cube,lbda_range = [4500,7500], nbins=10,
     cube: [pyifu.Cube] 
         wavelength calibrated euro3d cube (pyifu format) containing the point source
 
-    lbda_range: [float, float] -optional-
-        wavelength range between which the slices will be made
-
-    nbins: [int] -optional-
-        the number of bins that will devide the lbda_range to make the slices.
+    lbdas: [2d-array]
+        list of wavelength ranges [angstrom] as [[l_min, l_max], ...]
 
     savefig: [string or None] -optional-
         if you wnat to save the PSF-fitting procedure figure, provide the path where to save it.
@@ -74,11 +75,19 @@ def fit_psf_parameters(cube,lbda_range = [4500,7500], nbins=10,
     return_psfmodel: [bool] -optional-
         shall this method return a PSF3D object (True) or the psffitter one (False)?
 
+    // Information between steps
+
+    propagate_centroid: [bool] -optional-
+        Shall the best fitted centroid from step 1 be propagated as initial guess for 
+        step 2?
+    
+
     Returns
     -------
     PSF3D or PSFFitter (see return_psfmodel option)
     """
-    if savefig:
+    if savefig is not None or show:
+        # PLOT
         params  = np.asarray(["position","stddev","stddev_ratio","ell","theta"])
         nparams = len(params)
         # - Figures
@@ -88,41 +97,41 @@ def fit_psf_parameters(cube,lbda_range = [4500,7500], nbins=10,
         axes_step1 = [fig.add_axes( [left+(width+span)*i, 0.7, width,0.25]) for i in range(nparams)]
         axes_adr   = fig.add_axes( [left, 0.1, 0.5 , 0.5])
         axes_stddev= fig.add_axes( [left+ 0.6, 0.1, 0.25, 0.5])
-        
+        # /PLOT
+
+    
     psfcube = FitPSF(cube)
+
     # ====
     # Step 1, All Free parameters
-    psfcube.fit_slices(lbda_range=lbda_range, nbins=nbins, 
-                       ell_guess=0.05, ell_boundaries=[0,0.9], ell_fixed=False,
-                       theta_guess=1.5, theta_boundaries=[0,np.pi], theta_fixed=False,
-                       stddev_boundaries=[1.1, 5],
-                       stddev_ratio_guess=1.7,
-                       stddev_ratio_boundaries=[1.1,4],
-                       stddev_ratio_fixed=False)
+    prop_centroid = dict(centroid_guesses=centroid_guesses,
+                         centroid_errors=centroid_errors)
+    
+    psfcube.fit_slices( lbdas , **prop_centroid)
     
     cont_param = psfcube.get_const_parameters()
 
     # -- Figure Step 1
-    if savefig is not None:
+    if savefig is not None or show:
+        # PLOT
         psfcube.show(axes=axes_step1, params=params, set_labels=False, show=False)
         for k,v in cont_param.items():
             if k not in params: continue
             which_axe = np.argwhere(params==k).flatten()
             axes_step1[which_axe[0]].axhline(v, ls="-", lw=1, color="k", alpha=0.8, zorder=1)
             axes_step1[which_axe[0]].set_title(k)
-            
         # - alpha the refitted one
         for ax_ in np.asarray(axes_step1)[[np.argwhere(params==k).flatten()[0] for k in ["position","stddev"]]]:
             for gc in ax_.get_children():
                 if hasattr(gc,"set_alpha"):
                     gc.set_alpha(0.5)
-                
             ax_.tick_params(color="0.5", labelcolor="0.5")
-
         axes_step1[-1].text(1.1,0.5, "First Fit Iteration", fontsize="large",
                             transform = axes_step1[-1].transAxes, rotation=-90,
                             va="center", ha="left")
-    
+        # /PLOT
+
+        
     # ====
     # Step 2, fix theta, stddev_ratio and ell
     fitprop = {}
@@ -130,16 +139,29 @@ def fit_psf_parameters(cube,lbda_range = [4500,7500], nbins=10,
         fitprop[k+"_guess"] = v
         fitprop[k+"_fixed"] = True
 
-    fitprop["stddev_boundaries"] = [1,5]
-    psfcube.fit_slices(lbda_range=lbda_range, nbins=nbins, **fitprop)
+    if propagate_centroid:
+        indexes = range( len(psfcube.lbdas) )
+        xmean,xmeanerr = np.asarray([psfcube.get_psf_param(i, "xcentroid") for i in indexes ]).T
+        ymean,ymeanerr = np.asarray([psfcube.get_psf_param(i, "ycentroid") for i in indexes ]).T
+        prop_centroid = dict(centroid_guesses=np.asarray([xmean,ymean]).T,
+                             centroid_errors=centroid_errors)
+        
+    psfcube.fit_slices(lbdas, **kwargs_update(fitprop,**prop_centroid))
+
+    # =======
+    # Step 3 Fit the ADR
     ntry = 0
     indexes = None
+    nbins = len(lbdas)
     while ntry<30:
-        psfcube.fit_adr_param(indexes=indexes)
+        psfcube.fit_adr_param(indexes=indexes, **adr_prop)
         chi2dof = psfcube.adrfitter.fitvalues["chi2"] / psfcube.adrfitter.dof
         if chi2dof > 10:
             indexes = np.random.choice(np.arange(nbins), int(nbins*0.7), replace=False)
             ntry+=1
+            if not allow_adr_trials:
+                print("Warnings - chi2/dof of %.2f -> no trial allowed. Nothing changed")
+                break
             print("Warnings - chi2/dof of %.2f -> refit the adr with 30percent out"%chi2dof)
         else:
             break
@@ -147,14 +169,19 @@ def fit_psf_parameters(cube,lbda_range = [4500,7500], nbins=10,
     psfcube.fit_stddev()
 
     # -- Figure Step 2
-    if savefig is not None:
+    if savefig is not None or show:
+        # PLOT
         psfcube.show_adr_fit(ax=axes_adr, show_colorbar=False, show=False)
         axes_adr.set_xlabel("x-position")
         axes_adr.set_ylabel("y-position")
 
         psfcube.show_stddev_fit(ax=axes_stddev,ls="-", lw=1, color="k", alpha=0.8, zorder=1, show=False)
-        fig.savefig(savefig)
-        
+        if savefig is not None:
+            fig.savefig(savefig)
+        else:
+            fig.show()
+            
+        # /PLOT
     # ====
     # Output
     if savedata is not None:
@@ -164,7 +191,7 @@ def fit_psf_parameters(cube,lbda_range = [4500,7500], nbins=10,
         return get_psfmodel(psfcube.fitted_data)
     return psfcube
 
-def fit_force_spectroscopy(cube, psfmodel, savefig=None):
+def fit_force_spectroscopy(cube, psfmodel, savefig=None, show=False):
     """ Provide a cube and a psfmodel (normalized 3D psf) and get spectrum and background
     
     Parameters
@@ -177,7 +204,7 @@ def fit_force_spectroscopy(cube, psfmodel, savefig=None):
     forcepsf = ForcePSF(cube, psfmodel)
     spec,bkgd = forcepsf.fit_forcepsf()
     if savefig is not None:
-        forcepsf.show(savefile=savefig)
+        forcepsf.show(savefile=savefig, show=show)
     return spec, bkgd, forcepsf
 
 #############################
@@ -205,14 +232,15 @@ The profile should be normalize, but this is not mendatory.
 """
 def binormal_profile(x, y,
                 stddev, stddev_ratio, amplitude_ratio, theta, ell,
-                xcentroid=0, ycentroid=0):
+                xcentroid=0, ycentroid=0,
+                amplitude=1):
     """ """
     r = get_elliptical_distance(x, y, xcentroid=xcentroid, ycentroid=ycentroid,  ell=ell, theta=theta)
     
     n1 = norm.pdf(r, loc=0, scale=stddev)
     n2 = norm.pdf(r, loc=0, scale=stddev*stddev_ratio)
             
-    return ( (amplitude_ratio/(1.+amplitude_ratio)) * n1 + (1./(1+amplitude_ratio)) * n2)
+    return amplitude * ( (amplitude_ratio/(1.+amplitude_ratio)) * n1 + (1./(1+amplitude_ratio)) * n2)
 
 
 # ---------------------- #
@@ -251,7 +279,9 @@ def get_elliptical_distance(x, y, xcentroid=0, ycentroid=0, ell=0, theta=0):
 #############################
 def fit_slice(slice_, fitbuffer=None,
               psfmodel="BiNormalCont", fitted_indexes=None,
-              lbda=None, **kwargs):
+              lbda=None, centroids=None, centroids_err=[2,2],
+              adjust_errors=True,
+              **kwargs):
     """ Fit PSF Slice without forcing it's shape
 
     Parameters
@@ -264,7 +294,26 @@ def fit_slice(slice_, fitbuffer=None,
     slpsf = SlicePSF(slice_, psfmodel=psfmodel,
                     fitbuffer=fitbuffer, fitted_indexes=fitted_indexes,
                     lbda=lbda)
-    slpsf.fit( **kwargs_update( slpsf.get_guesses(), **kwargs) )
+    if centroids is None:
+        xcentroid, ycentroid = None, None
+    elif len(centroids) !=2:
+        raise TypeError("given centroid should be None or [x,y]")
+    else:
+        xcentroid, ycentroid = centroids
+        
+    slpsf.fit( **kwargs_update( slpsf.get_guesses(xcentroid=xcentroid,            ycentroid=ycentroid,
+                                                  xcentroid_err=centroids_err[0], ycentroid_err=centroids_err[1]),
+                                    **kwargs) )
+    
+    chi2_dof = slpsf.fitvalues["chi2"] / (slpsf.npoints - slpsf.model.nparam)
+    if chi2_dof>5 and adjust_errors:
+        scaleup = np.sqrt(chi2_dof-1)
+        slpsf.set_error_scale( scaleup )
+        slpsf.fit( **kwargs_update( slpsf.get_guesses(xcentroid=xcentroid,            ycentroid=ycentroid,
+                                                  xcentroid_err=centroids_err[0], ycentroid_err=centroids_err[1]),
+                                    **kwargs) )
+        chi2_dof = slpsf.fitvalues["chi2"] / (slpsf.npoints - slpsf.model.nparam)
+
     return slpsf
 
 
@@ -273,7 +322,8 @@ def fit_forcepsf_slice( data, psfshape, variance = None,
                         amplitude_boundaries=[0,None], amplitude_fixed=False,
                         background_guess=None,
                         background_boundaries=[0,None], background_fixed=False,
-                        print_level=0, errordef=1, full_output=False):
+                        print_level=0, errordef=1, full_output=False,
+                        adjust_errors=True):
     """ Force PSF fitter: only fitting amplitude and background assuming the PSF shape.
     
     Parameters
@@ -353,7 +403,7 @@ def fit_forcepsf_slice( data, psfshape, variance = None,
         
     # Running the fit
     _migrad_output_ = minuit.migrad()
-        
+            
     # Load the output
     if not _migrad_output_[0]["is_valid"]:
         print("WARNING: minuit returned 'False' for migrad `is_valid`")
@@ -364,7 +414,23 @@ def fit_forcepsf_slice( data, psfshape, variance = None,
                 "background.err":minuit.errors["background"],
                 "chi2":minuit.fval,
                 "npoints":len(data)}
-        
+
+    # ==========
+    # - What about the errors ?
+    chi2_dof = minuit.fval / ( len(data) - 2) # 2 background + amplitude
+    if adjust_errors and chi2_dof>3:
+        # If so, relaunch with scaled up variances
+        scaleup_error = np.sqrt(chi2_dof-1)
+        return fit_forcepsf_slice( data, psfshape,
+                                    variance = variance * scaleup_error**2,
+                                    amplitude_guess=amplitude_guess, 
+                                    amplitude_boundaries=amplitude_boundaries, amplitude_fixed=amplitude_fixed,
+                                    background_guess=background_guess,
+                                    background_boundaries=background_boundaries,
+                                    background_fixed=background_fixed,
+                                    print_level=print_level, errordef=errordef, full_output=full_output,
+                                    adjust_errors=False)
+    
     # = Output
     if full_output:
         return fitvalues, _migrad_output_
@@ -787,29 +853,37 @@ class FitPSF( BaseObject ):
         
         return {"theta":theta,"stddev_ratio":stddev_ratio,"ell":ell, "amplitude_ratio":amplitude_ratio}
     
-    def get_stddev_trend(self, stdref, lbda, rho):
+    def get_stddev_trend(self, stdref, lbda, rho, lbdaref=None):
         """ """
-        return stdref * (lbda / self.adrmodel.lbdaref)**(rho)
+        if lbdaref is None:
+            lbdaref = self.adrmodel.lbdaref
+        return stdref * (lbda / lbdaref)**(rho)
         
     # --------------- #
     #  Fitter         #
     # --------------- #
-    def fit_slices(self, lbda_range=[4500,7500], nbins=10, profile="BiNormalCont",**kwargs):
+    def fit_slices(self, lbdas,
+                       profile="BiNormalCont",
+                       centroid_guesses=None,
+                       centroid_errors=1.,
+                       **kwargs):
         """ Mother fitting Method.
 
         use this method to independently fit slices.
 
         Parameters
         ----------
-        lbda_range: [float, float] -optional-
-            wavelength range between which the slices will be made
-
-        nbins: [int] -optional-
-            the number of bins that will devide the lbda_range to make the slices.
+        lbdas: [2d-array]
+            list of slice wavelength boundaries: [[l_min, l_max], [l_min, l_max]...]
 
         profile: [string] -optiona-
             The PSF profile used to fit the slices. 
             (so far only 'BiNormalCont' implemented
+
+        // Fit Guesses
+        centroid_guesses: [2d-array or None]
+            if 2D array, with the format: [[x1,y1], [x2,y2]...]
+            
 
         **kwargs goes to each individual slice fitting. could give _guess, etc entry
         
@@ -817,17 +891,26 @@ class FitPSF( BaseObject ):
         -------
         Void
         """
-        
-        lbdas = np.linspace(lbda_range[0],lbda_range[1],nbins+1)
-        self._side_properties["lbdas"]   = np.asarray([lbdas[:-1],lbdas[1:]]).T
+        if centroid_guesses is not None and len(centroid_guesses) != len(lbdas):
+            raise ValueError("centroid_guesses and lbdas do not have the same length (%d vs. %d)"%( len(centroid_guesses), len(lbdas)) )
+        if centroid_guesses is None:
+            centroid_guesses = [None]*len(lbdas)
+
+            
+        self._side_properties["lbdas"]   = np.asarray(lbdas)
         self._side_properties["profile"] = profile
         
         # - Da fit
         for i,l in enumerate(self.lbdas):
-            self.slicefits[i] = {"fit": fit_slice( self.cube.get_slice(l[0],l[1], slice_object=True), psfmodel=profile, **kwargs),
-                "lbda_range":l}
+            self.slicefits[i] = {"fit": fit_slice( self.cube.get_slice(l[0],l[1], slice_object=True),
+                                                psfmodel=profile,
+                                                centroids=centroid_guesses[i],
+                                                centroids_err=[centroid_errors,centroid_errors],
+                                                       **kwargs),
+                                 "lbda_range":l}
             
-    def fit_stddev(self, indexes=None):
+    def fit_stddev(self, indexes=None, rho_boundaries=[-1,1],
+                       adjust_errors=True, scaleup_errors=1):
         """ Get the `stddev_ref` entry. 
         e.g. the zeropoint of the wavelength dependency of the `stddev` profile parameter.
 
@@ -841,7 +924,7 @@ class FitPSF( BaseObject ):
         -------
         float
         """
-        from scipy.optimize import fmin
+        from scipy.optimize import minimize
         if indexes is None:
             indexes = range(len(self.lbdas))
             lbdas   = np.mean(self.lbdas, axis=1)
@@ -849,20 +932,27 @@ class FitPSF( BaseObject ):
             lbdas   = np.mean(self.lbdas[indexes], axis=1)
         
         stddev, estddev = np.asarray([self.get_psf_param(i, "stddev") for i in indexes]).T
-
+        estddev *= scaleup_errors
         def _fmin_(param):
             scale_, rho_ = param
             return np.sum(np.sqrt((stddev-self.get_stddev_trend(scale_, lbdas, rho=rho_))**2/estddev**2))
 
-        self._derived_properties["stddev_ref"],self._derived_properties["stddev_rho"] = fmin(_fmin_, [np.median(stddev), -1/5.], disp=0)
+        res  = minimize(_fmin_, [np.median(stddev), -1/5.], bounds=[[0.5,10], rho_boundaries], options={"disp":0})
+        chi2_dof = res["fun"] / len(stddev-2)
+        if chi2_dof>3 and adjust_errors:
+            return self.fit_stddev(indexes=indexes, rho_boundaries=rho_boundaries,
+                                       scaleup_errors=np.sqrt(chi2_dof), adjust_errors=False)
+        
+        self._derived_properties["stddev_ref"],self._derived_properties["stddev_rho"] = res["x"]
         return self.stddev_ref, self.stddev_rho
         
-    def fit_adr_param(self, parangle_guess=263, indexes=None, **kwargs):
+    def fit_adr_param(self, parangle=263, indexes=None, **kwargs):
         """ Fir the ADR and set the `adrmodel` attribute.
 
         Parameters
         ----------
         
+        **kwargs goes as modefit-guess dictionary in adrfitter.fit()
         """
         from pysedm.utils import adrfit
         
@@ -883,10 +973,14 @@ class FitPSF( BaseObject ):
         # - Load ADRFitter
         self._derived_properties["adrfitter"] = adrfit.ADRFitter(self.cube.adr.copy(), base_parangle=0, unit=IFU_SCALE_UNIT)
         self.adrfitter.set_data(lbdas, xmean, ymean, xmeanerr, ymeanerr)
-        self.adrfitter.fit(airmass_guess=self.cube.header["AIRMASS"], airmass_boundaries=[1,self.cube.header["AIRMASS"]*1.5],
-                            xref_guess= np.mean(xmean), yref_guess= np.mean(ymean),
-                            parangle_guess=(self.cube.header["TEL_PA"]+parangle_guess)%360,
-                            parangle_boundaries=[0,360],**kwargs)
+
+        default_guesses = dict(airmass_guess=self.cube.header["AIRMASS"],
+                               airmass_boundaries=[1,self.cube.header["AIRMASS"]*1.5],
+                               xref_guess= np.mean(xmean), yref_guess= np.mean(ymean),
+                               parangle_guess=(self.cube.header["TEL_PA"]+parangle)%360,
+                               parangle_boundaries=[0,360])
+        
+        self.adrfitter.fit( **kwargs_update(default_guesses, **kwargs) )
         
         self._derived_properties["adr_parameters"] = self.adrfitter.fitvalues
         self.adr_parameters["header_parangle"]     = self.cube.header["TEL_PA"]
@@ -1067,7 +1161,7 @@ class FitPSF( BaseObject ):
 class PSFFitter( BaseFitter ):
     """ """
     PROPERTIES         = ["spaxelhandler"]
-    SIDE_PROPERTIES    = ["fit_area"]
+    SIDE_PROPERTIES    = ["fit_area","errorscale"]
     DERIVED_PROPERTIES = ["fitted_indexes","dataindex",
                           "xfitted","yfitted","datafitted","errorfitted"]
     # -------------- #
@@ -1119,7 +1213,13 @@ class PSFFitter( BaseFitter ):
         self._derived_properties['yfitted'] = y
         self._derived_properties['datafitted']  = self._spaxelhandler.data.T[self._fit_dataindex].T
         self._derived_properties['errorfitted'] = np.sqrt(self._spaxelhandler.variance.T[self._fit_dataindex]).T
-            
+        if self._side_properties['errorscale'] is None:
+            self.set_error_scale(1)
+
+    def set_error_scale(self, scaleup):
+        """ """
+        self._side_properties['errorscale']  = scaleup
+        
     @property
     def _xfitted(self):
         """ """
@@ -1132,11 +1232,17 @@ class PSFFitter( BaseFitter ):
     def _datafitted(self):
         """ """
         return self._derived_properties['datafitted']
+    
     @property
     def _errorfitted(self):
         """ """
-        return self._derived_properties['errorfitted']
+        return self._derived_properties['errorfitted'] * self._errorscale
 
+    @property
+    def _errorscale(self):
+        """ """
+        return self._side_properties['errorscale']
+    
     # - indexes and ids
     @property
     def fit_area(self):
@@ -1234,8 +1340,11 @@ class SlicePSF( PSFFitter ):
         # corresponding data entry:
         return self._xfitted, self._yfitted, self._datafitted, self._errorfitted
 
-    def get_guesses(self):
-        return self.model.get_guesses(self._xfitted, self._yfitted, self._datafitted)
+    def get_guesses(self, xcentroid=None, xcentroid_err=2, ycentroid=None, ycentroid_err=2):
+        """ you can help to pick the good positions by giving the x and y centroids """
+        return self.model.get_guesses(self._xfitted, self._yfitted, self._datafitted,
+                            xcentroid=xcentroid, xcentroid_err=xcentroid_err,
+                            ycentroid=ycentroid, ycentroid_err=ycentroid_err)
 
     # --------- #
     #  SETTER   #
@@ -1256,6 +1365,7 @@ class SlicePSF( PSFFitter ):
         import matplotlib.pyplot            as mpl
         from astrobject.utils.tools     import kwargs_update
         from astrobject.utils.mpladdon  import figout
+        
         # -- Axes Definition
         fig = mpl.figure(figsize=(9, 3))
         left, width, space = 0.075, 0.2, 0.02
@@ -1330,6 +1440,11 @@ class SlicePSF( PSFFitter ):
         """ pyifu slice """
         return self._spaxelhandler
 
+    @property
+    def npoints(self):
+        """ """
+        return len(self._datafitted)
+    
 # -------------------- #
 #  Slice PSF Fitter    #
 # -------------------- #
@@ -1400,7 +1515,9 @@ class BiNormalCont( _PSFSliceModel_ ):
     # ================== #
     #  Guess             #
     # ================== #
-    def get_guesses(self, x, y, data):
+    def get_guesses(self, x, y, data,
+                        xcentroid=None, xcentroid_err=2,
+                        ycentroid=None, ycentroid_err=2):
         """ return a dictionary containing simple best guesses """
         flagok     = ~np.isnan(x*y*data)
         x          = x[flagok]
@@ -1408,32 +1525,39 @@ class BiNormalCont( _PSFSliceModel_ ):
         data       = data[flagok]
         
         ampl       = np.nanmax(data)
-        argmaxes   = np.argwhere(data>np.percentile(data,95)).flatten()
-        x0, stdx   = np.nanmean(x[argmaxes]), np.nanstd(x[argmaxes])
-        y0, stdy   = np.nanmean(y[argmaxes]), np.nanstd(y[argmaxes])
-        std_mean   = np.mean([stdx,stdy]) / 2
-        ell        = 1 - np.nanmin([stdx,stdy])/np.nanmax([stdx,stdy])
-        theta      = 0 if stdx>stdy else np.pi/2.
+        if ycentroid is None or xcentroid is None:
+            argmaxes   = np.argwhere(data>np.percentile(data,95)).flatten()
+
+        if xcentroid is None:
+            xcentroid  = np.nanmean(x[argmaxes])
+        if ycentroid is None:
+            ycentroid  = np.nanmean(y[argmaxes])
         
-        self._guess = dict(amplitude_guess=ampl * 5,
-                           amplitude_boundaries= [ampl/100, ampl*100],
-                           xcentroid_guess=x0, xcentroid_boundaries=[x0-3,x0+3],
-                           ycentroid_guess=y0, ycentroid_boundaries=[y0-3,y0+3],
-                           # - STD
-                           stddev_guess = std_mean,
-                           stddev_boundaries=[0.8,std_mean*2],
-                           # - background
-                           bkgd_guess=np.percentile(data,10),
-                           # Converges faster by allowing degenerated param...
-                           theta_guess=theta, theta_boundaries=[-0.05,1*np.pi],
-                           ell_guess = ell, ell_boundaries= [-0.1, 0.8],
-                           # amplitude ratio
-                           amplitude_ratio_guess = 3.5,
-                           amplitude_ratio_fixed = True,
-                           amplitude_ratio_boundaries = [3,4],
-                           stddev_ratio_guess = 2.,
-                           stddev_ratio_boundaries = [1.1,3.5],
-                            )
+        self._guess = dict( amplitude_guess=ampl * 5,
+                            amplitude_boundaries= [ampl/100, ampl*100],
+                            # - background
+                            bkgd_guess=np.percentile(data,10), bkgd_boundaries=np.percentile(data,[0.1,99.9]),
+                            # centroid
+                            xcentroid_guess=xcentroid, xcentroid_boundaries=[xcentroid-xcentroid_err, xcentroid+xcentroid_err],
+                            ycentroid_guess=ycentroid, ycentroid_boundaries=[ycentroid-ycentroid_err, ycentroid+ycentroid_err],
+                            # ------------------------ #
+                            # SEDM DEFAULT VARIABLES   #
+                            # ------------------------ #
+                            # Ellipticity
+                            ell_guess=0.05, ell_boundaries=[0,0.9], ell_fixed=False,
+                            theta_guess=1.5, theta_boundaries=[0,np.pi], theta_fixed=False,
+                            # Size
+                            stddev_guess = 2.,
+                            stddev_boundaries=[0.5, 8],
+                            stddev_ratio_guess=2.,
+                            stddev_ratio_boundaries=[1.1, 5],
+                            stddev_ratio_fixed=False,
+                            # Converges faster by allowing degenerated param...
+                            # amplitude ratio
+                            amplitude_ratio_guess = 3.5,
+                            amplitude_ratio_fixed = True,
+                            amplitude_ratio_boundaries = [3,4],
+                           )
         return self._guess
     
     # ================== #
@@ -1441,8 +1565,7 @@ class BiNormalCont( _PSFSliceModel_ ):
     # ================== #
     def get_profile(self, x, y):
         """ """
-        amplitude = self.param_profile.pop("amplitude")
-        return amplitude * binormal_profile(x, y, **self.param_profile)
+        return binormal_profile(x, y, **self.param_profile)
 
     def get_background(self,x,y):
         """ The background at the given positions """

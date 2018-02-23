@@ -33,7 +33,8 @@ INDEX_CCD_CONTOURS = [[_EDGES_X[0],_EDGES_Y],[_EDGES_X[0],1700],
 SEDM_LBDA = np.linspace(3700, 9300, 260)
 
 # --- ADR
-MLA_ROTATION_RAD= (263) * np.pi / 180.  # degree -> to rad
+MLA_ROTATION_DEG= 263
+MLA_ROTATION_RAD= MLA_ROTATION_DEG * np.pi / 180.  # degree -> to rad
 MLA_ROTMATRIX   = np.asarray([[ np.cos(MLA_ROTATION_RAD),-np.sin(MLA_ROTATION_RAD)], 
                               [ np.sin(MLA_ROTATION_RAD), np.cos(MLA_ROTATION_RAD)]] )
 DEFAULT_REFLBDA = 6000 # In Angstrom
@@ -50,6 +51,14 @@ PALOMAR_EXTINCTION = np.asarray([ (3200, 1.058),
  (5556, 0.151), (5840, 0.140), (6055, 0.133), (6435, 0.104), (6790, 0.084), (7100, 0.071),
  (7550, 0.061), (7780, 0.055), (8090, 0.051), (8370, 0.048), (8708, 0.044), (9832, 0.036),
  (10255, 0.034), (10610, 0.032), (10795, 0.032), (10870, 0.031)])
+
+
+PALOMAR_COORDS = {"latitude":   33.3563, # North
+                  "longitude":-116.8648, # West
+                  "altitude":1712,       #meter
+                      }
+
+
 
 def get_palomar_extinction():
     """ The ExtinctionSpectrum object of the Palomar Extinction 

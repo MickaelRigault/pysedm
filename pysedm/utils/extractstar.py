@@ -1549,8 +1549,8 @@ class BiNormalCont( _PSFSliceModel_ ):
                             # Size
                             stddev_guess = 2.,
                             stddev_boundaries=[0.5, 8],
-                            stddev_ratio_guess=2.,
-                            stddev_ratio_boundaries=[1.1, 5],
+                            stddev_ratio_guess=1.5,
+                            stddev_ratio_boundaries=[1.1, 3],
                             stddev_ratio_fixed=False,
                             # Converges faster by allowing degenerated param...
                             # amplitude ratio

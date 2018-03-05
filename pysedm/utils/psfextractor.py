@@ -401,7 +401,8 @@ class ForcePSFPicker( InteractiveCube ):
                                         savedata=None, savefig=savefigure, show=False,
                                         return_psfmodel=False,
                                         # ADR inpout
-                                        adr_prop=adr_prop, allow_adr_trials=False)
+                                        adr_prop=adr_prop, allow_adr_trials=False,
+                                        stddev_ratio_flexibility=0.5)
 
         psfmodel = extractstar.get_psfmodel(self.psfcube.fitted_data)
         
@@ -483,13 +484,14 @@ class ForcePSFPicker( InteractiveCube ):
             self._start_picking_process_(event)
             
         # - Getting the wavelength
-        elif event.inaxes  == self.axspec:
-            self._onclick_axspec_(event)
-        elif event.inaxes == self.axim:
-            if self._picking["step"] == "lbdapicked":
-                self._complet_picking_(event)
-            else:
-                super(ForcePSFPicker, self).interact_onclick(event)
+        elif self._picking is not None:
+            if event.inaxes  == self.axspec:
+                self._onclick_axspec_(event)
+            elif event.inaxes == self.axim:
+                if self._picking["step"] == "lbdapicked":
+                    self._complet_picking_(event)
+                else:
+                    super(ForcePSFPicker, self).interact_onclick(event)
                 
 
     def interact_onrelease(self, event):

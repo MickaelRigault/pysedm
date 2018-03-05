@@ -12,8 +12,8 @@ from propobject          import BaseObject
 from pyifu                import adr
 from pyifu.spectroscopy   import Slice
 
-from pysedm.sedm          import IFU_SCALE_UNIT # This is the only SEDM part.
-from pysedm.utils.tools   import kwargs_update, is_arraylike, make_method
+from ..sedm          import IFU_SCALE_UNIT # This is the only SEDM part.
+from .tools   import kwargs_update, is_arraylike, make_method, fit_intrinsic
 
 from modefit.baseobjects import BaseFitter, BaseModel
 
@@ -55,9 +55,10 @@ def fit_psf_parameters(cube, lbdas,
                        centroid_guesses=None,
                        centroid_errors=1.,
                        savedata=None, savefig=None, show=False,
-                       return_psfmodel=True,
+                       return_psfmodel=True, stddev_ratio_flexibility=0.2,
                        propagate_centroid=True,
-                       adr_prop={}, allow_adr_trials=True):
+                       adr_prop={}, allow_adr_trials=True,
+                       **kwargs):
     """ Extract the PSF shape parameters for the given cube.
     = This function is made to fit signle point source cube. =
 
@@ -75,12 +76,16 @@ def fit_psf_parameters(cube, lbdas,
     return_psfmodel: [bool] -optional-
         shall this method return a PSF3D object (True) or the psffitter one (False)?
 
+
     // Information between steps
 
     propagate_centroid: [bool] -optional-
         Shall the best fitted centroid from step 1 be propagated as initial guess for 
         step 2?
-    
+        
+    stddev_ratio_flexibility: [positive float] -optional-
+        Do you want to hard force the stddev ratio in the second step or to allow for some
+        flexibility? Set a value here. 0 mean no flexibility.
 
     Returns
     -------
@@ -137,8 +142,16 @@ def fit_psf_parameters(cube, lbdas,
     fitprop = {}
     for k,v in cont_param.items():
         fitprop[k+"_guess"] = v
-        fitprop[k+"_fixed"] = True
-
+        if k in ['ell']:
+            fitprop[k+"_boundaries"] = [v-0.05,v+0.05]
+            
+        if k in ["theta"]:
+            fitprop[k+"_boundaries"] = [v-0.1,v+0.1]
+            
+        if k in ['stddev_ratio']:
+            if v>=2: v=1.7
+            fitprop[k+"_boundaries"] = [v-0.2,v+0.2]
+        
     if propagate_centroid:
         indexes = range( len(psfcube.lbdas) )
         xmean,xmeanerr = np.asarray([psfcube.get_psf_param(i, "xcentroid") for i in indexes ]).T
@@ -147,7 +160,11 @@ def fit_psf_parameters(cube, lbdas,
                              centroid_errors=centroid_errors)
         
     psfcube.fit_slices(lbdas, **kwargs_update(fitprop,**prop_centroid))
-
+    
+    if stddev_ratio_flexibility>0:
+        # recatch it.
+        cont_param = psfcube.get_const_parameters()
+    
     # =======
     # Step 3 Fit the ADR
     ntry = 0
@@ -207,69 +224,6 @@ def fit_force_spectroscopy(cube, psfmodel, savefig=None, show=False):
         forcepsf.show(savefile=savefig, show=show)
     return spec, bkgd, forcepsf
 
-#############################
-#                           #
-#  Profiles                 #
-#                           #
-#############################
-
-"""
-# How To build a new profile?
-
-All profile must have the following format:
-```python
-def name_of_the_profile(x,y,
-                        here, define, your, variables,
-                        xcentroid=0, ycentroid=0):
-     ''' ADD Documentation '''
-
-     do_the_job
-
-     return list_of_values (1darray with the same length as x/y)
-```
-The profile should be normalize, but this is not mendatory.
-
-"""
-def binormal_profile(x, y,
-                stddev, stddev_ratio, amplitude_ratio, theta, ell,
-                xcentroid=0, ycentroid=0,
-                amplitude=1):
-    """ """
-    r = get_elliptical_distance(x, y, xcentroid=xcentroid, ycentroid=ycentroid,  ell=ell, theta=theta)
-    
-    n1 = norm.pdf(r, loc=0, scale=stddev)
-    n2 = norm.pdf(r, loc=0, scale=stddev*stddev_ratio)
-            
-    return amplitude * ( (amplitude_ratio/(1.+amplitude_ratio)) * n1 + (1./(1+amplitude_ratio)) * n2)
-
-
-# ---------------------- #
-#  Interal Tool          #
-# ---------------------- #
-def get_elliptical_distance(x, y, xcentroid=0, ycentroid=0, ell=0, theta=0):
-    """
-    Parameters
-    ----------
-    x,y: [array]
-        Cartesian Coordinates
-
-    x0,y0: [float] -optional-
-        Cartesian coordinate of the ellipse center
-        
-    ell: [float] -optional-
-        Ellipticity [0<ell<1[
-        
-    theta: [float] -optional-
-        Angle of the ellipse [radian]
-    
-    Returns
-    -------
-    array for float (elliptical distance)
-    """
-    c, s  = np.cos(theta), np.sin(theta)
-    rot   = np.asarray([[c, s], [-s, c]])
-    xx,yy = np.dot(rot, np.asarray([x-xcentroid, y-ycentroid]))
-    return np.sqrt(xx**2 + (yy/(1-ell))**2)
 
 
 #############################
@@ -278,7 +232,7 @@ def get_elliptical_distance(x, y, xcentroid=0, ycentroid=0, ell=0, theta=0):
 #                           #
 #############################
 def fit_slice(slice_, fitbuffer=None,
-              psfmodel="BiNormalCont", fitted_indexes=None,
+              psfmodel="BiNormalTilted", fitted_indexes=None,
               lbda=None, centroids=None, centroids_err=[2,2],
               adjust_errors=True,
               **kwargs):
@@ -305,15 +259,15 @@ def fit_slice(slice_, fitbuffer=None,
                                                   xcentroid_err=centroids_err[0], ycentroid_err=centroids_err[1]),
                                     **kwargs) )
     
-    chi2_dof = slpsf.fitvalues["chi2"] / (slpsf.npoints - slpsf.model.nparam)
-    if chi2_dof>5 and adjust_errors:
-        scaleup = np.sqrt(chi2_dof-1)
-        slpsf.set_error_scale( scaleup )
+    dof = slpsf.npoints - slpsf.model.nparam
+    if slpsf.fitvalues["chi2"] / dof>2 and adjust_errors:
+        model = slpsf.model.get_model(slpsf._xfitted, slpsf._yfitted)
+        intrinsic = fit_intrinsic(slpsf._datafitted, model, slpsf._errorfitted, dof, intrinsic_guess=None)
+        slpsf.set_intrinsic_error(intrinsic / np.sqrt(2) )
         slpsf.fit( **kwargs_update( slpsf.get_guesses(xcentroid=xcentroid,            ycentroid=ycentroid,
                                                   xcentroid_err=centroids_err[0], ycentroid_err=centroids_err[1]),
-                                    **kwargs) )
-        chi2_dof = slpsf.fitvalues["chi2"] / (slpsf.npoints - slpsf.model.nparam)
-
+                   **kwargs))
+        
     return slpsf
 
 
@@ -863,7 +817,7 @@ class FitPSF( BaseObject ):
     #  Fitter         #
     # --------------- #
     def fit_slices(self, lbdas,
-                       profile="BiNormalCont",
+                       profile="BiNormalTilted",
                        centroid_guesses=None,
                        centroid_errors=1.,
                        **kwargs):
@@ -878,7 +832,6 @@ class FitPSF( BaseObject ):
 
         profile: [string] -optiona-
             The PSF profile used to fit the slices. 
-            (so far only 'BiNormalCont' implemented
 
         // Fit Guesses
         centroid_guesses: [2d-array or None]
@@ -932,6 +885,8 @@ class FitPSF( BaseObject ):
             lbdas   = np.mean(self.lbdas[indexes], axis=1)
         
         stddev, estddev = np.asarray([self.get_psf_param(i, "stddev") for i in indexes]).T
+        estddev[estddev==0] = 0.5
+        estddev[estddev<0.1] = 0.1
         estddev *= scaleup_errors
         def _fmin_(param):
             scale_, rho_ = param
@@ -1161,7 +1116,7 @@ class FitPSF( BaseObject ):
 class PSFFitter( BaseFitter ):
     """ """
     PROPERTIES         = ["spaxelhandler"]
-    SIDE_PROPERTIES    = ["fit_area","errorscale"]
+    SIDE_PROPERTIES    = ["fit_area","errorscale","intrinsicerror"]
     DERIVED_PROPERTIES = ["fitted_indexes","dataindex",
                           "xfitted","yfitted","datafitted","errorfitted"]
     # -------------- #
@@ -1212,13 +1167,31 @@ class PSFFitter( BaseFitter ):
         self._derived_properties['xfitted'] = x
         self._derived_properties['yfitted'] = y
         self._derived_properties['datafitted']  = self._spaxelhandler.data.T[self._fit_dataindex].T
-        self._derived_properties['errorfitted'] = np.sqrt(self._spaxelhandler.variance.T[self._fit_dataindex]).T
+        if np.any(self._spaxelhandler.variance.T[self._fit_dataindex]<0):
+            warnings.warn("Negative variance detected. These variance at set back to twice the median vairance.")
+            var = self._spaxelhandler.variance.T[self._fit_dataindex]
+            var[var<=0] = np.nanmedian(var)*2
+            self._derived_properties['errorfitted'] = np.sqrt(var)
+        else:
+            self._derived_properties['errorfitted'] = np.sqrt(self._spaxelhandler.variance.T[self._fit_dataindex]).T
+            
         if self._side_properties['errorscale'] is None:
             self.set_error_scale(1)
+        if self._side_properties['intrinsicerror'] is None:
+            self.set_intrinsic_error(0)
 
     def set_error_scale(self, scaleup):
         """ """
         self._side_properties['errorscale']  = scaleup
+
+    def set_intrinsic_error(self, int_error):
+        """ """
+        self._side_properties['intrinsicerror'] = int_error
+        
+    @property
+    def _intrinsic_error(self):
+        """ """
+        return self._side_properties['intrinsicerror']
         
     @property
     def _xfitted(self):
@@ -1236,7 +1209,7 @@ class PSFFitter( BaseFitter ):
     @property
     def _errorfitted(self):
         """ """
-        return self._derived_properties['errorfitted'] * self._errorscale
+        return self._derived_properties['errorfitted'] * self._errorscale + self._intrinsic_error
 
     @property
     def _errorscale(self):
@@ -1279,10 +1252,14 @@ class PSFFitter( BaseFitter ):
 def read_psfmodel(psfmodel):
     """ """
     
-    if "BiNormalCont" in psfmodel:
-        return BiNormalCont()
+    if "BiNormalFlat" in psfmodel:
+        return BiNormalFlat()
+    elif "BiNormalTilted" in psfmodel:
+        return BiNormalTilted()
+    elif "BiNormalCurved" in psfmodel:
+        return BiNormalCurved()
     else:
-        raise ValueError("Only the 'BiNormalCont' psfmodel has been implemented")
+        raise ValueError("Only the 'BiNormal{Flat/Tilted/Curved}' psfmodel has been implemented")
 
 # -------------------- #
 #  Slice PSF Fitter    #
@@ -1294,7 +1271,7 @@ class SlicePSF( PSFFitter ):
     # =================== #
     def __init__(self, slice_,
                      fitbuffer=None,fit_area=None,
-                     psfmodel="BiNormalCont",
+                     psfmodel="BiNormalTilted",
                      fitted_indexes=None, lbda=5000):
         """ The SlicePSF fitter object
 
@@ -1317,6 +1294,7 @@ class SlicePSF( PSFFitter ):
         # - Setting the model
         self.set_model(read_psfmodel(psfmodel))
 
+        # = Which Data
         if fitted_indexes is not None:
             self.set_fitted_indexes(fitted_indexes)
         elif fit_area is not None:
@@ -1328,7 +1306,7 @@ class SlicePSF( PSFFitter ):
             self.set_fit_area(shapely.geometry.Point(x,y).buffer(fitbuffer))
         else:
             self._set_fitted_values_()
-
+            
         self.use_minuit = True
 
     # --------- #
@@ -1358,6 +1336,39 @@ class SlicePSF( PSFFitter ):
     # --------- #
     # PLOTTER   #
     # --------- #
+    def show_psf(self, ax=None, show=True, savefile=None, nobkgd=True):
+        """ """
+        import matplotlib.pyplot as mpl
+        
+        if ax is None:
+            fig = mpl.figure(figsize=[6,4])
+            ax  = fig.add_axes([0.13,0.1,0.77,0.8])
+        else:
+            fig = ax.figure
+            
+            
+        r_ellipse = get_elliptical_distance(self._xfitted, self._yfitted,
+                                                  xcentroid=self.fitvalues['xcentroid'],
+                                                  ycentroid=self.fitvalues['ycentroid'],
+                                                  ell=self.fitvalues['ell'], theta=self.fitvalues['theta'])
+        if nobkgd:
+            background = self.model.get_background(self._xfitted, self._yfitted)
+            datashown = self._datafitted - background
+        else:
+            datashown = self._datafitted
+        ax.scatter(r_ellipse, datashown, marker="o", zorder=5, s=80, edgecolors="0.7",
+                       facecolors=mpl.cm.binary(0.2,0.7))
+        ax.errorbar(r_ellipse, datashown, yerr=self._errorfitted,
+                    marker="None", ls="None", ecolor="0.7", zorder=2, alpha=0.7)
+
+        
+        self.model.display_model(ax, np.linspace(0,np.nanmax(r_ellipse),100), nobkgd=nobkgd)
+        
+        if savefile:
+            fig.savefig(savefile)
+        if show:
+            fig.show()
+        
     def show(self, savefile=None, show=True,
                  centroid_prop={}, logscale=True,
                  vmin="2", vmax="98", **kwargs):
@@ -1444,6 +1455,10 @@ class SlicePSF( PSFFitter ):
     def npoints(self):
         """ """
         return len(self._datafitted)
+
+
+
+
     
 # -------------------- #
 #  Slice PSF Fitter    #
@@ -1503,7 +1518,7 @@ class _PSFSliceModel_( BaseModel ):
 #  Actual Model        #
 # -------------------- #
     
-class BiNormalCont( _PSFSliceModel_ ):
+class BiNormalFlat( _PSFSliceModel_ ):
     """ """
     PROFILE_PARAMETERS = ["amplitude",
                           "stddev", "stddev_ratio", "amplitude_ratio",
@@ -1547,30 +1562,64 @@ class BiNormalCont( _PSFSliceModel_ ):
                             ell_guess=0.05, ell_boundaries=[0,0.9], ell_fixed=False,
                             theta_guess=1.5, theta_boundaries=[0,np.pi], theta_fixed=False,
                             # Size
-                            stddev_guess = 2.,
-                            stddev_boundaries=[0.5, 8],
-                            stddev_ratio_guess=1.5,
-                            stddev_ratio_boundaries=[1.1, 3],
+                            stddev_guess = 1.3,
+                            stddev_boundaries=[0.5, 5],
+                            stddev_ratio_guess=2.,
+                            stddev_ratio_boundaries=[1.1, 4],
                             stddev_ratio_fixed=False,
                             # Converges faster by allowing degenerated param...
                             # amplitude ratio
-                            amplitude_ratio_guess = 3.5,
-                            amplitude_ratio_fixed = True,
-                            amplitude_ratio_boundaries = [3,4],
+                            amplitude_ratio_guess = 3,
+                            amplitude_ratio_fixed = False,
+                            amplitude_ratio_boundaries = [1.5,5],
                            )
         return self._guess
-    
+
     # ================== #
     #  Model             #
     # ================== #
     def get_profile(self, x, y):
         """ """
         return binormal_profile(x, y, **self.param_profile)
-
+    
     def get_background(self,x,y):
         """ The background at the given positions """
         return self.param_background["bkgd"]
-    
+
+    def display_model(self, ax, rmodel, legend=True,
+                          nobkgd=True,
+                          cmodel = "C1",
+                          cgaussian1 = "C0",cgaussian2 = "C2",
+                          cbkgd="k", zorder=7):
+        """ """
+        # the decomposed binormal_profile
+        n1 = norm.pdf(rmodel, loc=0, scale=self.param_profile['stddev'])
+        n2 = norm.pdf(rmodel, loc=0, scale=self.param_profile['stddev']*self.param_profile['stddev_ratio'])
+
+        coef1 = self.param_profile['amplitude_ratio']/(1.+self.param_profile['amplitude_ratio'])
+        coef2 = 1./(1+self.param_profile['amplitude_ratio'])
+
+        amplitude = self.param_profile['amplitude']
+        # and its background
+        background = 0 if nobkgd else self.param_background['bkgd']
+
+        # - display background
+        if not nobkgd:
+            ax.axhline(background, ls=":",color=cbkgd, label="background",zorder=zorder)
+        
+        # - display details
+        ax.plot(rmodel, background + n1*coef1*amplitude, ls="-.",color=cgaussian1, label="Core Gaussian",zorder=zorder)
+        ax.plot(rmodel, background + n2*coef2*amplitude, ls="-.",color=cgaussian2, label="Tail Gaussian",zorder=zorder)
+        # - display full model
+        ax.plot(rmodel, background + (n2*coef2+n1*coef1)*amplitude, 
+                    ls="-",color=cmodel,zorder=zorder+1, lw=2, label="PSF Model")
+
+        # - add the legend
+        if legend:
+            ax.legend(loc="upper right", ncol=2)
+        
+
+        
     # ============= #
     #  Properties   #
     # ============= #
@@ -1588,4 +1637,17 @@ class BiNormalCont( _PSFSliceModel_ ):
     def fwhm(self):
         """ """
         return "To Be Done"
+
+class BiNormalTilted( BiNormalFlat ):
+    """ """
+    BACKGROUND_PARAMETERS = ["bkgd","bkgdx","bkgdy"]
+    def get_background(self, x, y):
+        """ The background at the given positions """
+        return tilted_plane(x, y, [self.param_background[k] for k in self.BACKGROUND_PARAMETERS])
     
+class BiNormalCurved( BiNormalFlat ):
+    """ """
+    BACKGROUND_PARAMETERS = ["bkgd","bkgdx","bkgdy","bkgdxy","bkgdxx","bkgdyy"]
+    def get_background(self, x, y):
+        """ The background at the given positions """
+        return curved_plane(x, y, [self.param_background[k] for k in self.BACKGROUND_PARAMETERS])

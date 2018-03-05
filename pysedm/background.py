@@ -87,7 +87,12 @@ def fit_background(ccd, start=2, jump=10, multiprocess=True, ncore=None,
     if multiprocess:
         import multiprocessing
         if ncore is None:
-            ncore = multiprocessing.cpu_count() - 1
+            if multiprocessing.cpu_count()>20:
+                ncore = multiprocessing.cpu_count() - 8
+            elif multiprocessing.cpu_count()>8:
+                ncore = multiprocessing.cpu_count() - 4
+            else:
+                ncore = multiprocessing.cpu_count() - 2
             if ncore==0:
                 ncore = 1
         p = multiprocessing.Pool(ncore)

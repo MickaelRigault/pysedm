@@ -14,7 +14,7 @@ from propobject   import BaseObject
 from .utils.tools import kwargs_update, load_pkl, dump_pkl
 from .sedm        import SEDM_CCD_SIZE
 
-DEGREE = 20
+DEGREE   = 13
 LEGENDRE = True
 
 NGAUSS = 1

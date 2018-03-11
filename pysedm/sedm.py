@@ -30,7 +30,7 @@ INDEX_CCD_CONTOURS = [[_EDGES_X[0],_EDGES_Y],[_EDGES_X[0],1700],
                       [300, SEDM_CCD_SIZE[1]-_EDGES_Y],[SEDM_CCD_SIZE[0]-_EDGES_X[1],SEDM_CCD_SIZE[1]-_EDGES_Y],
                         [SEDM_CCD_SIZE[0]-_EDGES_X[1],_EDGES_Y]]
 # --- LBDA
-SEDM_LBDA = np.linspace(3700, 9300, 260)
+SEDM_LBDA = np.linspace(3700, 9300, 220)
 
 # --- ADR
 MLA_ROTATION_DEG= 263

@@ -230,7 +230,7 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
             savefile= fileout.replace(PROD_CUBEROOT,"flex_sodiumline_"+PROD_CUBEROOT).replace(".fits",".pdf")
             flexure.show(savefile=savefile,show=False)
             
-        i_shift = np.mean(list(flexure.get_i_shift(as_slice=False).values()))
+        i_shift = self.get_i_flexure()
         
         print("Getting the flexure corrected cube. ")
         cube = build_sedmcube(ccd, date, lbda=lbda, flatfield=flatfield,

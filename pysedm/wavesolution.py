@@ -418,6 +418,10 @@ class Flexure( BaseObject ):
     # --------- #
     #  PLOTTER  #
     # --------- #
+    def get_i_flexure(self):
+        """ """
+        return - np.mean( list(self.get_i_shift(as_slice=False).values()) )
+        
     def show(self, savefile=None, show=True, sodium_reference=SODIUM_SKYLINE_LBDA):
         """" """
         import matplotlib.pyplot as mpl
@@ -442,9 +446,7 @@ class Flexure( BaseObject ):
         ax.text(0.98,0.98,"%d spectra made by \n averaging over %d spaxels"%(len(self._indexes),len(self._indexes[0])),
                     va="top",ha="right", transform=ax.transAxes, color="0.5")
         
-        mean_shift_i = np.mean( list(self.get_i_shift(as_slice=False).values()) )
-        
-        ax.text(0.5,0.05,"corresponds to a typical ccd 'i'-shift of %.2f pixels"%(mean_shift_i),
+        ax.text(0.5,0.05,"corresponds to a typical ccd 'i'-shift of %.2f pixels"%(self.get_i_flexure()),
                     va="bottom",ha="center", transform=ax.transAxes, color="k",
                     bbox={'facecolor':'w', 'alpha':0.7,'edgecolor':'0.5', "boxstyle":"round"})
         

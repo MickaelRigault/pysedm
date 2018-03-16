@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import os
 
 #################################
 #
@@ -89,11 +90,17 @@ if  __name__ == "__main__":
         print(args.rebuild)
         options += ["--rebuild"]
 
-        
+   
+    processes = []     
     for i,bounds in enumerate(idxbounds):          
         command = ["ccd_to_cube.py", date, "--wavesol","--spaxelrange","%s,%s"%(bounds[0],bounds[1])] + options
         print("launching command: "+" ".join(command))
-        subprocess.Popen(command, stdout=subprocess.PIPE)
+        f = os.tmpfile()
+        p = subprocess.Popen(command, stdout=f)
+        processes.append((p,f))
 
-    
-    
+    for (p, f) in processes:
+        p.wait()
+        f.seek(0)
+        # TODO log f here
+        f.close()

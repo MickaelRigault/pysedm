@@ -4,8 +4,8 @@
 import numpy as np
 import os
 import warnings
-import matplotlib
-matplotlib.use('Agg')
+#import matplotlib
+#matplotlib.use('Agg')
 import matplotlib.pyplot as mpl
 from glob import glob
 

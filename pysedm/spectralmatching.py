@@ -249,7 +249,7 @@ def load_trace_masks(tmatch, traceindexes=None, multiprocess=True,
         import multiprocessing
         bar = ProgressBar( len(traceindexes), ipython_widget=notebook)
         if ncore is None:
-            ncore = np.max([multiprocessing.cpu_count() - 0,1])
+            ncore = np.max([multiprocessing.cpu_count() - 1, 1])
                 
         p = multiprocessing.Pool(ncore)
         for j, mask in enumerate( p.imap(verts_to_mask, [tmatch.trace_vertices[i_] for i_ in traceindexes])):

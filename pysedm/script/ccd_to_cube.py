@@ -4,6 +4,8 @@
 import numpy as np
 import os
 import warnings
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as mpl
 from glob import glob
 
@@ -17,8 +19,6 @@ from ..spectralmatching import get_tracematcher, illustrate_traces, load_trace_m
 from ..wavesolution import get_wavesolution, Flexure
 
 from ..sedm import INDEX_CCD_CONTOURS, TRACE_DISPERSION, build_sedmcube, build_calibrated_sedmcube, SEDM_LBDA
-
-
 
 ############################
 #                          #

@@ -20,7 +20,7 @@ def get_rainbow_datapath(DATE):
 
 def get_ifu_guider_images(ifu_header):
     """ """
-    if ifu_header['IMGTYPE'] not in ['SCIENCE', "STANDARD"]:
+    if ifu_header['IMGTYPE'].lower() not in ['science', "standard"]:
         raise TypeError("ifu_header is not a header of a Science of standard ifu target")
 
     # = Getting the start and the beginning of the exposure = #
@@ -38,7 +38,7 @@ def get_ifu_guider_images(ifu_header):
 
 def stack_images(rainbow_files, method="median", scale="median"):
     """ return a 2D image corresponding of the stack of the given data """
-
+    # - 
     if scale not in ['median']:
         raise NotImplementedError("only median scaling implemented (not %s)"%scale)
     

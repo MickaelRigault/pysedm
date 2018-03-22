@@ -14,6 +14,7 @@ from astropy.io import fits
 RAINBOW_DATA_SOURCE = "/scr2/sedm/raw/"
 READOUT_NOISE       = 4
 
+
 def get_rainbow_datapath(DATE):
     """ returns the path of the rainbow camera data """
     return RAINBOW_DATA_SOURCE+DATE+"/"

@@ -356,7 +356,7 @@ class Flexure( BaseObject ):
     
     # --------- #
     #  FITTER   #
-    # --------- #
+    # --------- #        
     def fit_sodiumlines(self, spectrum, sodium_reference=SODIUM_SKYLINE_LBDA,
                             lbda_buffer=400, show=False):
         """ fit the sodium line on the given spectrum and returns the fitvalue dictionary.

@@ -323,10 +323,17 @@ def build_night_cubes(date, target=None, lamps=True, only_lamps=False,
 # ----------------- #
 def build_cubes(ccdfiles,  date, lbda=None,
                 tracematch=None, wavesolution=None, hexagrid=None,
+                # Background:
+                nobackground = False,
+                # Flat Field
                 flatfielded=True, flatfield=None,
-                traceflexure_corrected=True,
-                atmcorrected=True, flexure_corrected=True, 
+                # Flexure
+                traceflexure_corrected=True, flexure_corrected=True,
+                # Calibration
+                atmcorrected=True, 
                 build_calibrated_cube=True, calibration_ref=None,
+                # Out
+                fileindex=None,
                 savefig=True, verbose=True, notebook=False):
     """ Build a cube from the an IFU ccd image. This image 
     should be bias corrected and cosmic ray corrected.
@@ -364,6 +371,10 @@ def build_cubes(ccdfiles,  date, lbda=None,
         If None, this will be loaded using `date`.
 
     // Action Selection //
+
+    nobackground: [bool] -option-
+        Shall the ccd background be 0 instead of the usual pipeline background?
+
     flexure_corrected: [bool] -optional-
         Shall the cube be flexure corrected ?
         - Remark, this means the cube will be built twice: 
@@ -441,7 +452,12 @@ def build_cubes(ccdfiles,  date, lbda=None,
             ccd_.header["FLXTRACE"] =  (False, "Is TraceMatch corrected for j flexure?")
             ccd_.header["FLXTRVAL"] =  (0, "amplitude in pixel of the  j flexure Trace correction")
             
-        ccd_.fetch_background(set_it=True, build_if_needed=True)
+        if not nobackground:
+            ccd_.fetch_background(set_it=True, build_if_needed=True)
+            ccd_.header["CCDBKGD"] = (True, "is the ccd been background subtracted?")
+        else:
+            ccd_.header["CCDBKGD"] = (False, "is the ccd been background subtracted?")
+            
         # - Variance
         if not ccd_.has_var():
             ccd_.set_default_variance()
@@ -459,11 +475,10 @@ def build_cubes(ccdfiles,  date, lbda=None,
                     atmcorrected=atmcorrected, 
                     build_calibrated_cube=build_calibrated_cube,
                     calibration_ref=calibration_ref,
+                    fileindex=fileindex,
                     savefig=savefig)
-        #try:
+        
         build_sedmcube(ccdin, date,  **prop)
-        #except:
-        #    warnings.warn("FAILED building cube for ccd: %s"%ccdin.filename.split("/")[-1])
             
             
     # The actual build

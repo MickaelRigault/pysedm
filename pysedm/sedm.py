@@ -80,6 +80,8 @@ def get_palomar_extinction():
 # ------------------ #
 def build_sedmcube(ccd, date, lbda=None, flatfield=None,
                    wavesolution=None, hexagrid=None,
+                   # - ignore all twicking
+                   fileindex="",
                    # Flexure
                    flexure_corrected=True,
                    pixel_shift=0,
@@ -163,10 +165,14 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
     from . import io
     # - IO information
     if np.any([calibkey_ in ccd.filename for calibkey_ in CALIBFILES]):
-        filout = "%s"%(ccd.filename.split("/")[-1].split(".fits")[0])
+        fileout_ = "%s"%(ccd.filename.split("/")[-1].split(".fits")[0])
     else:
-        filout = "%s_%s"%(ccd.filename.split("/")[-1].split(".fits")[0], ccd.objname)
-    fileout =    io.get_datapath(date)+"%s_%s.fits"%(PROD_CUBEROOT,filout)
+        fileout_ = "%s_%s"%(ccd.filename.split("/")[-1].split(".fits")[0], ccd.objname)
+        
+    
+    fileindex = "_%s"%fileindex if fileindex is not None and fileindex.replace(" ","") != "" else ""
+    
+    fileout     = io.get_datapath(date)+"%s%s_%s.fits"%(PROD_CUBEROOT,fileindex,fileout_)
 
         
         
@@ -880,12 +886,3 @@ class ApertureSpectrum( Spectrum ):
     def _backgrounddata(self):
         """ """
         return 0 if not self.has_background() else self.background.data
-
-
-
-    
-########################
-#                      #
-#    MPL ADDON         #
-#                      #
-########################

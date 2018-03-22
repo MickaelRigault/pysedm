@@ -30,6 +30,12 @@ if  __name__ == "__main__":
     parser.add_argument('--build',  type=str, default=None,
                         help='Build a e3d cube of the given target (accepting regex) or target list (csv) e.g. --build dome or --build dome,Hg,Cd')
 
+    parser.add_argument('--quickbuild', action="store_true", default=False,
+                        help='Faster cube extraction: No background No j-flexure, no i-flexure. Keyword "quickbuild" added to the cube.')
+
+    parser.add_argument('--nobackground', action="store_true", default=False,
+                        help='Shall the ccd background be 0 instead of the usual pipeline background?')
+    
     parser.add_argument('--noflexure', action="store_true", default=False,
                         help='build cubes without flexure correction')
     
@@ -98,7 +104,7 @@ if  __name__ == "__main__":
     # ================= #
     #   The Scripts     #
     # ================= #
-
+    
     # --------- #
     #  Date     #
     # --------- #
@@ -120,10 +126,20 @@ if  __name__ == "__main__":
     # ================= #
             
     # - Builds
+    if args.quickbuild:
+        args.noflexure      = True
+        args.notraceflexure = True
+        args.nobackground   = True
+        fileindex = "quickbuild"
+    else:
+        fileindex = ""
+        
     if args.build is not None and len(args.build) >0:
         for target in args.build.split(","):
             build_night_cubes(date, target=target,
                              lamps=True, only_lamps=False, skip_calib=True,
+                             fileindex=fileindex,
+                             nobackground=bool(args.nobackground),
                              # - options
                              savefig = False if args.nofig else True,
                              flexure_corrected = False if args.noflexure else True,

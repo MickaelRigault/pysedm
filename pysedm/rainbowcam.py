@@ -14,6 +14,91 @@ from astropy.io import fits
 RAINBOW_DATA_SOURCE = "/scr2/sedm/raw/"
 READOUT_NOISE       = 4
 
+# ================== #
+#  Main Function     #
+# ================== #
+
+def build_stacked_guider(ifufile, outdir=None, overwrite=True):
+    """ """    
+    guiders = get_ifu_guider_images(fits.getheader(header_ifu))
+    stacked_image = stack_images(guiders)
+    # - building the .fits
+    
+    filein = ifufile.split("/")[-1]
+    if outdir is None: outdir = "".join(ifufile.split("/")[:-1])
+        
+    savefile = open(outdir+"/guider_%s"%filein, "w")
+
+    hdulist = fits.HDUList([fits.PrimaryHDU(stacked_image, fits.getheader(guiders))])
+    hdulist.writeto(savefile, overwrite=overwrite)
+
+    
+def solve_astrometry(img, outimage=None, radius=3, with_pix=True, overwrite=True, tweak=3):
+    """ author: @nblago
+
+    img: fits image where astrometry should be solved.
+    outimage: name for the astrometry solved image. If none is provided, the name will be "a_"img.
+    radius: radius of uncertainty on astrometric position in image.
+    with_pix: if we want to include the constraint on the pixel size for the RCCam.
+    overwrite: wether the astrometrically solved image should go on top of the old one.
+    tewak: parameter for astrometry.net
+    """
+
+    from astropy.wcs import InconsistentAxisTypesError
+    
+    curdir = os.getcwd()
+    imgdir = os.path.dirname(img)
+    
+    os.chdir(imgdir)
+    
+    img = os.path.abspath(img)
+    
+    ra  = fits.getval(img, 'RA')
+    dec = fits.getval(img, 'DEC')
+    #logger.info( "Solving astrometry on field with (ra,dec)=%s %s"%(ra, dec))
+    
+    astro = os.path.join( os.path.dirname(img), "a_" + os.path.basename(img))
+
+
+    #If astrometry exists, we don't run it again.
+    if (os.path.isfile(astro) and not overwrite):
+        return astro
+        
+    cmd = "solve-field --ra %s --dec %s --radius %.4f -p --new-fits %s -W none -B none -P none -M none -R none -S none -t %d --overwrite %s "%(ra, dec, radius, astro, tweak, img)
+    if (with_pix):
+        cmd = cmd + " --scale-units arcsecperpix  --scale-low 0.375 --scale-high 0.4"
+    
+    print (cmd)
+
+    subprocess.call(cmd, shell=True)
+    
+    print ("Finished astrometry")
+    
+    #Cleaning after astrometry.net
+    if (os.path.isfile(img.replace(".fits", ".axy"))):
+        os.remove(img.replace(".fits", ".axy"))
+    if (os.path.isfile(img.replace(".fits", "-indx.xyls"))):
+        os.remove(img.replace(".fits", "-indx.xyls"))
+    if (os.path.isfile("none")):
+        try:
+            os.remove("none")
+        except:
+            print ("Could not remove file none.")
+        
+    os.chdir(curdir)
+
+    if (not outimage is None and overwrite and os.path.isfile(astro)):
+        shutil.move(astro, outimage)
+        return outimage
+    elif (outimage is None and overwrite and os.path.isfile(astro)):
+        shutil.move(astro, img)
+        return img
+    else:
+        return astro
+    
+# ================== #
+#   Tools            #
+# ================== #
 
 def get_rainbow_datapath(DATE):
     """ returns the path of the rainbow camera data """

@@ -7,7 +7,7 @@
 #
 # This method is an a
 #
-
+import os
 import numpy as np
 from astropy.io import fits
 

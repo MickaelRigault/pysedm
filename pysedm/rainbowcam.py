@@ -17,6 +17,15 @@ READOUT_NOISE       = 4
 # ================== #
 #  Main Function     #
 # ================== #
+def build_meta_ifu_guider(ifufile, outdir, solve_astrometry=True, **kwargs):
+    """ """
+    savefile = build_stacked_guider(ifufile, outdir)
+    if solve_astrometry:
+        solve_astrometry(savefile, **kwargs)
+
+# ================== #
+#   Function         #
+# ================== #
 
 def build_stacked_guider(ifufile, outdir=None, overwrite=True):
     """ """    
@@ -31,6 +40,7 @@ def build_stacked_guider(ifufile, outdir=None, overwrite=True):
 
     hdulist = fits.HDUList([fits.PrimaryHDU(stacked_image, fits.getheader(guiders))])
     hdulist.writeto(savefile, overwrite=overwrite)
+    return savefile
 
     
 def solve_astrometry(img, outimage=None, radius=3, with_pix=True, overwrite=True, tweak=3):

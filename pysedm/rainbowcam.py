@@ -31,10 +31,10 @@ def get_ifu_guider_images(ifu_header):
     else:
         jd_ini, jd_end = ifu_header['JD'], ifu_header['JD'] + ifu_header['EXPTIME'] / (24*3600)
         
-    rb_directory = get_rainbow_datapath("".join(header_ifu['OBSDATE'].split('-')))
-    return [rb_dir+f for f in os.listdir(rb_directory)
+    rb_dir = get_rainbow_datapath("".join(ifu_header['OBSDATE'].split('-')))
+    return [rb_dir+f for f in os.listdir(rb_dir)
                 if f.startswith("rc") and f.endswith(".fits")
-                and jd_ini<=fits.getval(f_, "JD")<=jd_end]
+                and jd_ini<=fits.getval(rb_dir+f, "JD")<=jd_end]
 
 def stack_images(rainbow_files, method="median", scale="median"):
     """ return a 2D image corresponding of the stack of the given data """
@@ -54,6 +54,6 @@ def stack_images(rainbow_files, method="median", scale="median"):
             scaling = np.median(data_)
         datas.append(data_/scaling)
 
-    return np.median(datas, axis=1)
+    return np.median(datas, axis=0)
 
 

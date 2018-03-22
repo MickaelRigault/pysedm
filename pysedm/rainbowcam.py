@@ -31,7 +31,7 @@ def get_ifu_guider_images(ifu_header):
     else:
         jd_ini, jd_end = ifu_header['JD'], ifu_header['JD'] + ifu_header['EXPTIME'] / (24*3600)
         
-    rb_directory = get_rainbow_datapath(ifu_header['OBSDATE'].split('-')[0])
+    rb_directory = get_rainbow_datapath("".join(header_ifu['OBSDATE'].split('-')))
     return [rb_dir+f for f in os.listdir(rb_directory)
                 if f.startswith("rc") and f.endswith(".fits")
                 and jd_ini<=fits.getval(f_, "JD")<=jd_end]

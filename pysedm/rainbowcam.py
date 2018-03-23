@@ -17,10 +17,10 @@ READOUT_NOISE       = 4
 # ================== #
 #  Main Function     #
 # ================== #
-def build_meta_ifu_guider(ifufile, outdir, solve_astrometry=True, **kwargs):
+def build_meta_ifu_guider(ifufile, outdir, solve_wcs=True, **kwargs):
     """ """
     savefile = build_stacked_guider(ifufile, outdir)
-    if solve_astrometry:
+    if solve_wcs:
         solve_astrometry(savefile, **kwargs)
 
 # ================== #
@@ -29,15 +29,14 @@ def build_meta_ifu_guider(ifufile, outdir, solve_astrometry=True, **kwargs):
 
 def build_stacked_guider(ifufile, outdir=None, overwrite=True):
     """ """    
-    guiders = get_ifu_guider_images(fits.getheader(header_ifu))
+    guiders = get_ifu_guider_images(fits.getheader(ifufile))
     stacked_image = stack_images(guiders)
     # - building the .fits
     
     filein = ifufile.split("/")[-1]
     if outdir is None: outdir = "".join(ifufile.split("/")[:-1])
         
-    savefile = open(outdir+"/guider_%s"%filein, "w")
-
+    savefile = outdir+"/guider_%s"%filein
     hdulist = fits.HDUList([fits.PrimaryHDU(stacked_image, fits.getheader(guiders[0]))])
     hdulist.writeto(savefile, overwrite=overwrite)
     return savefile
@@ -55,7 +54,7 @@ def solve_astrometry(img, outimage=None, radius=3, with_pix=True, overwrite=True
     """
 
     from astropy.wcs import InconsistentAxisTypesError
-    
+    import subprocess    
     curdir = os.getcwd()
     imgdir = os.path.dirname(img)
     

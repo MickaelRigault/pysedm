@@ -24,6 +24,9 @@ if  __name__ == "__main__":
     parser.add_argument('--rebuild',  action="store_true", default=False,
                         help='If the object you want to build already exists, nothing happens except if this is set')
     
+    parser.add_argument('--noguider',  action="store_true", default=False,
+                        help='Avoid having a guider stack created. [part of the --build]')
+    
     # --------------- #
     #  Cube Building  #
     # --------------- #
@@ -74,6 +77,7 @@ if  __name__ == "__main__":
 
     parser.add_argument('--wavesolplots', action="store_true", default=False,
                         help='Set this to save individual wavelength solution fit results')
+    
     # ----------------- #
     #  Raw Calibration  #
     # ----------------- #
@@ -89,6 +93,8 @@ if  __name__ == "__main__":
     # ----------------- #
     #  Short Cuts       #
     # ----------------- #
+    
+    
     parser.add_argument('--allcalibs', action="store_true", default=False,
                         help='')
     
@@ -141,10 +147,11 @@ if  __name__ == "__main__":
                              fileindex=fileindex,
                              nobackground=bool(args.nobackground),
                              # - options
+                             build_guider = False if args.noguider else True,
                              savefig = False if args.nofig else True,
                              flexure_corrected = False if args.noflexure else True,
                              traceflexure_corrected = False if args.notraceflexure else True)
-
+            
     if args.buildcal is not None:
         if args.buildcal=="*": args.buildcal=args.build
         if len(args.buildcal) >0:

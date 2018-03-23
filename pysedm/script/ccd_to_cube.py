@@ -333,6 +333,7 @@ def build_cubes(ccdfiles,  date, lbda=None,
                 atmcorrected=True, 
                 build_calibrated_cube=True, calibration_ref=None,
                 # Out
+                build_guider=True,
                 fileindex=None,
                 savefig=True, verbose=True, notebook=False):
     """ Build a cube from the an IFU ccd image. This image 
@@ -462,7 +463,10 @@ def build_cubes(ccdfiles,  date, lbda=None,
         if not ccd_.has_var():
             ccd_.set_default_variance()
         ccds.append(ccd_)
-
+        if build_guider:
+            from pysedm import rainbowcam
+            rainbowcam.build_meta_ifu_guider(ccdfile, solve_wcs=False)
+            
     # ---------------- #
     # Build the Cubes  #
     # ---------------- #

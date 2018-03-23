@@ -84,26 +84,26 @@ def solve_astrometry(img, outimage=None, radius=3, with_pix=True, overwrite=True
     print ("Finished astrometry")
     
     #Cleaning after astrometry.net
-    if (os.path.isfile(img.replace(".fits", ".axy"))):
-        os.remove(img.replace(".fits", ".axy"))
-    if (os.path.isfile(img.replace(".fits", "-indx.xyls"))):
-        os.remove(img.replace(".fits", "-indx.xyls"))
-    if (os.path.isfile("none")):
-        try:
-            os.remove("none")
-        except:
-            print ("Could not remove file none.")
+    #if (os.path.isfile(img.replace(".fits", ".axy"))):
+    #    os.remove(img.replace(".fits", ".axy"))
+    #if (os.path.isfile(img.replace(".fits", "-indx.xyls"))):
+    #    os.remove(img.replace(".fits", "-indx.xyls"))
+    #if (os.path.isfile("none")):
+   #     try:
+   #         os.remove("none")
+   #     except:
+   #         print ("Could not remove file none.")
         
-    os.chdir(curdir)
+    #os.chdir(curdir)
 
-    if (not outimage is None and overwrite and os.path.isfile(astro)):
-        shutil.move(astro, outimage)
-        return outimage
-    elif (outimage is None and overwrite and os.path.isfile(astro)):
-        shutil.move(astro, img)
-        return img
-    else:
-        return astro
+    #if (not outimage is None and overwrite and os.path.isfile(astro)):
+    #    shutil.move(astro, outimage)
+    #    return outimage
+    #elif (outimage is None and overwrite and os.path.isfile(astro)):
+    #    shutil.move(astro, img)
+    #    return img
+    #else:
+    #    return astro
     
 # ================== #
 #   Tools            #

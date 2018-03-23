@@ -34,7 +34,7 @@ if  __name__ == "__main__":
     parser.add_argument('--autorange',  type=str, default="4500,7000",
                         help='Wavelength range [in Angstrom] for measuring the metaslice PSF')
     
-    parser.add_argument('--autobins',  type=int, default=6,
+    parser.add_argument('--autobins',  type=int, default=7,
                         help='Number of bins within the wavelength range (see --autorange)')
 
     parser.add_argument('--centroid',  type=str, default=None,

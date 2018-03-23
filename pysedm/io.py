@@ -339,7 +339,8 @@ def load_telluric_line(filter=None):
 #  OUTPUT PROD          #
 #
 #########################
-def _saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=None, spec=None, bkgd=None,
+def _saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=None,
+                           cubefitted=None,spec=None, bkgd=None,
                            mode="auto", nofig=False):
      # Cube Model
     if cubemodel is not None:
@@ -348,6 +349,14 @@ def _saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=None, spec=None, 
         cubemodel.header["PYSEDMT"]  = ("Force 3DPSF extraction: Model Cube", "This is the model cube of the PSF extract")
         cubemodel.header["PSFTYPE"]  = (mode, "Kind of PSF extraction")
         cubemodel.writeto(filecube.replace(PROD_CUBEROOT,"forcepsfmodel_%s_"%mode+PROD_CUBEROOT))
+
+    if cubefitted is not None:
+        cubefitted.set_header(cube.header)
+        cubefitted.header["SOURCE"]   = (filecube.split("/")[-1], "This object has been derived from this file")
+        cubefitted.header["PYSEDMT"]  = ("Force 3DPSF extraction: Fitted Cube", "This is the model cube of the PSF extract")
+        cubefitted.header["PSFTYPE"]  = (mode, "Kind of PSF extraction")
+        cubefitted.writeto(filecube.replace(PROD_CUBEROOT,"forcepsf_fitted_%s_"%mode+PROD_CUBEROOT))
+        
     if cuberes is not None:
         # Cube Residual                
         cuberes.set_header(cube.header)

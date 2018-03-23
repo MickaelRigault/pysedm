@@ -143,8 +143,13 @@ if  __name__ == "__main__":
                 # --------------
                 # Recording
                 # --------------
-                io._saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=cubemodel, spec=spec)
+                io._saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=cubemodel,
+                                          cubefitted=cube_to_fit, spec=spec)
+                
                 if not args.nofig:
+                    psffit.show_adr(savefile=spec.filename.replace("spec","adr_fit").replace(".fits",".pdf") ) 
+                    psffit.slices[2]["slpsf"].show(savefile=spec.filename.replace("spec","psfprofile").replace(".fits",".pdf"))
+                    
                     import matplotlib.pyplot as mpl
                     cube.show(show=False)
                     ax = mpl.gca()

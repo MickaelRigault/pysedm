@@ -339,45 +339,48 @@ def load_telluric_line(filter=None):
 #  OUTPUT PROD          #
 #
 #########################
-def _saveout_forcepsf_(filecube, cube, cuberes, cubemodel, spec, bkgd,
+def _saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=None, spec=None, bkgd=None,
                            mode="auto", nofig=False):
      # Cube Model
-    cubemodel.set_header(cube.header)
-    cubemodel.header["SOURCE"]   = (filecube.split("/")[-1], "This object has been derived from this file")
-    cubemodel.header["PYSEDMT"]  = ("Force 3DPSF extraction: Model Cube", "This is the model cube of the PSF extract")
-    cubemodel.header["PSFTYPE"]  = (mode, "Kind of PSF extraction")
-    cubemodel.writeto(filecube.replace(PROD_CUBEROOT,"forcepsfmodel_%s_"%mode+PROD_CUBEROOT))
-    
-    # Cube Residual                
-    cuberes.set_header(cube.header)
-    cuberes.header["SOURCE"]   = (filecube.split("/")[-1], "This object has been derived from this file")
-    cuberes.header["PYSEDMT"]  = ("Force 3DPSF extraction: Residual Cube", "This is the residual cube of the PSF extract")
-    cuberes.header["PSFTYPE"]  = (mode, "Kind of PSF extraction")
-    cuberes.writeto(filecube.replace(PROD_CUBEROOT,"psfres_%s_"%mode+PROD_CUBEROOT))
+    if cubemodel is not None:
+        cubemodel.set_header(cube.header)
+        cubemodel.header["SOURCE"]   = (filecube.split("/")[-1], "This object has been derived from this file")
+        cubemodel.header["PYSEDMT"]  = ("Force 3DPSF extraction: Model Cube", "This is the model cube of the PSF extract")
+        cubemodel.header["PSFTYPE"]  = (mode, "Kind of PSF extraction")
+        cubemodel.writeto(filecube.replace(PROD_CUBEROOT,"forcepsfmodel_%s_"%mode+PROD_CUBEROOT))
+    if cuberes is not None:
+        # Cube Residual                
+        cuberes.set_header(cube.header)
+        cuberes.header["SOURCE"]   = (filecube.split("/")[-1], "This object has been derived from this file")
+        cuberes.header["PYSEDMT"]  = ("Force 3DPSF extraction: Residual Cube", "This is the residual cube of the PSF extract")
+        cuberes.header["PSFTYPE"]  = (mode, "Kind of PSF extraction")
+        cuberes.writeto(filecube.replace(PROD_CUBEROOT,"psfres_%s_"%mode+PROD_CUBEROOT))
     
     # ----------------- #
     # Save the Spectrum #
     # ----------------- #
     # - build the spectrum
-    spec.set_header(cube.header)
-    spec.header["SOURCE"]   = (filecube.split("/")[-1], "This object has been derived from this file")
-    spec.header["PYSEDMT"]  = ("Force 3DPSF extraction: Spectral Model", "This is the fitted flux spectrum")
-    spec.header["PSFTYPE"]  = (mode, "Kind of PSF extraction")
+    if spec is not None:
+        spec.set_header(cube.header)
+        spec.header["SOURCE"]   = (filecube.split("/")[-1], "This object has been derived from this file")
+        spec.header["PYSEDMT"]  = ("Force 3DPSF extraction: Spectral Model", "This is the fitted flux spectrum")
+        spec.header["PSFTYPE"]  = (mode, "Kind of PSF extraction")
+        
+        fileout = filecube.replace(PROD_CUBEROOT,PROD_SPECROOT+"_forcepsf_%s_"%mode)
+        spec.writeto(fileout)
+        spec.writeto(fileout.replace(".fits",".txt"), ascii=True)
     
-    fileout = filecube.replace(PROD_CUBEROOT,PROD_SPECROOT+"_forcepsf_%s_"%mode)
-    spec.writeto(fileout)
-    spec.writeto(fileout.replace(".fits",".txt"), ascii=True)
-    
-    spec._side_properties["filename"] = fileout
-    if not nofig:
-        spec.show(savefile=spec.filename.replace(".fits",".pdf"), show=False)
+        spec._side_properties["filename"] = fileout
+        if not nofig:
+            spec.show(savefile=spec.filename.replace(".fits",".pdf"), show=False)
         
     # - background
-    bkgd.set_header(cube.header)
-    bkgd.header["SOURCE"]   = (filecube.split("/")[-1], "This object has been derived from this file")
-    bkgd.header["PYSEDMT"]  = ("Force 3DPSF extraction: Spectral Background Model", "This is the fitted flux spectrum")
-    bkgd.header["PSFTYPE"]  = (mode, "Kind of PSF extraction")
+    if bkgd is not None:
+        bkgd.set_header(cube.header)
+        bkgd.header["SOURCE"]   = (filecube.split("/")[-1], "This object has been derived from this file")
+        bkgd.header["PYSEDMT"]  = ("Force 3DPSF extraction: Spectral Background Model", "This is the fitted flux spectrum")
+        bkgd.header["PSFTYPE"]  = (mode, "Kind of PSF extraction")
     
-    fileout = filecube.replace(PROD_CUBEROOT,PROD_SPECROOT+"_forcepsf_%s_bkgd"%mode)
-    bkgd.writeto(fileout)
-    bkgd.writeto(fileout.replace(".fits",".txt"), ascii=True)
+        fileout = filecube.replace(PROD_CUBEROOT,PROD_SPECROOT+"_forcepsf_%s_bkgd"%mode)
+        bkgd.writeto(fileout)
+        bkgd.writeto(fileout.replace(".fits",".txt"), ascii=True)

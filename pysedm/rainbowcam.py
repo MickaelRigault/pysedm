@@ -17,8 +17,34 @@ READOUT_NOISE       = 4
 # ================== #
 #  Main Function     #
 # ================== #
-def build_meta_ifu_guider(ifufile, outdir, solve_wcs=True, **kwargs):
-    """ """
+def build_meta_ifu_guider(ifufile, outdir=None, solve_wcs=True, **kwargs):
+    """ Higher level function. 
+    It:
+    1) fetches the guider images from the rainbow camera raw directory
+    2) Merges them into one stacked_guider image
+    3) Solves the astrometry on the stacked_guider image.
+
+    Steps 1 and 2 are made using `build_stacked_guider()`
+    Step 3 is made using `solve_astrometry` 
+
+    Parameters
+    ----------
+    ifufile: [string]
+        Path of a ifu .fits (or derived .fits as long as they contain the basic associated header keywords)
+       
+    outfir: [string] -optional-
+        Where does the guider image should be saved. 
+        If None, it will be in the same directory as the `infufile`
+        
+    solve_wcs: [bool] -optional-
+        Shall the astromety.net solve-field be ran on the stacked image?
+
+    **kwargs goe stop `solve_astrometry`
+        
+    Returns
+    -------
+    Void (creates a guider_`ifufile`)
+    """
     savefile = build_stacked_guider(ifufile, outdir)
     if solve_wcs:
         solve_astrometry(savefile, **kwargs)
@@ -28,7 +54,24 @@ def build_meta_ifu_guider(ifufile, outdir, solve_wcs=True, **kwargs):
 # ================== #
 
 def build_stacked_guider(ifufile, outdir=None, overwrite=True):
-    """ """    
+    """ 
+    This function:
+    1) fetches the guider images from the rainbow camera raw directory
+       [using `get_ifu_guider_images`]
+    2) Merges them into one stacked_guider image
+       [using `get_ifu_guider_images`]
+
+
+    Parameters
+    ----------
+    ifufile: [string]
+        Path of a ifu .fits (or derived .fits as long as they contain the basic associated header keywords)
+       
+    outfir: [string] -optional-
+        Where does the guider image should be saved. 
+        If None, it will be in the same directory as the `infufile`
+
+    """    
     guiders = get_ifu_guider_images(fits.getheader(ifufile))
     stacked_image = stack_images(guiders)
     # - building the .fits
@@ -94,7 +137,7 @@ def solve_astrometry(img, outimage=None, radius=3, with_pix=True, overwrite=True
    #     except:
    #         print ("Could not remove file none.")
         
-    #os.chdir(curdir)
+    os.chdir(curdir)
 
     #if (not outimage is None and overwrite and os.path.isfile(astro)):
     #    shutil.move(astro, outimage)

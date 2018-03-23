@@ -11,9 +11,12 @@ if  __name__ == "__main__":
     
     import argparse
     import numpy as np
-    from pysedm.utils import extractstar
-    from pysedm       import get_sedmcube, io
-
+    from shapely      import geometry
+    # 
+    from psfcube      import script
+    from pysedm       import get_sedmcube, io, fluxcalibration, sedm
+    from pysedm.sedm  import IFU_SCALE_UNIT
+    
     # ================= #
     #   Options         #
     # ================= #
@@ -31,9 +34,22 @@ if  __name__ == "__main__":
     parser.add_argument('--autorange',  type=str, default="4500,7000",
                         help='Wavelength range [in Angstrom] for measuring the metaslice PSF')
     
-    parser.add_argument('--autobins',  type=int, default=10,
+    parser.add_argument('--autobins',  type=int, default=6,
                         help='Number of bins within the wavelength range (see --autorange)')
+
+    parser.add_argument('--centroid',  type=str, default=None,
+                        help='Where is the point source expected to be? using the "x,y" format. If None, it will be guessed.'+
+                            "\nGuess works well for isolated sources.")
     
+    parser.add_argument('--buffer',  type=float, default=10,
+                        help='Radius [in spaxels] of the aperture used for the PSF fit. (see --centroid for aperture center)')
+
+    parser.add_argument('--psfmodel',  type=str, default="NormalMoffatTilted",
+                        help='PSF model used for the PSF fit: NormalMoffat{Flat/Tilted/Curved}')
+
+    parser.add_argument('--lstep',  type=int, default=1,
+                        help='Slice width in lbda step: default is 1, use 2 for fainter source and maybe 3 for really faint target')
+
     # - Standard Star object
     parser.add_argument('--std',  action="store_true", default=False,
                         help='Set this to True to tell the program you what to build a calibration spectrum from this object')
@@ -64,7 +80,11 @@ if  __name__ == "__main__":
     # ---------- #
     # - Automatic extraction
     if args.auto is not None and len(args.auto) >0:
-        print(args.auto)
+        final_slice_width = int(args.lstep)
+        # - Step 1 parameters
+        lbdaranges, bins = np.asarray(args.autorange.split(","), dtype="float"), int(args.autobins+1)
+        STEP_LBDA_RANGE = np.linspace(lbdaranges[0],lbdaranges[1], bins+1)
+        lbda_step1      = np.asarray([STEP_LBDA_RANGE[:-1], STEP_LBDA_RANGE[1:]]).T
         
         for target in args.auto.split(","):
             filecubes = io.get_night_files(date, "cube.*", target=target.replace(".fits",""))
@@ -77,90 +97,77 @@ if  __name__ == "__main__":
                 # ----------------- #
                 print("Automatic extraction of target %s, file: %s"%(target, filecube))
                 cube = get_sedmcube(filecube)
+                # Centroid ?
+                if args.centroid is None:
+                    sl = cube.get_slice(lbda_min=lbdaranges[0], lbda_max=lbdaranges[1], slice_object=True)
+                    x,y = np.asarray(sl.index_to_xy(sl.indexes)).T # Slice x and y
+                    argmaxes = np.argwhere(sl.data>np.percentile(sl.data,95)).flatten() # brightest points
+                    xcentroid,ycentroid  = np.nanmean(x[argmaxes]),np.nanmean(y[argmaxes]) # centroid
+                else:
+                    xcentroid, ycentroid = np.asarray(args.centroid.split(","), dtype="float")
+                    
+                # Aperture area ?
+                point_polygon = geometry.Point(xcentroid, ycentroid).buffer( float(args.buffer) )
+                # => Cube to fit
+                cube_to_fit = cube.get_partial_cube( cube.get_spaxels_within_polygon(point_polygon),
+                                                      np.arange(len(cube.lbda)))
                 # --------------
                 # Fitting
                 # --------------
-                # - wavelengthes used
-                lbda_range = np.asarray(args.autorange.split(","), dtype="float")
-                lbdas_ = np.linspace(lbda_range[0],lbda_range[1],args.autobins+1)
-                lbdas  = np.asarray([lbdas_[:-1],lbdas_[1:]]).T
+                spec, cubemodel, psfmodel, bkgdmodel, psffit, slpsf  = \
+                  script.extract_star(cube_to_fit, centroids=[xcentroid, ycentroid],
+                                          spaxel_unit = IFU_SCALE_UNIT,
+                                          final_slice_width = final_slice_width,
+                                          lbda_step1=lbda_step1, psfmodel=args.psfmodel)
+                # Hack to be removed:
+                print("INFO: Temporary variance hacking to be removed ")
+                spec._properties['variance'] = np.ones(len(spec.lbda)) * np.median(spec.variance)
 
-                # Step 1 fit the PSF shape:
-                output = cube.filename.replace("e3d","psffit_e3d")
-                savedata = output.replace(".fits",".json")
-                savefig = savedata.replace(".json",".pdf") if not args.nofig else None
+                if final_slice_width != 1:
+                    spec = spec.reshape(cube.lbda)
 
-                psfmodel = extractstar.fit_psf_parameters(cube, lbdas,
-                                                        savedata=savedata,savefig=savefig,
-                                                        return_psfmodel=True)
-                # Step 2 ForcePSF spectroscopy:
-                
-                output = cube.filename.replace("e3d","forcepsf_e3d")
-                savefig = output.replace(".fits",".pdf") if not args.nofig else None
-                spec, bkgd, forcepsf = extractstar.fit_force_spectroscopy(cube, psfmodel, savefig=savefig)
-                cubemodel = forcepsf.cubemodel
-                cuberes   = forcepsf.cuberes
-                
-                
+                    #cubemodel.reshape(cube_to_fit.lbda)
+                    
+                #cuberes   = cube_to_fit - cubemodel
+
+                # --------------
+                # Flux Calibation
+                # --------------
+                if not args.std:
+                    from pyifu import load_spectrum
+                    fluxcal = load_spectrum(io.fetch_nearest_fluxcal(date, cube.filename))
+                    spec.scale_by(1/(fluxcal.data))
+                    spec.header["FLUXCAL"] = ("True","has the spectra been flux calibrated")
+                    spec.header["CALSRC"] = (fluxcal.filename.split("/")[-1], "Flux calibrator filename")
+                    
                 # --------------
                 # Recording
                 # --------------
-                io._saveout_forcepsf_(filecube, cube, cuberes, cubemodel, spec, bkgd)
-                
+                io._saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=cubemodel, spec=spec)
+                if not args.nofig:
+                    import matplotlib.pyplot as mpl
+                    cube.show(show=False)
+                    ax = mpl.gca()
+                    x,y = np.asarray(cube_to_fit.index_to_xy(cube_to_fit.indexes)).T
+                    ax.plot(x,y, marker=".", ls="None", ms=1, color="k")
+                    ax.figure.savefig(spec.filename.replace("spec","spaxels_source").replace(".fits",".pdf"))
+                # -----------------
+                #  Is that a STD  ?
+                # -----------------
+                if args.std and cube.header['IMGTYPE'].lower() in ['standard']:
+                    spec.header['OBJECT'] = cube.header['OBJECT']
+                    speccal, fl = fluxcalibration.get_fluxcalibrator(spec, fullout=True)
+                    speccal.header["SOURCE"] = (spec.filename.split("/")[-1], "This object has been derived from this file")
+                    speccal.header["PYSEDMT"] = ("Flux Calibration Spectrum", "Object to use to flux calibrate")
+                    filename_inv = spec.filename.replace(io.PROD_SPECROOT,io.PROD_SENSITIVITYROOT)
+                    speccal._side_properties['filename'] = filename_inv
+                    speccal.writeto(filename_inv)
+                    if not args.nofig:
+                        fl.show(savefile=speccal.filename.replace(".fits",".pdf"), show=False, fluxcal=speccal.data)
+                                    
                 # - for the record
                 extracted_objects.append(spec)
                 
     else:
         print("NO  AUTO")
         
-    # ----------- #
-    # Calibration #
-    # ----------- #
-    if args.std:
-        import pycalspec
-        from pyifu.spectroscopy import get_spectrum
-        from pyifu.tools import figout
-        for spec in extracted_objects:
-            if "STD" not in spec.header['OBJECT']:
-                continue
-            
-            if "FLUXCAL" in spec.header.keys() and spec.header['FLUXCAL']:
-                continue
-            
-            # - Let's go
-            stdname = spec.header['OBJECT'].replace("STD-","")
-            stdspec = pycalspec.std_spectrum(stdname).reshape(spec.lbda,"linear")
-            speccal = get_spectrum(spec.lbda, stdspec.data/spec.data, variance=None, header=spec.header)
-            speccal.header["SOURCE"] = (spec.filename.split("/")[-1], "This object has been derived from this file")
-            speccal.header["PYSEDMT"] = ("Flux Calibration Spectrum", "Object to use to flux calibrate")
-            
-            # - Naming
-            filename_inv = spec.filename.replace(io.PROD_SPECROOT,io.PROD_SENSITIVITYROOT)
-            speccal._side_properties['filename'] = filename_inv
-            speccal.writeto(filename_inv)
-                                
-            # - Checkplot
-            if not args.nofig:
-                pl = speccal.show(color="C1", lw=2, show=False, savefile=None)
-                ax = pl["ax"]
-                ax.set_ylabel('Inverse Sensitivity')
-                ax.set_yscale("log")
-                # telluric
-                ax.axvspan(7550,7700, color="0.7", alpha=0.4) 
-                ax.text(7700,ax.get_ylim()[-1],  "O2 Telluric ", 
-                        va="top", ha="center",  rotation=90,color="0.2",
-                        zorder=9, fontsize=11)
-                
-                ax.axvspan(6850,7000, color="0.7", alpha=0.2) 
-                ax.text(6900,ax.get_ylim()[-1],  "O2 Telluric ", 
-                        va="top", ha="center",  rotation=90,color="0.1",
-                        zorder=9, fontsize=11)
-                
-                # reference            
-                axrspec = ax.twinx()
-                spec.show(ax=axrspec, color="C0",  label="obs.", show=False, savefile=None)
-                axrspec.set_yticks([])
-                axrspec.legend(loc="upper right")
-                axrspec.set_title("Source:%s | Airmass:%.2f"%(spec.filename.split('/')[-1],spec.header['AIRMASS']),
-                                      fontsize="small", color="0.5")
-                ax.figure.figout(savefile=speccal.filename.replace(".fits",".pdf"))

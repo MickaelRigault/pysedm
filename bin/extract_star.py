@@ -49,6 +49,9 @@ if  __name__ == "__main__":
 
     parser.add_argument('--lstep',  type=int, default=1,
                         help='Slice width in lbda step: default is 1, use 2 for fainter source and maybe 3 for really faint target')
+    
+    parser.add_argument('--display',  action="store_true", default=False,
+                        help='Select the area to fit using the display function.')
 
     # - Standard Star object
     parser.add_argument('--std',  action="store_true", default=False,
@@ -96,7 +99,13 @@ if  __name__ == "__main__":
                 #  Cube to Fit?     #
                 # ----------------- #
                 print("Automatic extraction of target %s, file: %s"%(target, filecube))
-                cube = get_sedmcube(filecube)
+                cube_ = get_sedmcube(filecube)
+                if args.display:
+                    iplot = cube_.show(interactive=True)
+                    cube = cube_.get_partial_cube( iplot.get_selected_idx(), np.arange( len(cube_.lbda)) )
+                    args.buffer = 20
+                else:
+                    cube = cube_
                 # Centroid ?
                 if args.centroid is None:
                     sl = cube.get_slice(lbda_min=lbdaranges[0], lbda_max=lbdaranges[1], slice_object=True)
@@ -151,7 +160,7 @@ if  __name__ == "__main__":
                     psffit.slices[2]["slpsf"].show(savefile=spec.filename.replace("spec","psfprofile").replace(".fits",".pdf"))
                     
                     import matplotlib.pyplot as mpl
-                    cube.show(show=False)
+                    cube_.show(show=False)
                     ax = mpl.gca()
                     x,y = np.asarray(cube_to_fit.index_to_xy(cube_to_fit.indexes)).T
                     ax.plot(x,y, marker=".", ls="None", ms=1, color="k")

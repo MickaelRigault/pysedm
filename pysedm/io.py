@@ -381,7 +381,7 @@ def _saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=None,
     
         spec._side_properties["filename"] = fileout
         if not nofig:
-            spec.show(savefile=spec.filename.replace(".fits",".pdf"), show=False)
+            spec.reshape(spec.lbda[10:]).show(savefile=spec.filename.replace(".fits",".pdf"), show=False)
         
     # - background
     if bkgd is not None:

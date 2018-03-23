@@ -165,6 +165,7 @@ if  __name__ == "__main__":
                     x,y = np.asarray(cube_to_fit.index_to_xy(cube_to_fit.indexes)).T
                     ax.plot(x,y, marker=".", ls="None", ms=1, color="k")
                     ax.figure.savefig(spec.filename.replace("spec","spaxels_source").replace(".fits",".pdf"))
+                    
                 # -----------------
                 #  Is that a STD  ?
                 # -----------------

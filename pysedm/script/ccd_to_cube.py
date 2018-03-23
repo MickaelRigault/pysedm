@@ -463,13 +463,6 @@ def build_cubes(ccdfiles,  date, lbda=None,
         if not ccd_.has_var():
             ccd_.set_default_variance()
         ccds.append(ccd_)
-        if build_guider:
-            from pysedm import rainbowcam
-            try:
-                print("INFO: building the giuder image")
-                rainbowcam.build_meta_ifu_guider(ccdfile, solve_wcs=False)
-            except:
-                print("WARNING: rainbowcam cannot build the guider image")
             
     # ---------------- #
     # Build the Cubes  #
@@ -485,7 +478,14 @@ def build_cubes(ccdfiles,  date, lbda=None,
                     calibration_ref=calibration_ref,
                     fileindex=fileindex,
                     savefig=savefig)
-        
+        if build_guider:
+            from pysedm import rainbowcam
+            try:
+            print("INFO: building the giuder image")
+                rainbowcam.build_meta_ifu_guider(ccdfile, solve_wcs=False)
+            except:
+                print("WARNING: rainbowcam cannot build the guider image")
+
         build_sedmcube(ccdin, date,  **prop)
             
             

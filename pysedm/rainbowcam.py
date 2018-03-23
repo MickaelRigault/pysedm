@@ -38,7 +38,7 @@ def build_stacked_guider(ifufile, outdir=None, overwrite=True):
         
     savefile = open(outdir+"/guider_%s"%filein, "w")
 
-    hdulist = fits.HDUList([fits.PrimaryHDU(stacked_image, fits.getheader(guiders))])
+    hdulist = fits.HDUList([fits.PrimaryHDU(stacked_image, fits.getheader(guiders[0]))])
     hdulist.writeto(savefile, overwrite=overwrite)
     return savefile
 

@@ -480,11 +480,11 @@ def build_cubes(ccdfiles,  date, lbda=None,
                     savefig=savefig)
         if build_guider:
             from pysedm import rainbowcam
-            #try:
-            print("INFO: building the giuder image")
-            rainbowcam.build_meta_ifu_guider(ccdin.filename, solve_wcs=False)
-            #except:
-            #    print("WARNING: rainbowcam cannot build the guider image")
+            try:
+                print("INFO: building the giuder image")
+                rainbowcam.build_meta_ifu_guider(ccdin.filename, solve_wcs=False)
+            except:
+                print("WARNING: rainbowcam cannot build the guider image")
 
         build_sedmcube(ccdin, date,  **prop)
             

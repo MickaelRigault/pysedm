@@ -331,7 +331,7 @@ def build_cubes(ccdfiles,  date, lbda=None,
                 traceflexure_corrected=True, flexure_corrected=True,
                 # Calibration
                 atmcorrected=True, 
-                build_calibrated_cube=True, calibration_ref=None,
+                build_calibrated_cube=False, calibration_ref=None,
                 # Out
                 build_guider=True,
                 fileindex=None,

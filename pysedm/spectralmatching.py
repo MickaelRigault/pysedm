@@ -152,7 +152,7 @@ def illustrate_traces(ccdimage, spectralmatch,
                            cmap=cmap,vmin=vmin, vmax=vmax, logscale=logscale,
                            show=False, savefile=None, **kwargs)
         if show_poly:
-            spectralmatch.display_polygon(ax_, fc=facecolor, ec=edgecolor)
+            spectralmatch.display_traces(ax_, spectralmatch.trace_indexes, fc=facecolor, ec=edgecolor)
     # ---------
     
     show_it(ax, False)

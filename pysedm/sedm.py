@@ -25,7 +25,7 @@ SEDMSPAXELS = np.asarray([[ np.sqrt(3.)/2., 1./2],[0, 1],[-np.sqrt(3.)/2., 1./2]
                           [-np.sqrt(3.)/2.,-1./2],[0,-1],[ np.sqrt(3.)/2.,-1./2]])*2/3.
 
 _EDGES_Y = 40
-_EDGES_X = [120,50]
+_EDGES_X = [180,50]
 INDEX_CCD_CONTOURS = [[_EDGES_X[0],_EDGES_Y],[_EDGES_X[0],1700],
                       [300, SEDM_CCD_SIZE[1]-_EDGES_Y],[SEDM_CCD_SIZE[0]-_EDGES_X[1],SEDM_CCD_SIZE[1]-_EDGES_Y],
                         [SEDM_CCD_SIZE[0]-_EDGES_X[1],_EDGES_Y]]

@@ -72,7 +72,7 @@ def build_stacked_guider(ifufile, outdir=None, overwrite=True):
         If None, it will be in the same directory as the `infufile`
 
     """    
-    guiders = get_ifu_guider_images(fits.getheader(ifufile))
+    guiders = get_ifu_guider_images( fits.getheader(ifufile) )
     stacked_image = stack_images(guiders)
     # - building the .fits
     

@@ -10,8 +10,8 @@ MAINTAINER = 'Mickael Rigault'
 MAINTAINER_EMAIL = 'mickael.rigault@clermont.in2p3.fr'
 URL = 'https://github.com/MickaelRigault/pysedm/'
 LICENSE = 'BSD (3-clause)'
-DOWNLOAD_URL = 'https://github.com/MickaelRigault/pysedm/tarball/0.9'
-VERSION = '0.9.3'
+DOWNLOAD_URL = 'https://github.com/MickaelRigault/pysedm/tarball/0.10'
+VERSION = '0.10.0'
 
 try:
     from setuptools import setup, find_packages

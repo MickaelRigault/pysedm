@@ -435,7 +435,7 @@ def build_cubes(ccdfiles,  date, lbda=None,
         if traceflexure_corrected:
             savefile = None if not savefig else ccd_.filename.replace("crr","flexuretrace_crr").replace(".fits",".pdf")
             # TRACE J FLEXURE
-            j_offset = get_ccd_jflexure(ccd_, ntraces=50, tracewidth=1, jscan=[-3,3,10], savefile=savefile, get_object=False)
+            j_offset = get_ccd_jflexure(ccd_, ntraces=200, tracewidth=1, jscan=[-3,3,10], savefile=savefile, get_object=False)
             # Set the New Tracematch
             new_tracematch = ccd_.tracematch.get_shifted_tracematch(0, flex.j_offset)
             new_tracematch.set_buffer(TRACE_DISPERSION) # Make Sure the new tracematcher has the current buffering

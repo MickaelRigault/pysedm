@@ -34,7 +34,9 @@ __all__ = ["get_dome","get_ccd"]
 #                                #
 ##################################
 def get_ccd(lampfile, ccdspec_mask=None,
-            tracematch=None, background=None, **kwargs):
+            tracematch=None, background=None,
+            correct_traceflexure=False, savefile_traceflexure=None,
+                **kwargs):
     """ Load a SEDmachine ccd image. 
 
     Parameters
@@ -56,8 +58,26 @@ def get_ccd(lampfile, ccdspec_mask=None,
     lamp = ScienceCCD(lampfile, background=0)
     if tracematch is not None:
         lamp.set_tracematch(tracematch)
+        # Trace Flexure Correction (if any)
+        if correct_traceflexure:
+            from .flexure import get_ccd_jflexure
+            from .sedm    import TRACE_DISPERSION
+            # Save the flexure plot 
+            j_offset = get_ccd_jflexure(lamp, ntraces=200, tracewidth=1, jscan=[-3,3,10], 
+                                savefile=savefile_traceflexure, get_object=False)
+            
+            new_tracematch = lamp.tracematch.get_shifted_tracematch(0, j_offset)
+            new_tracematch.set_buffer( TRACE_DISPERSION)
+            lamp.set_tracematch(new_tracematch)
+            lamp.header["FLXTRACE"] =  (True, "Is TraceMatch corrected for j flexure?")
+            lamp.header["FLXTRVAL"] =  (j_offset, "amplitude in pixel of the  j flexure Trace correction")
+        else:
+            ccd_.header["FLXTRACE"] =  (False, "Is TraceMatch corrected for j flexure?")
+            ccd_.header["FLXTRVAL"] =  (0, "amplitude in pixel of the  j flexure Trace correction")
+
     if background is None:
         lamp.set_background(lamp._get_default_background_(**kwargs), force_it=True)
+        
     elif not background == 0:
         lamp.set_background(background, force_it=True)
         

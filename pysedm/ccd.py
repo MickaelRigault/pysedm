@@ -72,8 +72,8 @@ def get_ccd(lampfile, ccdspec_mask=None,
             lamp.header["FLXTRACE"] =  (True, "Is TraceMatch corrected for j flexure?")
             lamp.header["FLXTRVAL"] =  (j_offset, "amplitude in pixel of the  j flexure Trace correction")
         else:
-            ccd_.header["FLXTRACE"] =  (False, "Is TraceMatch corrected for j flexure?")
-            ccd_.header["FLXTRVAL"] =  (0, "amplitude in pixel of the  j flexure Trace correction")
+            lamp.header["FLXTRACE"] =  (False, "Is TraceMatch corrected for j flexure?")
+            lamp.header["FLXTRVAL"] =  (0, "amplitude in pixel of the  j flexure Trace correction")
 
     if background is None:
         lamp.set_background(lamp._get_default_background_(**kwargs), force_it=True)

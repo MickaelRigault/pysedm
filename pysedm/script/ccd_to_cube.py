@@ -244,7 +244,9 @@ def build_wavesolution(date, verbose=False, ntest=None, idxrange=None,
         raise ValueError("use_fine_tuned_traces is not supported anymore")
     
     fileccd_lamps = io.get_night_files(date, "ccd.lamp", target="|".join(lamps))
-    lamps = [get_ccd(f_, tracematch=smap) for f_ in fileccd_lamps]
+    lamps = [get_ccd(f_, tracematch=smap, correct_traceflexure=True,
+                    savefile_traceflexure=f_.replace("crr","flexuretrace_crr").replace(".fits",".pdf"))
+                 for f_ in fileccd_lamps]
     
     # - The CubeSolution
     csolution = get_wavesolution(*lamps)
@@ -431,24 +433,13 @@ def build_cubes(ccdfiles,  date, lbda=None,
     # ---------------- #
     ccds = []
     for ccdfile in ccdfiles:
-        ccd_    = get_ccd(ccdfile, tracematch = tracematch.copy(), background = 0)
+        flexuresavefile = None if not savefig else ccd_.filename.replace("crr","flexuretrace_crr").replace(".fits",".pdf")
+        ccd_    = get_ccd(ccdfile, tracematch = tracematch.copy(), background = 0,
+                              correct_traceflexure = traceflexure_corrected,
+                              savefile_traceflexure=flexuresavefile)
         if traceflexure_corrected:
-            savefile = None if not savefig else ccd_.filename.replace("crr","flexuretrace_crr").replace(".fits",".pdf")
-            # TRACE J FLEXURE
-            j_offset = get_ccd_jflexure(ccd_, ntraces=200, tracewidth=1, jscan=[-3,3,10], savefile=savefile, get_object=False)
-            # Set the New Tracematch
-            new_tracematch = ccd_.tracematch.get_shifted_tracematch(0, flex.j_offset)
-            new_tracematch.set_buffer(TRACE_DISPERSION) # Make Sure the new tracematcher has the current buffering
-            ccd_.set_tracematch( new_tracematch )
-            
-            ccd_.header["FLXTRACE"] =  (True, "Is TraceMatch corrected for j flexure?")
-            ccd_.header["FLXTRVAL"] =  (j_offset, "amplitude in pixel of the  j flexure Trace correction")
-            if verbose: print("Loading the %d traces"%len(mapper.traceindexes))
             load_trace_masks(ccd_.tracematch, ccd_.tracematch.get_traces_within_polygons(INDEX_CCD_CONTOURS),
                                  notebook=notebook)
-        else:
-            ccd_.header["FLXTRACE"] =  (False, "Is TraceMatch corrected for j flexure?")
-            ccd_.header["FLXTRVAL"] =  (0, "amplitude in pixel of the  j flexure Trace correction")
             
         if not nobackground:
             ccd_.fetch_background(set_it=True, build_if_needed=True)

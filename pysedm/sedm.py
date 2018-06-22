@@ -20,7 +20,7 @@ CALIBFILES = ["Hg.fits","Cd.fits","Xe.fits","dome.fits"]
 # --- CCD
 SEDM_CCD_SIZE = [2048, 2048]
 DOME_TRACEBOUNDS = [70,230]
-TRACE_DISPERSION = 1.3 # PSF (sigma assuming gaussian) of the traces on the CCD. 
+TRACE_DISPERSION = 1.2*2 # PSF (sigma assuming gaussian) of the traces on the CCD. 
 SEDMSPAXELS = np.asarray([[ np.sqrt(3.)/2., 1./2],[0, 1],[-np.sqrt(3.)/2., 1./2],
                           [-np.sqrt(3.)/2.,-1./2],[0,-1],[ np.sqrt(3.)/2.,-1./2]])*2/3.
 

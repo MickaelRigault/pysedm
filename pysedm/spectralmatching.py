@@ -87,7 +87,7 @@ def get_tracematcher(domefile, build_tracemask=False, width=None, **kwargs):
 
     # - Initial Guess based on the dome flat.
     if width is None:
-        width = 2*TRACE_DISPERSION
+        width = TRACE_DISPERSION
 
     xlim, ylim = dome.get_trace_position()
     smap.set_trace_line(np.asarray([xlim, ylim]).T, width=width, build_tracemask=build_tracemask)

@@ -60,7 +60,7 @@ def build_tracematcher(date, verbose=True, width=None,
         print("Directory affected by Spectral Matcher : %s"%timedir)
         
     if width is None:
-        width = 2.*TRACE_DISPERSION
+        width = TRACE_DISPERSION
 
     # - Load the Spectral Matcher
     if not rebuild:
@@ -437,7 +437,9 @@ def build_cubes(ccdfiles,  date, lbda=None,
             # TRACE J FLEXURE
             j_offset = get_ccd_jflexure(ccd_, ntraces=50, tracewidth=1, jscan=[-3,3,10], savefile=savefile, get_object=False)
             # Set the New Tracematch
-            ccd_.set_tracematch( ccd_.tracematch.get_shifted_tracematch(0, flex.j_offset) )
+            new_tracematch = ccd_.tracematch.get_shifted_tracematch(0, flex.j_offset)
+            new_tracematch.set_buffer(TRACE_DISPERSION) # Make Sure the new tracematcher has the current buffering
+            ccd_.set_tracematch( new_tracematch )
             
             ccd_.header["FLXTRACE"] =  (True, "Is TraceMatch corrected for j flexure?")
             ccd_.header["FLXTRVAL"] =  (j_offset, "amplitude in pixel of the  j flexure Trace correction")

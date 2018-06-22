@@ -14,7 +14,7 @@ from propobject import BaseObject
 #  Optimize            #
 #                      #
 ########################
-def get_ccd_jflexure(ccd, ntraces=50, tracewidth=1,
+def get_ccd_jflexure(ccd, ntraces=100, tracewidth=1,
                          jscan=[-3,3,10], savefile=None, get_object=False):
     """ give a ccd object (with tracematch loaded) ; this estimate the ccd-j trace flexure.
     [takes about ~5s]
@@ -45,8 +45,9 @@ def get_ccd_jflexure(ccd, ntraces=50, tracewidth=1,
     flaot (ccd-j shift to apply) [or TraceFlexureFit, see get_object option]
     """
     from .sedm import INDEX_CCD_CONTOURS
-    smap = ccd.tracematch.get_sub_tracematch( np.random.choice(ccd.tracematch.get_traces_within_polygon( INDEX_CCD_CONTOURS), ntraces) ).set_buffer(tracewidth)
-    jflex = jflex = TraceFlexureFit(ccd, smap)
+    smap = ccd.tracematch.get_sub_tracematch( np.random.choice(ccd.tracematch.get_traces_within_polygon( INDEX_CCD_CONTOURS), ntraces) )
+    smap.set_buffer(tracewidth)
+    jflex = TraceFlexureFit(ccd, smap)
     jflex.build_pseudomag_scan(*jscan)
     if savefile:
         jflex.show(savefile=savefile)

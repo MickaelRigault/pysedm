@@ -245,7 +245,7 @@ def build_wavesolution(date, verbose=False, ntest=None, idxrange=None,
     
     fileccd_lamps = io.get_night_files(date, "ccd.lamp", target="|".join(lamps))
     lamps = [get_ccd(f_, tracematch=smap, correct_traceflexure=True,
-                    savefile_traceflexure=f_.replace("crr","flexuretrace_crr").replace(".fits",".pdf"))
+                    savefile_traceflexure=None) # Don't save the figure here (called a lot when using derive_wavesolution)
                  for f_ in fileccd_lamps]
     
     # - The CubeSolution

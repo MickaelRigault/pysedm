@@ -299,7 +299,9 @@ class TraceMatch( BaseObject ):
         Void
         """
         from .utils.tools import dump_pkl
-        data= {"vertices": self.trace_vertices,
+        data= {"xys": self._xys,
+               "trace_indexes": self.trace_indexes,
+               "width": self.width,
                "trace_masks": self.trace_masks if savemasks else None}
             
         dump_pkl(data, savefile)
@@ -327,10 +329,14 @@ class TraceMatch( BaseObject ):
         """
         from .utils.tools import load_pkl
         data = load_pkl(filename)
-        if "vertices" not in data.keys():
-            raise TypeError("The given filename does not have the appropriate format. No 'vertices' entry.")
-
-        self.set_trace_vertices(data["vertices"], build_masking=build_masking)
+        if "xys" in data.keys():
+            self.set_trace_line(data["xys"], width=data["width"],
+                                    trace_indexes=data["trace_indexes"], build_tracemask=False)
+        elif "vertices" in data.keys():
+            raise TypeError("OLDER FORMAT NOT AVAILABLE FOR THE MOMENT. WILL BE SOON. (If urgent contact Mickael) ")
+            #self.set_trace_vertices(data["vertices"], build_masking=build_masking)
+        else:
+            raise TypeError("UNRECOGNIZED TRACEMATCH FORMAT")
         
         if "trace_masks" in data.keys():
             self._side_properties['trace_masks'] = data["trace_masks"]
@@ -403,6 +409,7 @@ class TraceMatch( BaseObject ):
         """ """
         tmap = TraceMatch()
         tmap.set_trace_line(self._xys + np.asarray([[xshift,yshift],[xshift,yshift]]),
+                                trace_indexes= self.trace_indexes,
                                 width=self.width, build_tracemask=build_tracemask)
         return tmap
     
@@ -413,7 +420,9 @@ class TraceMatch( BaseObject ):
         """ """
         tmap = TraceMatch()
         flagin = np.in1d(self.trace_indexes, traces)
-        tmap.set_trace_line(self._xys[flagin], width=self.width, build_tracemask=build_tracemask)
+        tmap.set_trace_line(self._xys[flagin],
+                                trace_indexes = self.trace_indexes[flagin],
+                                width=self.width, build_tracemask=build_tracemask)
         return tmap
 
     # Trace crossing 

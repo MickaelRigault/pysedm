@@ -79,7 +79,7 @@ def build_tracematcher(date, verbose=True, width=None,
         if not rebuild and len(glob(timedir+"%s_TraceMatch_WithMasks.pkl"%date))>0:
             warnings.warn("TraceMatch_WithMasks already exists for %s. rebuild is False, so nothing is happening"%date)
             return
-        load_trace_masks(smap, smap.get_traces_within_polygon(INDEX_CCD_CONTOURS), notebook=notebook)
+        load_trace_masks(smap, smap.get_traces_within_polygons(INDEX_CCD_CONTOURS), notebook=notebook)
         smap.writeto(timedir+"%s_TraceMatch_WithMasks.pkl"%date)
     
 ############################
@@ -406,8 +406,7 @@ def build_cubes(ccdfiles,  date, lbda=None,
     Void
     """
     if traceflexure_corrected:
-        from ..flexure import TraceFlexure
-        from ..mapping import Mapper
+        from ..flexure import get_ccd_jflexure
     # ------------------ #
     # Loading the Inputs #
     # ------------------ #
@@ -427,12 +426,6 @@ def build_cubes(ccdfiles,  date, lbda=None,
     if flatfielded and flatfield is None:
         flatfield = io.load_nightly_flat(date)
         
-    # - In Summary, a Mapper
-    if traceflexure_corrected:
-        indexes = tracematch.get_traces_within_polygon(INDEX_CCD_CONTOURS)
-        mapper = Mapper(tracematch=tracematch.copy(), hexagrid=hexagrid, wavesolution=wavesolution)
-        mapper.derive_spaxel_mapping(list(wavesolution.wavesolutions.keys()))
-        
     # ---------------- #
     # Loading the CCDS #
     # ---------------- #
@@ -440,15 +433,17 @@ def build_cubes(ccdfiles,  date, lbda=None,
     for ccdfile in ccdfiles:
         ccd_    = get_ccd(ccdfile, tracematch = tracematch.copy(), background = 0)
         if traceflexure_corrected:
-            flex = TraceFlexure(ccd_, mapper=mapper)
-            flex.derive_j_offset(verbose=verbose)
-            ccd_.tracematch.add_trace_offset(0, flex.j_offset)
-            if savefig:
-                flex.show_j_flexure_ccd(show=False, savefile=ccd_.filename.replace("crr","flexuretrace_crr").replace(".fits",".pdf"))
+            savefile = None if not savefig else ccd_.filename.replace("crr","flexuretrace_crr").replace(".fits",".pdf")
+            # TRACE J FLEXURE
+            j_offset = get_ccd_jflexure(ccd_, ntraces=50, tracewidth=1, jscan=[-3,3,10], savefile=savefile, get_object=False)
+            # Set the New Tracematch
+            ccd_.set_tracematch( ccd_.tracematch.get_shifted_tracematch(0, flex.j_offset) )
+            
             ccd_.header["FLXTRACE"] =  (True, "Is TraceMatch corrected for j flexure?")
-            ccd_.header["FLXTRVAL"] =  (flex.j_offset, "amplitude in pixel of the  j flexure Trace correction")
+            ccd_.header["FLXTRVAL"] =  (j_offset, "amplitude in pixel of the  j flexure Trace correction")
             if verbose: print("Loading the %d traces"%len(mapper.traceindexes))
-            load_trace_masks(ccd_.tracematch, mapper.traceindexes, notebook=notebook)
+            load_trace_masks(ccd_.tracematch, ccd_.tracematch.get_traces_within_polygons(INDEX_CCD_CONTOURS),
+                                 notebook=notebook)
         else:
             ccd_.header["FLXTRACE"] =  (False, "Is TraceMatch corrected for j flexure?")
             ccd_.header["FLXTRVAL"] =  (0, "amplitude in pixel of the  j flexure Trace correction")

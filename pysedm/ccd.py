@@ -162,7 +162,7 @@ class CCD( BaseCCD ):
             raise TypeError("The given tracematch must be a TraceMatch object")
         
         self._properties["tracematch"] = tracematch
-
+        
     def match_trace_to_sep(self):
         """ matches the SEP ellipse with the current trace vertices. 
         You must have ran sep_extract() to be able to use this method.
@@ -204,7 +204,6 @@ class CCD( BaseCCD ):
             self.match_trace_to_sep()
             
         return self.matchedindex[traceindex]
-
     
     def set_default_variance(self, force_it=False):
         """ define a default variance using the following formula:
@@ -896,24 +895,34 @@ class DomeCCD( ScienceCCD ):
     """ Object Build to handle the CCD images of the Dome exposures"""
 
     # ================== #
-    #  Main Tools        #
+    #   Main Tools       #
     # ================== #
     def get_tracematch(self, bound_pixels=None, width="optimal"):
         """ """
-        x, y, b, theta = self.sepobjects.get(["x","y","b","theta"]).T
-        if bound_pixels is None:
-            from .sedm import DOME_TRACEBOUNDS
-            bound_pixels = DOME_TRACEBOUNDS
-
+        xlim, ylim = self.get_trace_position(bound_pixels=bound_pixels)
+        
         if width is None:
+            b = self.sepobjects.get("b")
             width = np.median(b)*2 if width=="median" else \
               b*2 if width!="optimal" else np.clip(b,np.median(b)-2*np.std(b),np.median(b)+2*np.std(b))*2
-          
-        xlim = np.asarray([x-bound_pixels[0], x+bound_pixels[1]])
-        ylim = np.sin(theta)*np.asarray([[-bound_pixels[0], bound_pixels[1]]]).T + y
-        
+
+            
         return  [np.concatenate(v_) for v_ in zip(np.asarray([xlim,ylim+width]).T,np.asarray([xlim[::-1],ylim[::-1]-width]).T)]
         
+
+    def get_trace_position(self, bound_pixels=None):
+        """ """
+        x, y, b, theta = self.sepobjects.get(["x","y","b","theta"]).T
+        
+        if bound_pixels is not None:
+            print("BOUNDS")
+            xlim = np.asarray([x-bound_pixels[0], x+bound_pixels[1]])
+            ylim = np.sin(theta)*np.asarray([[-bound_pixels[0], bound_pixels[1]]]).T + y
+            return xlim, ylim
+    
+        from .sedm import domexy_to_tracesize
+        return domexy_to_tracesize(x, y, theta)
+
         
         
     def get_specrectangles(self, length="optimal",height="optimal",theta="optimal",

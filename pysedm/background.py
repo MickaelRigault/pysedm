@@ -14,7 +14,7 @@ from propobject   import BaseObject
 from .utils.tools import kwargs_update, load_pkl, dump_pkl
 from .sedm        import SEDM_CCD_SIZE
 
-DEGREE   = 13
+DEGREE   = 5
 LEGENDRE = True
 
 NGAUSS = 1
@@ -97,8 +97,7 @@ def fit_background(ccd, start=2, jump=10, multiprocess=True, ncore=None,
                 ncore = 1
         p = multiprocessing.Pool(ncore)
         res = {}
-        for j, result in enumerate( p.imap(get_contvalue if not is_std else get_contvalue_sdt,
-                                                         [ccd.get_xslice(i_) for i_ in index_column])):
+        for j, result in enumerate( p.imap(get_contvalue if not is_std else get_contvalue_sdt, [ccd.get_xslice(i_) for i_ in index_column])):
             res[index_column[j]] = result
             bar.update(j)
         bar.update(len(index_column))

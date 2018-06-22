@@ -64,7 +64,7 @@ def load_tracematcher(tracematchfile):
     smap.load(tracematchfile)
     return smap
 
-def get_tracematcher(domefile, build_masking=False, width=None, **kwargs):
+def get_tracematcher(domefile, build_tracemask=False, width=None, **kwargs):
     """ build the spectral match object on the domefile data. 
 
     Parameters
@@ -88,9 +88,9 @@ def get_tracematcher(domefile, build_masking=False, width=None, **kwargs):
     # - Initial Guess based on the dome flat.
     if width is None:
         width = 2*TRACE_DISPERSION
-        
-    smap.set_trace_vertices( dome.get_tracematch(width=width), build_masking=build_masking)
-    
+
+    xlim, ylim = dome.get_trace_position()
+    smap.set_trace_line(np.asarray([xlim, ylim]).T, width=width, build_tracemask=build_tracemask)
     return smap
     
 def polygon_mask(vertices, width=2048, height=2048,
@@ -239,23 +239,23 @@ def verts_to_mask(verts):
     return maskfull.T
     
 
-def load_trace_masks(tmatch, traceindexes=None, multiprocess=True,
+def load_trace_masks(tmatch, trace_indexes=None, multiprocess=True,
                          notebook=True, ncore=None):
     """ """
-    if traceindexes is None:
-        traceindexes = tmatch.trace_indexes
+    if trace_indexes is None:
+        trace_indexes = tmatch.trace_indexes
     
     if multiprocess:
         import multiprocessing
-        bar = ProgressBar( len(traceindexes), ipython_widget=notebook)
+        bar = ProgressBar( len(trace_indexes), ipython_widget=notebook)
         if ncore is None:
             ncore = np.max([multiprocessing.cpu_count() - 1, 1])
                 
         p = multiprocessing.Pool(ncore)
-        for j, mask in enumerate( p.imap(verts_to_mask, [tmatch.trace_vertices[i_] for i_ in traceindexes])):
-            tmatch.set_trace_masks(sparse.csr_matrix(mask), traceindexes[j])
+        for j, mask in enumerate( p.imap(verts_to_mask, [tmatch.trace_vertices[i_] for i_ in trace_indexes])):
+            tmatch.set_trace_masks(sparse.csr_matrix(mask), trace_indexes[j])
             bar.update(j)
-        bar.update( len(traceindexes) )
+        bar.update( len(trace_indexes) )
         
     else:
         raise NotImplementedError("Use multiprocess = True (load_trace_masks)")
@@ -272,8 +272,8 @@ class TraceMatch( BaseObject ):
     traceindex = ID of the trace (as in _tracecolor and trace_vertices)
     
     """
-    PROPERTIES         = ["trace_vertices","subpixelization"]
-    SIDE_PROPERTIES    = ["trace_masks","ij_offset"]
+    PROPERTIES         = ["trace_linestring","trace_vertices","subpixelization", "trace_indexes", "width"]
+    SIDE_PROPERTIES    = ["trace_masks","ij_offset", ]
     DERIVED_PROPERTIES = ["tracecolor", "facecolor", "maskimage",
                           "rmap", "gmap", "bmap",
                           "trace_polygons"]
@@ -338,6 +338,7 @@ class TraceMatch( BaseObject ):
 
     def add_trace_offset(self, i_offset, j_offset):
         """ """
+        print("DEPRECATED use, get_shifted_tracematch ")
         new_verts = {i:v + np.asarray([i_offset, j_offset]) for i,v in self.trace_vertices.items()}
         self._side_properties['ij_offset'] = np.asarray([i_offset, j_offset])
         self.set_trace_vertices(new_verts)
@@ -346,37 +347,75 @@ class TraceMatch( BaseObject ):
     # --------- #
     #  SETTER   #
     # --------- #
-    def set_trace_vertices(self, vertices, traceindexes=None,
-                              build_masking=False, **kwargs):
-        """ """
-        if not type(vertices) == dict:
-            if traceindexes is None:
-                traceindexes = np.arange(len(vertices))
-            
-            self._properties["trace_vertices"] = {i:np.asarray(v) for i,v in zip(traceindexes, vertices)}
-        else:
-            self._properties["trace_vertices"] = vertices
-            
-        if _HAS_SHAPELY:
-            self._derived_properties["trace_polygons"] = {i:geometry.Polygon(self.trace_vertices[i]) for i in self.trace_indexes}
-            
-        if build_masking:
-            self.build_tracemasking(**kwargs)
 
-    def set_trace_masks(self, masks, traceindexes):
+    # => Baseline Definition
+    
+    def set_trace_line(self, xys, width=None, trace_indexes=None, build_tracemask=False):
+        """ """
+        if trace_indexes is None:
+            trace_indexes = np.arange( len(xys) )
+        self._xys = xys
+        self.set_trace_indexes(trace_indexes)
+        lines = [geometry.LineString( xy ) for xy in xys]
+        self._properties["trace_linestring"] = {i:l for i,l in zip(self.trace_indexes, lines)}
+            
+        self.set_buffer(width, build_tracemask=build_tracemask)
+
+    def set_trace_indexes(self, trace_indexes):
+        """ ID of the traces (spaxels) """
+        self._properties["trace_indexes"] = trace_indexes
+
+    def set_buffer(self, width, build_tracemask=False):
+        """ """
+        self._properties["width"] = width
+        if self._properties["trace_linestring"] is not None:
+            self._update_trace_polygon_(build_tracemask)
+
+    def _update_trace_polygon_(self, build_tracemask=False):
+        """ """
+        self._derived_properties["trace_polygons"] = {i:p.buffer(self.width) for i, p in self.trace_linestring.items()}
+        self._properties["trace_vertices"] = {i:np.asarray(p.exterior.coords.xy).T for i, p in self.trace_polygons.items()}
+        
+        if build_tracemask:
+            self.build_tracemask(**kwargs)
+
+    # => Deriv the rest
+    def set_trace_masks(self, masks, trace_indexes):
         """ Attach to the current instance masks. """
-        if is_arraylike(traceindexes):
-            if len(masks) != len(traceindexes):
-                raise ValueError("masks and traceindexes do not have the same size.")
-            for i,v in zip(traceindexes, masks):
+        if is_arraylike(trace_indexes):
+            if len(masks) != len(trace_indexes):
+                raise ValueError("masks and trace_indexes do not have the same size.")
+            for i,v in zip(trace_indexes, masks):
                 self.trace_masks[i] = v
         else:
-            self.trace_masks[traceindexes] = masks
+            self.trace_masks[trace_indexes] = masks
 
+
+    # --------- #
+    #  Shift    #
+    # --------- #
+    def get_yshifted_traceweight_mask(self, yshift, subpixelization=5):
+        """ """
+        return self.get_shifted_tracematch(0, yshift, build_tracemask=False).get_traceweight_mask(subpixelization)
+    
+    
+    def get_shifted_tracematch(self, xshift, yshift, build_tracemask=False):
+        """ """
+        tmap = TraceMatch()
+        tmap.set_trace_line(self._xys + np.asarray([[xshift,yshift],[xshift,yshift]]),
+                                width=self.width, build_tracemask=build_tracemask)
+        return tmap
+    
     # --------- #
     #  GETTER   #
     # --------- #
-    
+    def get_sub_tracematch(self, traces, build_tracemask=False):
+        """ """
+        tmap = TraceMatch()
+        flagin = np.in1d(self.trace_indexes, traces)
+        tmap.set_trace_line(self._xys[flagin], width=self.width, build_tracemask=build_tracemask)
+        return tmap
+
     # Trace crossing 
     def get_traces_crossing_x(self, xpixel, ymin=-1, ymax=1e5):
         """ traceindexes of the traces crossing the 'xpixel' vertical line
@@ -553,17 +592,19 @@ class TraceMatch( BaseObject ):
     def _load_trace_mask_(self, traceindexe ):
         """ """
         _ = self.get_trace_mask(traceindexe, updateonly=True)
-    
-    def get_notrace_mask(self):
-        """ a 2D boolean mask that is True for places in the CCD without trace. """
-        if self._maskimage is None:
-            self.build_tracemasking(5)
+
+    def get_traceweight_mask(self, subpixelization=5):
+        """ """
+        if self._maskimage is None or subpixelization != self.subpixelization:
+            self.build_tracemask(subpixelization)
             
         mask = (self._rmap > 0 ).reshape(*self._mapshape)
-        final_mask =  mask if self.subpixelization == 1 else \
+        return  mask if self.subpixelization == 1 else \
           measure.block_reduce(mask, (self.subpixelization, self.subpixelization) )/float(self.subpixelization**2)
-
-        return ~np.asarray(final_mask, dtype="bool")
+          
+    def get_notrace_mask(self, subpixelization=5, asbool=True):
+        """ a 2D boolean mask that is True for places in the CCD without trace. """
+        return ~np.asarray(self.get_traceweight_mask(subpixelization), dtype="bool")
 
     # Trace Location #
     def get_trace_source(self, x, y, a=1, b=1, theta=0):
@@ -660,7 +701,7 @@ class TraceMatch( BaseObject ):
     # ------------ #
     #  Methods     #
     # ------------ #
-    def build_tracemasking(self, subpixelization=5, width=2048, height=2048):
+    def build_tracemask(self, subpixelization=5, width=2048, height=2048):
         """ 
         This will build the internal tools to identify the connections between
         traceindex and ccd-pixels
@@ -694,7 +735,7 @@ class TraceMatch( BaseObject ):
         self._derived_properties['gmap'] = g.ravel(order='F')
         self._derived_properties['bmap'] = b.ravel(order='F')
 
-    def extract_hexgrid(self, traceindexes = None, qdistance=None):
+    def extract_hexgrid(self, trace_indexes = None, qdistance=None):
         """ Build the array of neightbords.
         This is built on a KDTree (scipy)
 
@@ -709,17 +750,41 @@ class TraceMatch( BaseObject ):
         """
         from .utils.hexagrid import get_hexprojection
         
-        if traceindexes is None:
-            traceindexes = self.trace_indexes
+        if trace_indexes is None:
+            trace_indexes = self.trace_indexes
 
         # - position used to define 1 location of 1 spectral_trace
-        xydata  = np.asarray([np.nanmean(self.trace_vertices[idx_], axis=0) for idx_ in traceindexes])
-        return get_hexprojection(xydata, ids=traceindexes)
+        xydata  = np.asarray([np.nanmean(self.trace_vertices[idx_], axis=0) for idx_ in trace_indexes])
+        return get_hexprojection(xydata, ids=trace_indexes)
     
     # ===================== #
     #   Properties          #
     # ===================== #
     # - Traces I/O
+    @property
+    def trace_linestring(self):
+        """ Central line of the trace | Shapely.MultiLineString """
+        return self._properties["trace_linestring"]
+    
+    @property
+    def ntraces(self):
+        """ """
+        return None if self.trace_linestring is None else len( self.trace_linestring )
+    
+    @property
+    def width(self):
+        """ size of the buffer aroung the trace lines"""
+        return self._properties["width"]
+    
+    @property
+    def trace_indexes(self):
+        """ ID of the traces (spaxels) """
+        if self._properties["trace_indexes"] is None:
+            if self.trace_linestring is not None:
+                self._properties["trace_indexes"] = np.arange( self.ntraces )
+                
+        return self._properties["trace_indexes"]
+    
     @property
     def trace_vertices(self):
         """ dictionary containing the Polygon Vertices for the traces. """
@@ -727,16 +792,7 @@ class TraceMatch( BaseObject ):
             self._properties["trace_vertices"] = {}
         return self._properties["trace_vertices"]
 
-    @property
-    def trace_indexes(self):
-        """ Indexes associated with to the traces """
-        return list(self.trace_vertices.keys())
         
-    @property
-    def ntraces(self):
-        """ Number of traces loaded """
-        return len(self.trace_indexes)
-
     @property
     def trace_polygons(self):
         """ Shapely polygon of the traces based on their vertices"""

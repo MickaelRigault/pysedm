@@ -167,6 +167,16 @@ def filename_to_id(date, filename):
     """ """
     return filename.split("/")[-1].split(date)[-1][1:9]
 
+def fetch_guider(date, filename, astrom=True, extinction=".fits"):
+    """ fetch the guider data for the given filename. """
+    id_ = filename_to_id(date, filename)
+    guiders =  [l for l in os.listdir( get_datapath(date)) if id_ in l and "guider" in l 
+               and extinction in l ]
+    if astrom:
+        return [get_datapath(date)+"/"+l for l in guiders if "astrom" in l]
+    return guiders
+
+
 def filename_to_background_name(filename):
     """ predefined structure for background naming """
     last = filename.split("/")[-1]

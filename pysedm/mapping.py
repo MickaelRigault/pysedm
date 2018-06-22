@@ -81,12 +81,23 @@ class Mapper( BaseObject ):
         return {traceindex:self.lbda_to_ij(lbda, traceindex) for traceindex in traceindexes}
     
     def get_ij(self, x, y, lbda):
-        """ """
+        """ 
+        Reminder: i,j are the CCD coordinates
+                  q,r are the MLA hexagonal coordiates
+                  x,y are the MLA coordinate (in spaxels)
+                  traceindex is the unique ID of a spaxel on the ccd
+        """
         traceindex = self.xy_to_traceindex(x,y)
         return self.lbda_to_ij(lbda, traceindex)
         
     def get_xylbda(self, i, j):
-        """ """
+        """ 
+        
+        Reminder: i,j are the CCD coordinates
+                  q,r are the MLA hexagonal coordiates
+                  x,y are the MLA coordinate (in spaxels)
+                  traceindex is the unique ID of a spaxel on the ccd
+        """
         traceindex = self.ij_to_traceindex(i,j)
         lbda       = self.ij_to_lbda(i, traceindex)
         x,y        = self.traceindex_to_xy(traceindex)
@@ -133,9 +144,10 @@ class Mapper( BaseObject ):
             return np.asarray([self.traceindexi_to_j(traceindex, i_) for _ in i])
         
         if i is None: return np.asarray([None,None])
+
         i_eff = (CCD_SHAPE[1]-1)-i if inverted else i # -1 because starts at 0
         
-        return i, np.mean(self.tracematch.trace_polygons[traceindex].intersection(LineString([[i_eff,0],[i_eff, maxlines]])), axis=0)[1]
+        return i_eff, np.mean(self.tracematch.trace_polygons[traceindex].intersection(LineString([[i_eff,0],[i_eff, maxlines]])), axis=0)[1]
 
     # .................... #
     #  i,j <-> traceindex  #

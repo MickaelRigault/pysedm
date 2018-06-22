@@ -7,6 +7,146 @@ import warnings
 from propobject import BaseObject
 
 
+
+
+########################
+#                      #
+#  Optimize            #
+#                      #
+########################
+def get_ccd_jflexure(ccd, ntraces=50, tracewidth=1,
+                         jscan=[-3,3,10], savefile=None, get_object=False):
+    """ give a ccd object (with tracematch loaded) ; this estimate the ccd-j trace flexure.
+    [takes about ~5s]
+
+    Parameters:
+    -----------
+    ccd: [pysedm.CCD]
+       ccd object 
+
+    ntraces: [int] -optional-
+        Number of randomly selected traces used for the estimation.
+
+    tracewidth: [float] -optional-
+        Width (buffer) around trace lines. Pixels contained within line position +/- width are considered as within the trace. 
+
+    jscan: [float, float, int] -optional-
+        start, end and step to be scanned in j (jscan-> np.linspace(*jscan))
+
+    savefile: [string/None] -optional-
+        If you want to save the figure, provide here it's name.
+
+    get_object: [bool] -optional-
+        By default the function returns the j-shift (float).
+        However, You can get the full TraceFlexureFit object by setting 'get_object' to True
+
+    Returns
+    -------
+    flaot (ccd-j shift to apply) [or TraceFlexureFit, see get_object option]
+    """
+    from .sedm import INDEX_CCD_CONTOURS
+    smap = ccd.tracematch.get_sub_tracematch( np.random.choice(ccd.tracematch.get_traces_within_polygon( INDEX_CCD_CONTOURS), ntraces) ).set_buffer(tracewidth)
+    jflex = jflex = TraceFlexureFit(ccd, smap)
+    jflex.build_pseudomag_scan(*jscan)
+    if savefile:
+        jflex.show(savefile=savefile)
+        
+    return jflex.estimate_jshift() if not get_object else jflex
+
+
+class TraceFlexureFit( BaseObject ):
+    """ """
+    PROPERTIES = ["ccd", "tracematch"]
+    DERIVED_PROPERTIES = ["pseudomag_scan"]
+    def __init__(self, ccd, tracematch):
+        """ """
+        self._properties["ccd"] = ccd
+        self._properties["tracematch"] = tracematch
+
+    # ===================== #
+    #   Method              #
+    # ===================== #
+    def get_total_pseudomag(self, jshift, subpixelization=2):
+        """ """
+        smap_current = self.tracematch.get_shifted_tracematch(0,jshift)
+        weightmap = smap_current.get_traceweight_mask(subpixelization)
+        return -np.log10( np.nansum(self.ccd.data*weightmap) )
+
+        
+
+    def fmin_jshift(self, guess):
+        return fmin(self.get_total_pseudomag, guess)
+
+    def build_pseudomag_scan(self, start=-3, end=3, step=10):
+        """ """
+        from scipy.interpolate import interp1d
+        self.pseudomag_scan["js"] = np.linspace(start, end, step)
+        self.pseudomag_scan["pseudomag"] = [self.get_total_pseudomag(jshift_) for jshift_ in self.pseudomag_scan["js"]]
+        self.pseudomag_scan["interpolation"] = interp1d(self.pseudomag_scan["js"], self.pseudomag_scan["pseudomag"],
+                                                            kind="cubic")
+    def estimate_jshift(self, nbins=100):
+        """ """
+        xx = np.linspace(self.pseudomag_scan["js"].min(), self.pseudomag_scan["js"].max(), 100)
+        return xx[np.argmin(self.pseudomag_scan["interpolation"](xx))]
+
+    # ------------- #
+    #  PLOTTER      #
+    # ------------- #
+    def show(self, savefile=None, ax=None):
+        """ """
+        import matplotlib.pyplot as mpl
+        if ax is None:
+            fig = mpl.figure(figsize=[5,3])
+            ax  = fig.add_axes([0.15,0.2,0.75,0.7])
+        else:
+            fig = ax.figure
+
+        ax.plot( self.pseudomag_scan["js"], self.pseudomag_scan["pseudomag"], marker="o", label="data")
+        xx = np.linspace(self.pseudomag_scan["js"].min(), self.pseudomag_scan["js"].max(),100)
+        ax.plot(xx, self.pseudomag_scan["interpolation"](xx), color="C1", label="interpolation")
+        
+        # Result
+        jshift = self.estimate_jshift()
+        ax.axvline( jshift, color="0.5" )
+        ax.text(jshift-0.1, np.max(self.pseudomag_scan["pseudomag"]), "j-flexure: %+.1f pixels"%jshift,
+                    rotation=90, color="0.5", va="top", ha="right")
+
+        
+        # - labels
+        ax.set_ylabel("Total CCD pseudo magnitude", fontsize="medium")
+        ax.set_xlabel("ccd-j shift", fontsize="medium")
+        ax.legend(loc="lower right", fontsize="small")
+        if savefile is not None:
+            fig.savefig(savefile, dpi=250)
+        else:
+            return {"ax":ax, "fig":fig}
+        
+    
+    # ===================== #
+    #   Properties          #
+    # ===================== #
+    @property
+    def ccd(self):
+        """ """
+        return self._properties["ccd"]
+
+    @property
+    def tracematch(self):
+        """ """
+        return self._properties["tracematch"]
+
+    @property
+    def pseudomag_scan(self):
+        """ """
+        if self._derived_properties['pseudomag_scan'] is None:
+            self._derived_properties['pseudomag_scan'] = {}
+        return self._derived_properties['pseudomag_scan']
+########################
+#                      #
+#  Class               #
+#                      #
+########################
+
 class TraceFlexure( BaseObject ):
     """ """
     PROPERTIES = ["ccd", "mapper"]
@@ -14,6 +154,7 @@ class TraceFlexure( BaseObject ):
 
     def __init__(self, ccd, mapper=None):
         """ """
+        print("DEPRECATED USED TraceFlexureFit")
         self.set_ccd(ccd)
         if mapper is not None:
             self.set_mapper(mapper)

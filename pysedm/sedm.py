@@ -24,11 +24,17 @@ TRACE_DISPERSION = 1.3 # PSF (sigma assuming gaussian) of the traces on the CCD.
 SEDMSPAXELS = np.asarray([[ np.sqrt(3.)/2., 1./2],[0, 1],[-np.sqrt(3.)/2., 1./2],
                           [-np.sqrt(3.)/2.,-1./2],[0,-1],[ np.sqrt(3.)/2.,-1./2]])*2/3.
 
-_EDGES_Y = 40
-_EDGES_X = [180,50]
-INDEX_CCD_CONTOURS = [[_EDGES_X[0],_EDGES_Y],[_EDGES_X[0],1700],
-                      [300, SEDM_CCD_SIZE[1]-_EDGES_Y],[SEDM_CCD_SIZE[0]-_EDGES_X[1],SEDM_CCD_SIZE[1]-_EDGES_Y],
-                        [SEDM_CCD_SIZE[0]-_EDGES_X[1],_EDGES_Y]]
+#_EDGES_Y = 40
+#_EDGES_X = [180,50]
+#INDEX_CCD_CONTOURS = [[_EDGES_X[0],_EDGES_Y],[_EDGES_X[0],1700],
+#                      [300, SEDM_CCD_SIZE[1]-_EDGES_Y],[SEDM_CCD_SIZE[0]-_EDGES_X[1],SEDM_CCD_SIZE[1]-_EDGES_Y],
+#                        [SEDM_CCD_SIZE[0]-_EDGES_X[1],_EDGES_Y]]
+
+INDEX_CCD_CONTOURS = [[20, 40], [SEDM_CCD_SIZE[0]-20, 40], 
+                      [SEDM_CCD_SIZE[0]-20, SEDM_CCD_SIZE[1]-40], 
+                      [20, SEDM_CCD_SIZE[1]-40]]
+
+    
 # --- LBDA
 SEDM_LBDA = np.linspace(3700, 9300, 220)
 
@@ -58,8 +64,7 @@ PALOMAR_COORDS = {"latitude":   33.3563, # North
                   "altitude":1712,       #meter
                       }
 
-
-
+    
 def get_palomar_extinction():
     """ The ExtinctionSpectrum object of the Palomar Extinction 
     To correct for atmosphere extinction, see the get_atm_extinction() method
@@ -74,6 +79,17 @@ def get_palomar_extinction():
                                 variance=None, header=None)
     spec._source = "Hayes & Latham 1975"
     return spec
+
+
+from scipy.stats import linregress
+SEDM_XRED_EXTENTION = [5.972e-03, 56]# 54.4443
+SEDM_XBLUE_EXTENTION = [7.232e-03,-238] #236.4647
+
+
+def domexy_to_tracesize(x_,y_,theta_):
+    """ """
+    delta_x = np.asarray([x_*SEDM_XRED_EXTENTION[0] + SEDM_XRED_EXTENTION[1], x_*SEDM_XBLUE_EXTENTION[0] + SEDM_XBLUE_EXTENTION[1]])
+    return x_-delta_x,  y_-np.sin(theta_)*delta_x
 
 # ------------------ #
 #  Builder           #

@@ -79,7 +79,7 @@ def build_tracematcher(date, verbose=True, width=None,
         if not rebuild and len(glob(timedir+"%s_TraceMatch_WithMasks.pkl"%date))>0:
             warnings.warn("TraceMatch_WithMasks already exists for %s. rebuild is False, so nothing is happening"%date)
             return
-        load_trace_masks(smap, smap.get_traces_within_polygons(INDEX_CCD_CONTOURS), notebook=notebook)
+        load_trace_masks(smap, smap.get_traces_within_polygon(INDEX_CCD_CONTOURS), notebook=notebook)
         smap.writeto(timedir+"%s_TraceMatch_WithMasks.pkl"%date)
     
 ############################
@@ -438,7 +438,7 @@ def build_cubes(ccdfiles,  date, lbda=None,
                               correct_traceflexure = traceflexure_corrected,
                               savefile_traceflexure=flexuresavefile)
         if traceflexure_corrected:
-            load_trace_masks(ccd_.tracematch, ccd_.tracematch.get_traces_within_polygons(INDEX_CCD_CONTOURS),
+            load_trace_masks(ccd_.tracematch, ccd_.tracematch.get_traces_within_polygon(INDEX_CCD_CONTOURS),
                                  notebook=notebook)
             
         if not nobackground:

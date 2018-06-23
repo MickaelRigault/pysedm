@@ -932,7 +932,10 @@ class DomeCCD( ScienceCCD ):
 
     def get_trace_position(self, bound_pixels=None):
         """ """
-        x, y, b, theta = self.sepobjects.get(["x","y","b","theta"]).T
+        x, y, a, b, theta = self.sepobjects.get(["x","y","a","b","theta"]).T
+        # This enables to remove cosmics
+        flagout =  a/b<10
+        x, y, theta = x[~flagout], y[~flagout], theta[~flagout]
         
         if bound_pixels is not None:
             print("BOUNDS")

@@ -39,6 +39,11 @@ INDEX_CCD_CONTOURS = [[20, 300], [300,40],
                       [480, SEDM_CCD_SIZE[1]-30],
                       [20, 1675]
                      ]
+
+from shapely import geometry
+MLA_CIRCLE = geometry.Point(950,950).buffer(1090)
+MLA_GRID   = geometry.Polygon([[40,40],[40,2000], [2000,2000], [2000,40]])
+INDEX_CCD_CONTOURS = MLA_CIRCLE.intersection(MLA_GRID)
     
 # --- LBDA
 SEDM_LBDA = np.linspace(3700, 9300, 220)
@@ -497,7 +502,6 @@ class SEDMCube( Cube ):
             annulus will have an inner radius of 5 and an outter radius of 5*1.5= 7.5
         
         """
-        from shapely import geometry
         if adr:
             sourcex, sourcey = self.get_source_position(self.lbda, xref=xref, yref=yref, refindex=refindex)
         else:

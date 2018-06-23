@@ -70,14 +70,16 @@ if  __name__ == "__main__":
         sys.exit(0)
     
     nsplit = int(args.nsub)
-    # - Wavelength Solution
     
-    idxall = pysedm.load_nightly_tracematch(date, withmask=False).get_traces_within_polygon(pysedm.sedm.INDEX_CCD_CONTOURS)
+    # - TraceMatch Indexes
+    tmap = pysedm.load_nightly_tracematch(date, withmask=False)
+    idxall = tmap.get_traces_within_polygon( pysedm.sedm.INDEX_CCD_CONTOURS)
+    
     # Split it in equal parts:
     k, m      = divmod( np.nanmax(idxall)+10, nsplit)
     idxbounds = [[i * k + min(i, m),(i + 1) * k + min(i + 1, m)] for i in range(nsplit)]
     
-
+    
     options = []
     if args.nofig:
         options += ["--nofig"]

@@ -30,10 +30,15 @@ SEDMSPAXELS = np.asarray([[ np.sqrt(3.)/2., 1./2],[0, 1],[-np.sqrt(3.)/2., 1./2]
 #                      [300, SEDM_CCD_SIZE[1]-_EDGES_Y],[SEDM_CCD_SIZE[0]-_EDGES_X[1],SEDM_CCD_SIZE[1]-_EDGES_Y],
 #                        [SEDM_CCD_SIZE[0]-_EDGES_X[1],_EDGES_Y]]
 
-INDEX_CCD_CONTOURS = [[20, 40], [SEDM_CCD_SIZE[0]-20, 40], 
-                      [SEDM_CCD_SIZE[0]-20, SEDM_CCD_SIZE[1]-40], 
-                      [20, SEDM_CCD_SIZE[1]-40]]
-
+# = Could be improved Maybe.
+INDEX_CCD_CONTOURS = [[20, 300], [300,40], 
+                      [1600, 40], [SEDM_CCD_SIZE[0]-20, 300],
+                      [SEDM_CCD_SIZE[0]-20, 1600], 
+                      [1600, SEDM_CCD_SIZE[1]-30],
+                      [1500, SEDM_CCD_SIZE[1]-30], 
+                      [480, SEDM_CCD_SIZE[1]-30],
+                      [20, 1675]
+                     ]
     
 # --- LBDA
 SEDM_LBDA = np.linspace(3700, 9300, 220)

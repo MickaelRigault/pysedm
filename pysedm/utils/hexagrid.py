@@ -98,17 +98,19 @@ class HexagoneProjection( BaseObject ):
         import matplotlib.pyplot as mpl
         from matplotlib      import patches
         if ax is None:
-            fig = mpl.figure()
+            fig = mpl.figure(figsize=[5,5])
             ax  = fig.add_subplot(111)
         else:
             fig = ax.figure
 
         indexes = list(self.ids_index.keys())
         colors = mpl.cm.viridis(np.random.uniform(size=len(indexes)))
-        ps = [patches.Polygon(SEDMSPAXELS + np.asarray(self.index_to_xy(self.ids_to_index(id_))),
-                        facecolor=colors[i], alpha=0.8, **kwargs) for i,id_  in enumerate(indexes)]
+        ps = [patches.Polygon(SEDMSPAXELS + self.index_to_xy(self.ids_to_index(id_)),
+                           facecolor=colors[i], alpha=0.8) for i,id_  in enumerate(indexes)]
+
         ip = [ax.add_patch(p_) for p_ in ps]
         ax.autoscale(True, tight=True)
+        
         fig.show()
     # -------------- #
     #   SETTER       #
@@ -468,7 +470,7 @@ class HexagoneProjection( BaseObject ):
     @property
     def grid_rotmatrix(self):
         """ Rotation matrix associated to the grid. (based on self.grid_theta) """
-        return np.matrix([[np.cos(self.grid_theta),np.sin(self.grid_theta)],
+        return np.asarray([[np.cos(self.grid_theta),np.sin(self.grid_theta)],
                             [-np.sin(self.grid_theta), np.cos(self.grid_theta)]])
     # ----------
     # Centroid 

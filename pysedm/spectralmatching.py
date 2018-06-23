@@ -418,12 +418,12 @@ class TraceMatch( BaseObject ):
     # --------- #
     def get_sub_tracematch(self, traces, build_tracemask=False):
         """ """
-        tmap = TraceMatch()
+        tmap_ = TraceMatch()
         flagin = np.in1d(self.trace_indexes, traces)
-        tmap.set_trace_line(self._xys[flagin],
+        tmap_.set_trace_line(self._xys[flagin],
                                 trace_indexes = self.trace_indexes[flagin],
                                 width=self.width, build_tracemask=build_tracemask)
-        return tmap
+        return tmap_
 
     # Trace crossing 
     def get_traces_crossing_x(self, xpixel, ymin=-1, ymax=1e5):

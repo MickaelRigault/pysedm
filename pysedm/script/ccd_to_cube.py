@@ -434,7 +434,7 @@ def build_cubes(ccdfiles,  date, lbda=None,
     ccds = []
     for ccdfile in ccdfiles:
         flexuresavefile = None if not savefig else ccdfile.replace("crr","flexuretrace_crr").replace(".fits",".pdf")
-        ccd_    = get_ccd(ccdfile, tracematch = tracematch.copy(), background = 0,
+        ccd_    = get_ccd(ccdfile, tracematch = tracematch, background = 0,
                               correct_traceflexure = traceflexure_corrected,
                               savefile_traceflexure=flexuresavefile)
         if traceflexure_corrected:

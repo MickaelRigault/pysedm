@@ -10,7 +10,7 @@
 import os
 import numpy as np
 from astropy.io import fits
-
+from . import io
 RAINBOW_DATA_SOURCE = "/scr2/sedm/raw/"
 READOUT_NOISE       = 4
 
@@ -75,7 +75,8 @@ def build_stacked_guider(ifufile, outdir=None, overwrite=True):
     # - building the .fits
     
     filein = ifufile.split("/")[-1]
-    if outdir is None: outdir = "/"+"/".join(ifufile.split("/")[:-1])
+    if outdir is None:
+        outdir = fits.getval(ifufile,"OBSDATE").replace("-","")
         
     savefile = outdir+"/guider_%s"%filein
     hdulist = fits.HDUList([fits.PrimaryHDU(stacked_image, fits.getheader(guiders[0]))])
@@ -100,7 +101,6 @@ def get_rainbow_datapath(DATE):
 
 def get_ifu_guider_images(ifufile):
     """ """
-    from .io import filename_to_id
     from astropy import time
     
     ifu_header = fits.getheader(ifufile)
@@ -110,7 +110,7 @@ def get_ifu_guider_images(ifufile):
 
     # get the day
     date = ifu_header["OBSDATE"]
-    fileid = filename_to_id(date.replace("-",""), ifufile)
+    fileid = io.filename_to_id(date.replace("-",""), ifufile)
     jd_ini = time.Time("%s %s"%(date, fileid.replace("_",":"))).jd
     jd_end = jd_ini +  ifu_header['EXPTIME'] / (24.*3600)
     print(jd_ini, jd_end)

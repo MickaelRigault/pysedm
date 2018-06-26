@@ -70,7 +70,7 @@ def build_stacked_guider(ifufile, outdir=None, overwrite=True):
         If None, it will be in the same directory as the `infufile`
 
     """    
-    guiders = get_ifu_guider_images( fits.getheader(ifufile) )
+    guiders = get_ifu_guider_images( ifufile )
     stacked_image = stack_images(guiders)
     # - building the .fits
     
@@ -98,16 +98,19 @@ def get_rainbow_datapath(DATE):
     """ returns the path of the rainbow camera data """
     return RAINBOW_DATA_SOURCE+DATE+"/"
 
-def get_ifu_guider_images(ifu_header):
+def get_ifu_guider_images(ifufile):
     """ """
     from .io import filename_to_id
     from astropy import time
+    
+    ifu_header = fits.getheader(ifufile)
+    
     if ifu_header['IMGTYPE'].lower() not in ['science', "standard"]:
         raise TypeError("ifu_header is not a header of a Science of standard ifu target")
 
     # get the day
     date = ifu_header["OBSDATE"]
-    fileid = filename_to_id(date.replace("-",""),ifu_header["ORIGIN"])
+    fileid = filename_to_id(date.replace("-",""), ifufile)
     jd_ini = time.Time("%s %s"%(date, fileid.replace("_",":"))).jd
     jd_end = jd_ini +  ifu_header['EXPTIME'] / (24.*3600)
     print(jd_ini, jd_end)

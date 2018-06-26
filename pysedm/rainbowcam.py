@@ -115,7 +115,7 @@ def get_ifu_guider_images(ifufile):
     fileid = io.filename_to_id(date.replace("-",""), ifufile)
     jd_ini = time.Time("%s %s"%(date, fileid.replace("_",":"))).jd
     jd_end = jd_ini +  ifu_header['EXPTIME'] / (24.*3600)
-    rb_dir = get_rainbow_datapath( date.replace('-',"") ) )
+    rb_dir = get_rainbow_datapath( date.replace('-',"") )
     return [rb_dir+f for f in os.listdir(rb_dir)
                 if f.startswith("rc") and f.endswith(".fits")
                 and jd_ini<=fits.getval(rb_dir+f, "JD")<=jd_end]

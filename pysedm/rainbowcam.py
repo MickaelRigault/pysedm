@@ -77,7 +77,7 @@ def build_stacked_guider(ifufile, outdir=None, overwrite=True):
     
     filein = ifufile.split("/")[-1]
     if outdir is None:
-        outdir = fits.getval(ifufile,"OBSDATE").replace("-","")
+        outdir = io.get_datapath(fits.getval(ifufile,"OBSDATE").replace("-",""))
         
     savefile = outdir+"/guider_%s"%filein
     hdulist = fits.HDUList([fits.PrimaryHDU(stacked_image, fits.getheader(guiders[0]))])

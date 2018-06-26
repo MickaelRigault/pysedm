@@ -44,6 +44,7 @@ def build_meta_ifu_guider(ifufile, outdir=None, solve_wcs=True):
     Void (creates a guider_`ifufile`)
     """
     savefile = build_stacked_guider(ifufile, outdir)
+    print(savefile)
     if solve_wcs:
         run_do_astrom(savefile)
 

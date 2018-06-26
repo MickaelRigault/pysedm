@@ -27,6 +27,9 @@ if  __name__ == "__main__":
     parser.add_argument('--noguider',  action="store_true", default=False,
                         help='Avoid having a guider stack created. [part of the --build]')
     
+    parser.add_argument('--solvewcs',  action="store_true", default=False,
+                        help='Shall the wcs solution of the guider be solved (ignored if --noguider). [part of the --build]')
+    
     # --------------- #
     #  Cube Building  #
     # --------------- #
@@ -148,6 +151,7 @@ if  __name__ == "__main__":
                              nobackground=bool(args.nobackground),
                              # - options
                              build_guider = False if args.noguider else True,
+                             solve_wcs = args.solvewcs,
                              savefig = False if args.nofig else True,
                              flexure_corrected = False if args.noflexure else True,
                              traceflexure_corrected = False if args.notraceflexure else True)

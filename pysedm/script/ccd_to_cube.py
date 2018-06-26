@@ -335,7 +335,7 @@ def build_cubes(ccdfiles,  date, lbda=None,
                 atmcorrected=True, 
                 build_calibrated_cube=False, calibration_ref=None,
                 # Out
-                build_guider=True,
+                build_guider=True, solve_wcs=False,
                 fileindex=None,
                 savefig=True, verbose=True, notebook=False):
     """ Build a cube from the an IFU ccd image. This image 
@@ -470,7 +470,7 @@ def build_cubes(ccdfiles,  date, lbda=None,
             from pysedm import rainbowcam
             try:
                 print("INFO: building the giuder image")
-                rainbowcam.build_meta_ifu_guider(ccdin.filename, solve_wcs=False)
+                rainbowcam.build_meta_ifu_guider(ccdin.filename, solve_wcs=solve_wcs)
             except:
                 print("WARNING: rainbowcam cannot build the guider image")
 

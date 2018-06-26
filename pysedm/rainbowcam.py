@@ -17,7 +17,7 @@ READOUT_NOISE       = 4
 # ================== #
 #  Main Function     #
 # ================== #
-def build_meta_ifu_guider(ifufile, outdir=None, solve_wcs=True, **kwargs):
+def build_meta_ifu_guider(ifufile, outdir=None, solve_wcs=True):
     """ Higher level function. 
     It:
     1) fetches the guider images from the rainbow camera raw directory
@@ -37,9 +37,7 @@ def build_meta_ifu_guider(ifufile, outdir=None, solve_wcs=True, **kwargs):
         If None, it will be in the same directory as the `infufile`
         
     solve_wcs: [bool] -optional-
-        Shall the astromety.net solve-field be ran on the stacked image?
-
-    **kwargs goe stop `solve_astrometry`
+        Shall "do_astro" (based on astrometry.net) be ran on the stacked image?
         
     Returns
     -------
@@ -92,7 +90,6 @@ def run_do_astrom(guider_filename_fullpath):
     subprocess.call(["~/bin/do_astrom",guider_filename_fullpath])
     
     
-    
 # ================== #
 #   Tools            #
 # ================== #
@@ -104,6 +101,7 @@ def get_rainbow_datapath(DATE):
 def get_ifu_guider_images(ifu_header):
     """ """
     from .io import filename_to_id
+    from astropy import time
     if ifu_header['IMGTYPE'].lower() not in ['science', "standard"]:
         raise TypeError("ifu_header is not a header of a Science of standard ifu target")
 
@@ -111,7 +109,7 @@ def get_ifu_guider_images(ifu_header):
     date = ifu_header["OBSDATE"]
     fileid = filename_to_id(date.replace("-",""),ifu_header["ORIGIN"])
     jd_ini = time.Time("%s %s"%(date, fileid.replace("_",":"))).jd
-    jd_end = jd_ini +  ifu_header['EXPTIME'] / (24*3600)
+    jd_end = jd_ini +  ifu_header['EXPTIME'] / (24.*3600)
     
         
     rb_dir = get_rainbow_datapath( "".join(date.split('-',"") ) )

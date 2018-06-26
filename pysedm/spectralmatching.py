@@ -381,7 +381,7 @@ class TraceMatch( BaseObject ):
         """ """
         self._derived_properties["trace_polygons"] = {i:p.buffer(self.width) for i, p in self.trace_linestring.items()}
         self._properties["trace_vertices"] = {i:np.asarray(p.exterior.coords.xy).T for i, p in self.trace_polygons.items()}
-        
+        self._side_properties['trace_masks'] = None
         if build_tracemask:
             self.build_tracemask(**kwargs)
 

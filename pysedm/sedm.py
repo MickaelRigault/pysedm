@@ -56,6 +56,13 @@ MLA_ROTMATRIX   = np.asarray([[ np.cos(MLA_ROTATION_RAD),-np.sin(MLA_ROTATION_RA
 DEFAULT_REFLBDA = 6000 # In Angstrom
 IFU_SCALE_UNIT  = 0.75
 
+# ----- WCS
+SEDM_ASTROM_PARAM  = [-6.39092815e-01 ,-2.11150248e-01, -2.03331919e-01,  6.63301362e-01,
+                          1.02648015e+03,  1.01630678e+03]
+
+
+
+
 
 # --- Palomar Atmosphere
 # Palomar Extinction Data from Hayes & Latham 1975

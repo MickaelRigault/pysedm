@@ -167,6 +167,14 @@ def filename_to_id(date, filename):
     """ """
     return filename.split("/")[-1].split(date)[-1][1:9]
 
+def header_to_date( header ):
+    """ returns the datetiume YYYYMMDD associated with the 'JD' from the header """
+    from astropy.time import Time
+    datetime = Time(header["JD"], format="jd").datetime
+
+    return "".join(["%4s"%datetime.year, "%02d"%datetime.month, "%2d"%datetime.day])
+
+
 def fetch_guider(date, filename, astrom=True, extinction=".fits"):
     """ fetch the guider data for the given filename. """
     id_ = filename_to_id(date, filename)

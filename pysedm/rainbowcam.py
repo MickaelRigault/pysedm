@@ -51,7 +51,6 @@ def build_meta_ifu_guider(ifufile, outdir=None, solve_wcs=True):
 # ================== #
 #   Function         #
 # ================== #
-
 def build_stacked_guider(ifufile, outdir=None, overwrite=True):
     """ 
     This function:

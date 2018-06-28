@@ -153,10 +153,15 @@ if  __name__ == "__main__":
                 # --------------
                 if not args.std:
                     from pyifu import load_spectrum
-                    fluxcal = load_spectrum(io.fetch_nearest_fluxcal(date, cube.filename))
-                    spec.scale_by(1/fluxcal.data)
-                    spec.header["FLUXCAL"] = ("True","has the spectra been flux calibrated")
-                    spec.header["CALSRC"] = (fluxcal.filename.split("/")[-1], "Flux calibrator filename")
+                    try:
+                        fluxcal = load_spectrum(io.fetch_nearest_fluxcal(date, cube.filename))
+                        spec.scale_by(1/fluxcal.data)
+                        spec.header["FLUXCAL"] = ("True","has the spectra been flux calibrated")
+                        spec.header["CALSRC"] = (fluxcal.filename.split("/")[-1], "Flux calibrator filename")
+                    except:
+                        print("FAILING to flux calibrate the spectra. Uncalibrated spectra recovered"
+                        spec.header["FLUXCAL"] = ("False","has the spectra been flux calibrated")
+                        spec.header["CALSRC"] = (None, "Flux calibrator filename")
                     
                 # --------------
                 # Recording

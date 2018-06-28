@@ -359,7 +359,7 @@ def load_telluric_line(filter=None):
 #########################
 def _saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=None,
                            cubefitted=None,spec=None, bkgd=None,
-                           mode="auto", nofig=False):
+                           mode="auto", spec_info="",fluxcal=True, nofig=False):
      # Cube Model
     if cubemodel is not None:
         cubemodel.set_header(cube.header)
@@ -393,7 +393,7 @@ def _saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=None,
         spec.header["PYSEDMT"]  = ("Force 3DPSF extraction: Spectral Model", "This is the fitted flux spectrum")
         spec.header["PSFTYPE"]  = (mode, "Kind of PSF extraction")
         
-        fileout = filecube.replace(PROD_CUBEROOT,PROD_SPECROOT+"_forcepsf_%s_"%mode)
+        fileout = filecube.replace(PROD_CUBEROOT,PROD_SPECROOT+"_forcepsf_%s_"%(mode+spec_info))
         spec.writeto(fileout)
         spec.writeto(fileout.replace(".fits",".txt"), ascii=True)
     

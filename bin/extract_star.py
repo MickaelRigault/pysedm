@@ -37,7 +37,7 @@ if  __name__ == "__main__":
     parser.add_argument('--autobins',  type=int, default=7,
                         help='Number of bins within the wavelength range (see --autorange)')
 
-    parser.add_argument('--centroid',  type=str, default="None",
+    parser.add_argument('--centroid',  type=str, default="None",nargs=2,
                         help='Where is the point source expected to be? using the "x,y" format. If None, it will be guessed.'+
                             "\nGuess works well for isolated sources.")
     
@@ -121,8 +121,9 @@ if  __name__ == "__main__":
                     else:
                         print("IFU position based on CCD wcs solution used : ",xcentroid,ycentroid)
                 else:
-                    xcentroid, ycentroid = np.asarray(args.centroid.split(","), dtype="float")
-                    centroids_err = [5,5]
+                    xcentroid, ycentroid = np.asarray(args.centroid, dtype="float")
+                    print("centroid used", args.centroid)
+                    centroids_err = [3,3]
                 # Aperture area ?
                 point_polygon = geometry.Point(xcentroid, ycentroid).buffer( float(args.buffer) )
                 # => Cube to fit
@@ -151,6 +152,7 @@ if  __name__ == "__main__":
                 # --------------
                 # Flux Calibation
                 # --------------
+                notflux_cal=False
                 if not args.std:
                     from pyifu import load_spectrum
                     try:
@@ -158,15 +160,19 @@ if  __name__ == "__main__":
                         spec.scale_by(1/fluxcal.data)
                         spec.header["FLUXCAL"] = ("True","has the spectra been flux calibrated")
                         spec.header["CALSRC"] = (fluxcal.filename.split("/")[-1], "Flux calibrator filename")
+                        notflux_cal=False
                     except:
                         print("FAILING to flux calibrate the spectra. Uncalibrated spectra recovered")
                         spec.header["FLUXCAL"] = ("False","has the spectra been flux calibrated")
                         spec.header["CALSRC"] = (None, "Flux calibrator filename")
-                    
+                        notflux_cal=True
                 # --------------
                 # Recording
                 # --------------
+                add_info_spec = "_notfluxcal" if notflux_cal else ""
+                spec_info = "_lstep%s"%final_slice_width + add_info_spec
                 io._saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=cubemodel,
+                                          mode="auto",spec_info=spec_info,
                                           cubefitted=cube_to_fit, spec=spec)
                 
                 if not args.nofig:

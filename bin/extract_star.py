@@ -41,6 +41,10 @@ if  __name__ == "__main__":
                         help='Where is the point source expected to be? using the "x,y" format. If None, it will be guessed.'+
                             "\nGuess works well for isolated sources.")
     
+    parser.add_argument('--centroiderr',  type=str, default="None",nargs=2,
+                        help='What error do you expect on your given centroid.'+
+                            '\nIf not provided, it will be 3 3 for general cases and 5 5 for maximum brightnes backup plan')
+    
     parser.add_argument('--buffer',  type=float, default=8,
                         help='Radius [in spaxels] of the aperture used for the PSF fit. (see --centroid for aperture center)')
 
@@ -106,24 +110,34 @@ if  __name__ == "__main__":
                     args.buffer = 20
                 else:
                     cube = cube_
+                
                 # Centroid ?
+                if args.centroiderr is None or args.centroid in ["None"]:
+                    centroid_err_given = False
+                    centroids_err = [3,3]
+                else:
+                    centroid_err_given = True
+                    centroids_err = np.asarray(args.centroiderr, dtype="float")
+                    
                 if args.centroid is None or args.centroid in ["None"]:
                     from pysedm.astrometry  import get_object_ifu_pos
                     xcentroid,ycentroid = get_object_ifu_pos(cube)
-                    centroids_err = [3,3]
                     if np.isnan(xcentroid*ycentroid):
                         print("IFU target location based on CCD astrometry failed. centroid guessed based on brightness used instead")
                         sl = cube.get_slice(lbda_min=lbdaranges[0], lbda_max=lbdaranges[1], slice_object=True)
                         x,y = np.asarray(sl.index_to_xy(sl.indexes)).T # Slice x and y
                         argmaxes = np.argwhere(sl.data>np.percentile(sl.data,95)).flatten() # brightest points
                         xcentroid,ycentroid  = np.nanmean(x[argmaxes]),np.nanmean(y[argmaxes]) # centroid
-                        centroids_err = [5,5]
+                        if not centroid_err_given:
+                            centroids_err = [5,5]
                     else:
                         print("IFU position based on CCD wcs solution used : ",xcentroid,ycentroid)
                 else:
                     xcentroid, ycentroid = np.asarray(args.centroid, dtype="float")
                     print("centroid used", args.centroid)
-                    centroids_err = [3,3]
+                    
+                print("INFO: PSF centroid **")
+                print("centroid: %.1f %.1f"%(xcentroid, ycentroid)+ "error: %.1f %.1f"%(centroids_err[0], centroids_err[1]))
                 # Aperture area ?
                 point_polygon = geometry.Point(xcentroid, ycentroid).buffer( float(args.buffer) )
                 # => Cube to fit
@@ -132,6 +146,7 @@ if  __name__ == "__main__":
                 # --------------
                 # Fitting
                 # --------------
+                print("INFO: Starting MetaSlice fit")
                 spec, cubemodel, psfmodel, bkgdmodel, psffit, slpsf  = \
                   script.extract_star(cube_to_fit,
                                           centroids=[xcentroid, ycentroid], centroids_err=centroids_err,

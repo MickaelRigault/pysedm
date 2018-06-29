@@ -111,7 +111,7 @@ def get_ifu_guider_images(ifufile):
 
     # get the day
     date = ifu_header["OBSDATE"]
-    fileid = io.filename_to_id(date.replace("-",""), ifufile)
+    fileid = io.filename_to_id(ifufile)
     jd_ini = time.Time("%s %s"%(date, fileid.replace("_",":"))).jd
     jd_end = jd_ini +  ifu_header['EXPTIME'] / (24.*3600)
     rb_dir = get_rainbow_datapath( date.replace('-',"") )

@@ -7,7 +7,7 @@ import os
 import re
 import warnings
 from glob import glob
-
+from astropy.io.fits import getheader
 
 REDUXPATH   = os.getenv('SEDMREDUXPATH',default="~/redux/")
 _PACKAGE_ROOT = os.path.abspath(os.path.dirname(__file__))+"/"
@@ -134,7 +134,7 @@ def fetch_header(date, target, kind="ccd.crr", getkey=None):
         return None
     # Get the entire header
     if getkey is None:
-        from astropy.io.fits import getheader
+        
         if len(datafile)==1:
             return getheader(datafile[0])
         return {d.split("/"):getheader(d) for d in datafile}
@@ -157,15 +157,15 @@ def fetch_nearest_fluxcal(date, file, kind="spec.fluxcal"):
         return filefluxcal[0]
 
     import numpy as np
-    target_mjd_obs  = fetch_header(date, filename_to_id(date,file), getkey="MJD_OBS")
-    fluxcal_mjd_obs = [fetch_header(date, filename_to_id(date,f), getkey="MJD_OBS") 
+    target_mjd_obs  = fetch_header(date, filename_to_id(file), getkey="MJD_OBS")
+    fluxcal_mjd_obs = [fetch_header(date, filename_to_id(f), getkey="MJD_OBS") 
                        for f in filefluxcal]
     
     return filefluxcal[ np.argmin( np.abs( target_mjd_obs - np.asarray(fluxcal_mjd_obs) ) ) ]
 
-def filename_to_id(date, filename):
+def filename_to_id(filename):
     """ """
-    return filename.split("/")[-1].split(date)[-1][1:9]
+    return filename.split("/")[-1].split(header_to_date( getheader(filename) ))[-1][1:9]
 
 def header_to_date( header ):
     """ returns the datetiume YYYYMMDD associated with the 'JD' from the header """
@@ -177,7 +177,7 @@ def header_to_date( header ):
 
 def fetch_guider(date, filename, astrom=True, extinction=".fits"):
     """ fetch the guider data for the given filename. """
-    id_ = filename_to_id(date, filename)
+    id_ = filename_to_id(filename)
     guiders =  [l for l in os.listdir( get_datapath(date)) if id_ in l and "guider" in l 
                and extinction in l ]
     if astrom:

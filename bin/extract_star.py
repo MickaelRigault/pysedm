@@ -227,6 +227,10 @@ if  __name__ == "__main__":
                 if args.std and cube.header['IMGTYPE'].lower() in ['standard']:
                     spec.header['OBJECT'] = cube.header['OBJECT']
                     speccal, fl = fluxcalibration.get_fluxcalibrator(spec, fullout=True)
+                    for k,v in cube.header.items():
+                        if k not in speccal.header:
+                            speccal.header.set(k,v)
+
                     speccal.header["SOURCE"] = (spec.filename.split("/")[-1], "This object has been derived from this file")
                     speccal.header["PYSEDMT"] = ("Flux Calibration Spectrum", "Object to use to flux calibrate")
                     filename_inv = spec.filename.replace(io.PROD_SPECROOT,io.PROD_SENSITIVITYROOT)

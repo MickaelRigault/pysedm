@@ -28,6 +28,9 @@ if  __name__ == "__main__":
                         help='cube filepath')
 
     # // AUTOMATIC EXTRACTION
+
+    #  which extraction
+    # Auto PSF
     parser.add_argument('--auto',  type=str, default=None,
                         help='Shall this run an automatic PSF extraction')
 
@@ -37,6 +40,16 @@ if  __name__ == "__main__":
     parser.add_argument('--autobins',  type=int, default=7,
                         help='Number of bins within the wavelength range (see --autorange)')
 
+    parser.add_argument('--buffer',  type=float, default=8,
+                        help='Radius [in spaxels] of the aperture used for the PSF fit. (see --centroid for aperture center)')
+
+    parser.add_argument('--psfmodel',  type=str, default="NormalMoffatTilted",
+                        help='PSF model used for the PSF fit: NormalMoffat{Flat/Tilted/Curved}')
+
+    # Apperture
+
+
+    # // Generic information
     parser.add_argument('--centroid',  type=str, default="None",nargs=2,
                         help='Where is the point source expected to be? using the "x,y" format. If None, it will be guessed.'+
                             "\nGuess works well for isolated sources.")
@@ -45,11 +58,6 @@ if  __name__ == "__main__":
                         help='What error do you expect on your given centroid.'+
                             '\nIf not provided, it will be 3 3 for general cases and 5 5 for maximum brightnes backup plan')
     
-    parser.add_argument('--buffer',  type=float, default=8,
-                        help='Radius [in spaxels] of the aperture used for the PSF fit. (see --centroid for aperture center)')
-
-    parser.add_argument('--psfmodel',  type=str, default="NormalMoffatTilted",
-                        help='PSF model used for the PSF fit: NormalMoffat{Flat/Tilted/Curved}')
 
     parser.add_argument('--lstep',  type=int, default=1,
                         help='Slice width in lbda step: default is 1, use 2 for fainter source and maybe 3 for really faint target')
@@ -85,6 +93,9 @@ if  __name__ == "__main__":
     # ---------- #
     # Extraction #
     # ---------- #
+
+
+    
     # - Automatic extraction
     if args.auto is not None and len(args.auto) >0:
         final_slice_width = int(args.lstep)
@@ -170,17 +181,17 @@ if  __name__ == "__main__":
                 notflux_cal=False
                 if not args.std:
                     from pyifu import load_spectrum
-                    try:
-                        fluxcal = load_spectrum(io.fetch_nearest_fluxcal(date, cube.filename))
-                        spec.scale_by(1/fluxcal.data)
-                        spec.header["FLUXCAL"] = ("True","has the spectra been flux calibrated")
-                        spec.header["CALSRC"] = (fluxcal.filename.split("/")[-1], "Flux calibrator filename")
-                        notflux_cal=False
-                    except:
-                        print("FAILING to flux calibrate the spectra. Uncalibrated spectra recovered")
-                        spec.header["FLUXCAL"] = ("False","has the spectra been flux calibrated")
-                        spec.header["CALSRC"] = (None, "Flux calibrator filename")
-                        notflux_cal=True
+                    #try:
+                    fluxcal = load_spectrum(io.fetch_nearest_fluxcal(date, cube.filename))
+                    spec.scale_by(1/fluxcal.data)
+                    spec.header["FLUXCAL"] = ("True","has the spectra been flux calibrated")
+                    spec.header["CALSRC"] = (fluxcal.filename.split("/")[-1], "Flux calibrator filename")
+                    notflux_cal=False
+                    #except:
+                    #    print("FAILING to flux calibrate the spectra. Uncalibrated spectra recovered")
+                    #    spec.header["FLUXCAL"] = ("False","has the spectra been flux calibrated")
+                    #    spec.header["CALSRC"] = (None, "Flux calibrator filename")
+                    #    notflux_cal=True
                 # --------------
                 # Recording
                 # --------------

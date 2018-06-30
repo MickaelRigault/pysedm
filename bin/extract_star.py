@@ -192,6 +192,14 @@ if  __name__ == "__main__":
                     #    spec.header["FLUXCAL"] = ("False","has the spectra been flux calibrated")
                     #    spec.header["CALSRC"] = (None, "Flux calibrator filename")
                     #    notflux_cal=True
+
+                # --------------
+                # header info passed
+                # --------------
+                for k,v in cube.header.items():
+                    if k not in spec.header:
+                        spec.header.set(k,v)
+                        
                 # --------------
                 # Recording
                 # --------------

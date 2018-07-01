@@ -74,8 +74,9 @@ def build_stacked_guider(ifufile, outdir=None, overwrite=True):
         Where does the guider image should be saved. 
         If None, it will be in the same directory as the `infufile`
 
-    """    
-    stacked_image = stack_images( get_ifu_guider_images( ifufile ) )
+    """
+    guiders = get_ifu_guider_images( ifufile )
+    stacked_image = stack_images( guiders )
     # - building the .fits
     date = io.header_to_date( fits.getheader(ifufile) )
     filein = ifufile.split("/")[-1]

@@ -53,7 +53,7 @@ if  __name__ == "__main__":
     print(", ".join(files_to_use) )
 
     for filename in files_to_use:
-        print( ("Starting %s"%filename).center(30, "--") )
+        print( "** Starting %s **"%filename )
         try:
             rainbowcam.build_meta_levelifu_guider(filename, solve_wcs = args.solvewcs, verbose = False if args.quite else True)
         except:

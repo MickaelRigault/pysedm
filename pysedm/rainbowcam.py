@@ -112,16 +112,13 @@ def get_ifu_guider_images(ifufile):
         raise TypeError("ifu_header is not a header of a Science of standard ifu target")
 
     fileid = io.filename_to_id(ifufile)
-    # - get the day
-    date =   io.header_to_date(ifu_header)
-
-    print("%s %s"%(date, fileid.replace("_",":")))
     # - starting
-    jd_ini = time.Time("%s %s"%(date, fileid.replace("_",":"))).jd
+    jd_ini = time.Time("%s %s"%(io.header_to_date(ifu_header, sep="-"),
+                                    fileid.replace("_",":"))).jd
     # - end
     jd_end = jd_ini +  ifu_header['EXPTIME'] / (24.*3600)
     # - Where are the guider data  ?
-    rb_dir = get_rainbow_datapath( date )
+    rb_dir = get_rainbow_datapath( io.header_to_date(ifu_header) )
     # - Return them
     return [rb_dir+f for f in os.listdir(rb_dir)
                 if f.startswith("rc") and f.endswith(".fits")

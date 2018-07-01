@@ -172,7 +172,7 @@ def header_to_date( header ):
     from astropy.time import Time
     datetime = Time(header["JD"], format="jd").datetime
 
-    return "".join(["%4s"%datetime.year, "%02d"%datetime.month, "%2d"%datetime.day])
+    return "".join(["%4s"%datetime.year, "%02d"%datetime.month, "%02d"%datetime.day])
 
 
 def fetch_guider(date, filename, astrom=True, extinction=".fits"):

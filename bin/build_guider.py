@@ -54,8 +54,5 @@ if  __name__ == "__main__":
 
     for filename in files_to_use:
         print( "** Starting %s **"%filename )
-        try:
-            rainbowcam.build_meta_levelifu_guider(filename, solve_wcs = args.solvewcs, verbose = False if args.quite else True)
-        except:
-            print("FAILED : %s"%filename)
-    
+        rainbowcam.build_meta_levelifu_guider(filename, solve_wcs = args.solvewcs, verbose = False if args.quite else True)
+        

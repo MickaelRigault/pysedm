@@ -77,7 +77,7 @@ def build_stacked_guider(ifufile, outdir=None, overwrite=True):
     """    
     stacked_image = stack_images( get_ifu_guider_images( ifufile ) )
     # - building the .fits
-    date = io.header_to_date( gits.getheader(ifufile) )
+    date = io.header_to_date( fits.getheader(ifufile) )
     filein = ifufile.split("/")[-1]
     if outdir is None:
         outdir = io.get_datapath(date)

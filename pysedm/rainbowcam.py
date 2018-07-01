@@ -9,15 +9,16 @@
 #
 import os
 import numpy as np
+from astropy import time
 from astropy.io import fits
 from . import io
 RAINBOW_DATA_SOURCE = "/scr2/sedm/raw/"
-READOUT_NOISE       = 4
+#READOUT_NOISE       = 4
 
 # ================== #
 #  Main Function     #
 # ================== #
-def build_meta_ifu_guider(ifufile, outdir=None, solve_wcs=True):
+def build_meta_levelifu_guider(ifufile, outdir=None, solve_wcs=True, verbose=False):
     """ Higher level function. 
     It:
     1) fetches the guider images from the rainbow camera raw directory
@@ -44,8 +45,12 @@ def build_meta_ifu_guider(ifufile, outdir=None, solve_wcs=True):
     Void (creates a guider_`ifufile`)
     """
     savefile = build_stacked_guider(ifufile, outdir)
-    print(savefile)
+    if verbose:
+        print(" guider image built for %s"%ifufile)
+        print(savefile)
     if solve_wcs:
+        if verbose:
+            print(" running astrometry on %s"%savefile)
         run_do_astrom(savefile)
 
 # ================== #
@@ -70,13 +75,12 @@ def build_stacked_guider(ifufile, outdir=None, overwrite=True):
         If None, it will be in the same directory as the `infufile`
 
     """    
-    guiders = get_ifu_guider_images( ifufile )
-    stacked_image = stack_images(guiders)
+    stacked_image = stack_images( get_ifu_guider_images( ifufile ) )
     # - building the .fits
-    
+    date = io.header_to_date( gits.getheader(ifufile) )
     filein = ifufile.split("/")[-1]
     if outdir is None:
-        outdir = io.get_datapath(fits.getval(ifufile,"OBSDATE").replace("-",""))
+        outdir = io.get_datapath(date)
         
     savefile = outdir+"/guider_%s"%filein
     hdulist = fits.HDUList([fits.PrimaryHDU(stacked_image, fits.getheader(guiders[0]))])
@@ -101,20 +105,22 @@ def get_rainbow_datapath(DATE):
     return RAINBOW_DATA_SOURCE+DATE+"/"
 
 def get_ifu_guider_images(ifufile):
-    """ """
-    from astropy import time
-    
+    """ """    
     ifu_header = fits.getheader(ifufile)
     
     if ifu_header['IMGTYPE'].lower() not in ['science', "standard"]:
         raise TypeError("ifu_header is not a header of a Science of standard ifu target")
 
-    # get the day
-    date = ifu_header["OBSDATE"]
     fileid = io.filename_to_id(ifufile)
+    # - get the day
+    date =   io.header_to_date(ifu_header)
+    # - starting
     jd_ini = time.Time("%s %s"%(date, fileid.replace("_",":"))).jd
+    # - end
     jd_end = jd_ini +  ifu_header['EXPTIME'] / (24.*3600)
-    rb_dir = get_rainbow_datapath( date.replace('-',"") )
+    # - Where are the guider data  ?
+    rb_dir = get_rainbow_datapath( date )
+    # - Return them
     return [rb_dir+f for f in os.listdir(rb_dir)
                 if f.startswith("rc") and f.endswith(".fits")
                 and jd_ini<=fits.getval(rb_dir+f, "JD")<=jd_end]

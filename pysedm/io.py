@@ -165,7 +165,7 @@ def fetch_nearest_fluxcal(date, file, kind="spec.fluxcal"):
 
 def filename_to_id(filename):
     """ """
-    return filename.split("/")[-1].split(header_to_date( getheader(filename) ))[-1][1:9]
+    return filename.split("/")[-1].split( header_to_date( getheader(filename) ))[-1][1:9]
 
 def header_to_date( header ):
     """ returns the datetiume YYYYMMDD associated with the 'JD' from the header """

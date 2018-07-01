@@ -114,6 +114,8 @@ def get_ifu_guider_images(ifufile):
     fileid = io.filename_to_id(ifufile)
     # - get the day
     date =   io.header_to_date(ifu_header)
+
+    print("%s %s"%(date, fileid.replace("_",":")))
     # - starting
     jd_ini = time.Time("%s %s"%(date, fileid.replace("_",":"))).jd
     # - end

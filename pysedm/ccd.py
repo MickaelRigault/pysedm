@@ -657,8 +657,8 @@ class CCD( BaseCCD ):
         # - Fill the Cube
         #  SEDM DEPENDENT
         spaxels_position = np.asarray(hexagrid.index_to_xy( hexagrid.ids_to_index(used_indexes), 
-                                        invert_rotation=False, rot_degree= SEDM_ROT, 
-                                        switch_axis=SEDM_INVERT)).T
+                                        invert_rotation=False,
+                                        rot_degree= SEDM_ROT, switch_axis=SEDM_INVERT)).T
 
         
         spaxel_map = {i:c for i,c in zip(used_indexes, spaxels_position)}

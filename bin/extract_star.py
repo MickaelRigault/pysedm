@@ -2,6 +2,11 @@
 # -*- coding: utf-8 -*-
 
 
+
+MARKER_PROP = {"astrom": dict(marker="x", lw=2, s=80, color="C1", zorder=8),
+               "manual": dict(marker="+", lw=2, s=100, color="k", zorder=8),
+               "auto":  dict(marker="o", lw=2, s=200, facecolors="None", edgecolors="C3", zorder=8)
+                   }
 #################################
 #
 #   MAIN 
@@ -68,6 +73,9 @@ if  __name__ == "__main__":
     # - Standard Star object
     parser.add_argument('--std',  action="store_true", default=False,
                         help='Set this to True to tell the program you what to build a calibration spectrum from this object')
+    
+    parser.add_argument('--nofluxcal',  action="store_true", default=False,
+                        help='No Flux calibration')
 
     
     parser.add_argument('--nofig',    action="store_true", default=False,
@@ -123,7 +131,7 @@ if  __name__ == "__main__":
                     cube = cube_
                 
                 # Centroid ?
-                if args.centroiderr is None or args.centroid in ["None"]:
+                if args.centroiderr is None or args.centroiderr in ["None"]:
                     centroid_err_given = False
                     centroids_err = [3,3]
                 else:
@@ -141,11 +149,15 @@ if  __name__ == "__main__":
                         xcentroid,ycentroid  = np.nanmean(x[argmaxes]),np.nanmean(y[argmaxes]) # centroid
                         if not centroid_err_given:
                             centroids_err = [5,5]
+                            
+                        position_type="auto" 
                     else:
                         print("IFU position based on CCD wcs solution used : ",xcentroid,ycentroid)
+                        position_type="astrom" 
                 else:
                     xcentroid, ycentroid = np.asarray(args.centroid, dtype="float")
                     print("centroid used", args.centroid)
+                    position_type="manual"
                     
                 print("INFO: PSF centroid **")
                 print("centroid: %.1f %.1f"%(xcentroid, ycentroid)+ "error: %.1f %.1f"%(centroids_err[0], centroids_err[1]))
@@ -179,7 +191,7 @@ if  __name__ == "__main__":
                 # Flux Calibation
                 # --------------
                 notflux_cal=False
-                if not args.std:
+                if not args.nofluxcal:
                     from pyifu import load_spectrum
                     try:
                         fluxcal = load_spectrum(io.fetch_nearest_fluxcal(date, cube.filename))
@@ -192,7 +204,11 @@ if  __name__ == "__main__":
                         spec.header["FLUXCAL"] = ("False","has the spectra been flux calibrated")
                         spec.header["CALSRC"] = (None, "Flux calibrator filename")
                         notflux_cal=True
-
+                else:
+                    spec.header["FLUXCAL"] = ("False","has the spectra been flux calibrated")
+                    spec.header["CALSRC"] = (None, "Flux calibrator filename")
+                    notflux_cal=True
+                    
                 # --------------
                 # header info passed
                 # --------------
@@ -218,8 +234,17 @@ if  __name__ == "__main__":
                     ax = mpl.gca()
                     x,y = np.asarray(cube_to_fit.index_to_xy(cube_to_fit.indexes)).T
                     ax.plot(x,y, marker=".", ls="None", ms=1, color="k")
-                    ax.scatter(xcentroid, ycentroid, marker="x", lw=2, s=80, color="C1", zorder=8)
+                    ax.scatter(xcentroid, ycentroid, **MARKER_PROP[position_type])
                     ax.figure.savefig(spec.filename.replace("spec","spaxels_source").replace(".fits",".pdf"))
+                    
+                    # Pure spaxel
+                    fig = mpl.figure(figsize=[4,4])
+                    ax  = fig.add_subplot(111)
+                    _ = cube_._display_im_(ax, vmax="98", vmin="2")
+                    ax.plot(x,y, marker=".", ls="None", ms=1, color="k")
+                    ax.scatter(xcentroid, ycentroid, **MARKER_PROP[position_type])
+                    ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".pdf"))
+                    ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".png"), dpi=150)
                     
                 # -----------------
                 #  Is that a STD  ?
@@ -238,6 +263,7 @@ if  __name__ == "__main__":
                     speccal.writeto(filename_inv)
                     if not args.nofig:
                         fl.show(savefile=speccal.filename.replace(".fits",".pdf"), show=False, fluxcal=speccal.data)
+                        fl.show(savefile=speccal.filename.replace(".fits",".png"), show=False, fluxcal=speccal.data)
                                     
                 # - for the record
                 extracted_objects.append(spec)

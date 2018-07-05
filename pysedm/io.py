@@ -403,6 +403,7 @@ def _saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=None,
             spec_to_plot = get_spectrum(spec.lbda[10:], spec.data[10:], variance=spec.variance[10:] if spec.has_variance() else None,
                                             header=spec.header)
             spec_to_plot.show(savefile=spec.filename.replace(".fits",".pdf"), show=False)
+            spec_to_plot.show(savefile=spec.filename.replace(".fits",".png"), show=False)
         
     # - background
     if bkgd is not None:

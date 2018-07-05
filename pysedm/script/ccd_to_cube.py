@@ -295,6 +295,7 @@ def build_wavesolution(date, verbose=False, ntest=None, idxrange=None,
             pl = wsol.show_dispersion_map(hexagrid,vmin="0.5",vmax="99.5",
                                               outlier_highlight=5, show=False)
             pl['fig'].savefig(timedir+"%s_wavesolution_dispersionmap.pdf"%date)
+            pl['fig'].savefig(timedir+"%s_wavesolution_dispersionmap.png"%date)
 
         
         

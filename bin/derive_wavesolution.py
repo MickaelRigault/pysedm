@@ -66,6 +66,9 @@ if  __name__ == "__main__":
             hgrid = pysedm.load_nightly_hexagonalgrid(date)
             wsol.show_dispersion_map(hgrid, vmax="98", vmin="2", outlier_highlight=5,
                             savefile= pysedm.io.get_datapath(date)+"%s_wavesolution_dispersionmap.pdf"%date)
+            wsol.show_dispersion_map(hgrid, vmax="98", vmin="2", outlier_highlight=5,
+                            savefile= pysedm.io.get_datapath(date)+"%s_wavesolution_dispersionmap.png"%date)
+            
         import sys
         sys.exit(0)
     

@@ -744,7 +744,7 @@ class TraceMatch( BaseObject ):
         self._derived_properties['gmap'] = g.ravel(order='F')
         self._derived_properties['bmap'] = b.ravel(order='F')
 
-    def extract_hexgrid(self, trace_indexes = None, qdistance=None):
+    def extract_hexgrid(self, trace_indexes = None, qdistance=None, theta=None):
         """ Build the array of neightbords.
         This is built on a KDTree (scipy)
 
@@ -752,6 +752,9 @@ class TraceMatch( BaseObject ):
         ----------
         usedindex: [list of indexes] -optional-
             Select the indexes you want to use. If None [default] all will be.
+
+        theta: [angle in radian]
+            rotation of the IFU with respect to north
 
         Returns
         -------
@@ -764,7 +767,7 @@ class TraceMatch( BaseObject ):
 
         # - position used to define 1 location of 1 spectral_trace
         xydata  = np.asarray([np.nanmean(self.trace_vertices[idx_], axis=0) for idx_ in trace_indexes])
-        return get_hexprojection(xydata, ids=trace_indexes)
+        return get_hexprojection(xydata, ids=trace_indexes, theta=theta)
     
     # ===================== #
     #   Properties          #

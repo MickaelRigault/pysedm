@@ -1,6 +1,6 @@
 
 
-__version__ = "0.12.2"
+__version__ = "0.13.0"
 
 from .io import *
 #from .ccd import *

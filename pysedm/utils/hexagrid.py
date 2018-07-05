@@ -18,14 +18,14 @@ def load_hexprojection(hexfile):
     return hex_
 
 def get_hexprojection(xy, ids=None, qdistance=None,
-                      reference_ids=None, build=True, **kwargs):
+                      reference_ids=None, build=True, theta=None, **kwargs):
     """ """
     hgrid = HexagoneProjection(xy, ids=ids, qdistance=qdistance, **kwargs)
     
     reference_idx = hgrid.get_default_grid_reference() \
       if reference_ids is None else hgrid.ids_to_index(reference_ids)
 
-    hgrid.set_grid_reference(*reference_idx)
+    hgrid.set_grid_reference(*reference_idx, theta=theta)
     if build:
         hgrid.build_qr_grid(hgrid.ref_idx)
         
@@ -37,7 +37,7 @@ class HexagoneProjection( BaseObject ):
     """
     PROPERTIES         = ["xy","qdistance","hexgrid", "neighbors"]
     SIDE_PROPERTIES    = ["ref_idx","index_ids"]
-    DERIVED_PROPERTIES = ["hexafilled",
+    DERIVED_PROPERTIES = ["hexafilled","grid_theta",
                               "tree","multipoint","rotmatrix",
                               "ids_index"]
 
@@ -72,18 +72,22 @@ class HexagoneProjection( BaseObject ):
         """ load the hexagone grid from the pkl file containing the data """
         from .tools import load_pkl
         data = load_pkl(hexfile)
+        
         if "neighbors" not in data.keys():
             raise TypeError("The given filename does not have the appropriate format. No 'neighbors' entry.")
 
+            
         # You can rerun everything with this
         self.set_neighbors(data["neighbors"])
+        
+        #  Valuable information
+        if "ref_idx" in data.keys():
+            self.set_grid_reference(*data["ref_idx"])
 
         #  No need to run anything with that again
         if "hexgrid" in data.keys(): #
             self.set_hexgrid(data["hexgrid"])
-        #  Valuable information
-        if "ref_idx" in data.keys():
-            self.set_grid_reference(*data["ref_idx"])
+            
             
         if "ids" in data.keys():
             self.set_ids(data["ids"])
@@ -229,7 +233,7 @@ class HexagoneProjection( BaseObject ):
         """ get the (Q,R) hexagonal coordinates of the given index"""
         return self.hexgrid[index]
 
-    def index_to_xy(self, index, invert_rotation=True):
+    def index_to_xy(self, index, invert_rotation=True, rot_degree=0, switch_axis=False):
         """ """
         qr = np.asarray(self.index_to_qr(index)).T
 
@@ -239,18 +243,29 @@ class HexagoneProjection( BaseObject ):
             q,r = np.asarray([qr_ if qr_ is not None else [np.NaN, np.NaN]
                                   for qr_ in qr]).T
             
-        return self.qr_to_xy(q,r, invert_rotation=invert_rotation)
+        return self.qr_to_xy(q,r, invert_rotation=invert_rotation,
+                            rot_degree=rot_degree, switch_axis=switch_axis)
     
-    def qr_to_xy(self, q,r, invert_rotation=True):
+    def qr_to_xy(self, q, r, invert_rotation=True, rot_degree=0, switch_axis=False):
         """ Convert (q,r) hexagonal grid coordinates into (x,y) system 
         Returns
         -------
         x,y
         """
+        # INVERTING X, Y on purpose to match the natural ifu_x ifu_y coordinates
         x,y = np.asarray([ (2*q + r)/np.sqrt(3.),  r])
-        if not invert_rotation:
-            return x,y 
-        return np.dot(self.grid_rotmatrix,np.asarray([x,y]))
+        if invert_rotation:
+           x,y = np.dot(self.grid_rotmatrix, np.asarray([x,y]))
+
+        if switch_axis:
+            x,y = y,x
+            
+        if rot_degree != 0:
+            _rot = rot_degree  * np.pi / 180
+            rotmat = np.asarray([[ np.cos(_rot), -np.sin(_rot)],[ np.sin(_rot), np.cos(_rot)]])
+            x,y = np.dot(rotmat, np.asarray([x,y]))
+            
+        return x,y
     
     # -------------- #
     # Grid Building  #
@@ -264,21 +279,20 @@ class HexagoneProjection( BaseObject ):
         """
         if ref_10 not in self.get_shared_neighbors(ref_00, ref_01):
             raise ValueError("The given reference indexes are not neighbors.")
-        
+
         self.hexgrid[ref_00] = [0,0]
         self.hexgrid[ref_01] = [0,1]
         self.hexgrid[ref_10] = [1,0]
         
         self._side_properties["ref_idx"] = [ref_00,ref_01,ref_10]
         self._derived_properties["hexafilled"] = None
-        
         # - derived the baseline rotation matrix
         x,y = np.asarray(self.index_to_xy([ref_00,ref_01,ref_10], invert_rotation=False))
         if theta is None:
             v1 = np.asarray([x[1],y[1]])
             v2 = np.asarray([x[2],y[2]])
             theta = np.arccos(np.clip(np.dot(v1/np.linalg.norm(v1), v2/np.linalg.norm(v2)), -1.0, 1.0))
-            
+
         self._derived_properties["grid_theta"] = theta
             
         
@@ -465,7 +479,9 @@ class HexagoneProjection( BaseObject ):
     @property
     def grid_theta(self):
         """ Angle [rad] that the (0,1), (0,0) (1,0) coordinates do. """
-        return self._derived_properties["grid_theta"]
+        if self._derived_properties["grid_theta"] is None:
+            self._derived_properties["grid_theta"] = 0
+        return self._derived_properties["grid_theta"] 
     
     @property
     def grid_rotmatrix(self):

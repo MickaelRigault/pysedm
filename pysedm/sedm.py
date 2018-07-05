@@ -20,9 +20,16 @@ CALIBFILES = ["Hg.fits","Cd.fits","Xe.fits","dome.fits"]
 # --- CCD
 SEDM_CCD_SIZE = [2048, 2048]
 DOME_TRACEBOUNDS = [70,230]
-TRACE_DISPERSION = 1.2*2 # PSF (sigma assuming gaussian) of the traces on the CCD. 
-SEDMSPAXELS = np.asarray([[ np.sqrt(3.)/2., 1./2],[0, 1],[-np.sqrt(3.)/2., 1./2],
-                          [-np.sqrt(3.)/2.,-1./2],[0,-1],[ np.sqrt(3.)/2.,-1./2]])*2/3.
+TRACE_DISPERSION = 1.2*2 # PSF (sigma assuming gaussian) of the traces on the CCD.
+
+SEDM_INVERT = True #  The x and y axis extracted in the hexagrid should be inverted
+SEDM_ROT    = -105 # Set north up
+
+
+_rot = SEDM_ROT*np.pi/  180
+SEDMSPAXELS = np.dot( np.asarray([[np.cos(_rot),np.sin(_rot)],[-np.sin(_rot),np.cos(_rot)]]) ,
+                    np.asarray([[ np.sqrt(3.)/2., 1./2],[0, 1],[-np.sqrt(3.)/2., 1./2],
+                            [-np.sqrt(3.)/2.,-1./2],[0,-1],[ np.sqrt(3.)/2.,-1./2]]).T*2/3.).T
 
 #_EDGES_Y = 40
 #_EDGES_X = [180,50]
@@ -321,7 +328,7 @@ def build_calibrated_sedmcube(cubefile, date=None, calibration_ref=None, kindout
     cube.header['PYSEDMT'] = ("Flux Calibrated Cube")
     # - Save it
     cube.writeto(cubefile.replace("%s"%PROD_CUBEROOT,"%s_%s"%(PROD_CUBEROOT,kindout)))
-    
+
 # ------------------ #
 #  Main Functions    #
 # ------------------ #        

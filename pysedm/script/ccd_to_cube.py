@@ -87,7 +87,7 @@ def build_tracematcher(date, verbose=True, width=None,
 # Spaxel Spacial Position  #
 #                          #
 ############################
-def build_hexagonalgrid(date, xybounds=None):
+def build_hexagonalgrid(date, xybounds=None, theta=None):
     """ """
     smap  = io.load_nightly_tracematch(date)
     # ----------------
@@ -95,7 +95,7 @@ def build_hexagonalgrid(date, xybounds=None):
     if xybounds is None: xybounds=INDEX_CCD_CONTOURS
     idxall = smap.get_traces_within_polygon(INDEX_CCD_CONTOURS)
 
-    hgrid = smap.extract_hexgrid(idxall)
+    hgrid = smap.extract_hexgrid(idxall, theta=theta)
 
     timedir = io.get_datapath(date)
     hgrid.writeto(timedir+"%s_HexaGrid.pkl"%date)

@@ -115,8 +115,6 @@ def get_dome(domefile, tracematch=None,  load_sep=False, **kwargs):
         dome.set_tracematch(tracematch)
         dome.set_background(dome._get_default_background_(**kwargs), force_it=True)
 
-    
-
     return dome
 
 
@@ -601,7 +599,7 @@ class CCD( BaseCCD ):
         -------
         SEDMCube (child of pyifu's Cube)
         """
-        from .sedm import SEDMSPAXELS, SEDMCube
+        from .sedm import SEDMSPAXELS, SEDMCube, SEDM_INVERT, SEDM_ROT
         
         # - index check
         if traceindexes is None:
@@ -657,10 +655,13 @@ class CCD( BaseCCD ):
         cubevar  = np.asarray([cubevar_[i]   for i in used_indexes]) if cubevar_ is not None else None
         
         # - Fill the Cube
-        spaxel_map = {i:c
-                for i,c in zip(used_indexes,
-                    np.asarray(hexagrid.index_to_xy(hexagrid.ids_to_index(used_indexes),invert_rotation=True)).T)
-                     }
+        #  SEDM DEPENDENT
+        spaxels_position = np.asarray(hexagrid.index_to_xy( hexagrid.ids_to_index(used_indexes), 
+                                        invert_rotation=False, rot_degree= SEDM_ROT, 
+                                        switch_axis=SEDM_INVERT)).T
+
+        
+        spaxel_map = {i:c for i,c in zip(used_indexes, spaxels_position)}
             
         cube.create(cubeflux.T,lbda=lbda, spaxel_mapping=spaxel_map, variance=cubevar.T)
         cube.set_spaxel_vertices(np.dot(hexagrid.grid_rotmatrix,SEDMSPAXELS.T).T)

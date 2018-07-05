@@ -64,8 +64,8 @@ DEFAULT_REFLBDA = 6000 # In Angstrom
 IFU_SCALE_UNIT  = 0.75
 
 # ----- WCS
-SEDM_ASTROM_PARAM  = [-7.01322479e-01,-2.91835334e-01, -1.55056889e-01, 7.06681350e-01,
-                          1.02683604e+03, 1.01668916e+03]
+SEDM_ASTROM_PARAM  = [ 7.28968990e-01,  6.89009309e-02, -6.57804812e-03, -7.94252856e-01,
+                           1.02682050e+03 , 1.01659890e+03]
 
 
 # --- Palomar Atmosphere

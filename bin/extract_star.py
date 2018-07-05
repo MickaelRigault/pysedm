@@ -170,7 +170,7 @@ if  __name__ == "__main__":
                 # Fitting
                 # --------------
                 print("INFO: Starting MetaSlice fit")
-                spec, cubemodel, psfmodel, bkgdmodel, psffit, slpsf  = \
+                spec_raw, cubemodel, psfmodel, bkgdmodel, psffit, slpsf  = \
                   script.extract_star(cube_to_fit,
                                           centroids=[xcentroid, ycentroid], centroids_err=centroids_err,
                                           spaxel_unit = IFU_SCALE_UNIT,
@@ -178,19 +178,17 @@ if  __name__ == "__main__":
                                           lbda_step1=lbda_step1, psfmodel=args.psfmodel)
                 # Hack to be removed:
                 print("INFO: Temporary variance hacking to be removed ")
-                spec._properties['variance'] = np.ones(len(spec.lbda)) * np.median(spec.variance)
+                spec_raw._properties['variance'] = np.ones(len(spec_raw.lbda)) * np.median(spec_raw.variance)
 
                 if final_slice_width != 1:
-                    spec = spec.reshape(cube.lbda)
-
-                    #cubemodel.reshape(cube_to_fit.lbda)
-                    
-                #cuberes   = cube_to_fit - cubemodel
+                    spec_raw = spec_raw.reshape(cube.lbda)
 
                 # --------------
                 # Flux Calibation
                 # --------------
                 notflux_cal=False
+                spec = spec_raw.copy()
+                
                 if not args.nofluxcal:
                     from pyifu import load_spectrum
                     try:
@@ -250,13 +248,13 @@ if  __name__ == "__main__":
                 #  Is that a STD  ?
                 # -----------------
                 if args.std and cube.header['IMGTYPE'].lower() in ['standard']:
-                    spec.header['OBJECT'] = cube.header['OBJECT']
-                    speccal, fl = fluxcalibration.get_fluxcalibrator(spec, fullout=True)
+                    spec_raw.header['OBJECT'] = cube.header['OBJECT']
+                    speccal, fl = fluxcalibration.get_fluxcalibrator(spec_raw, fullout=True)
                     for k,v in cube.header.items():
                         if k not in speccal.header:
                             speccal.header.set(k,v)
 
-                    speccal.header["SOURCE"] = (spec.filename.split("/")[-1], "This object has been derived from this file")
+                    speccal.header["SOURCE"] = (spec_raw.filename.split("/")[-1], "This object has been derived from this file")
                     speccal.header["PYSEDMT"] = ("Flux Calibration Spectrum", "Object to use to flux calibrate")
                     filename_inv = spec.filename.replace(io.PROD_SPECROOT,io.PROD_SENSITIVITYROOT)
                     speccal._side_properties['filename'] = filename_inv

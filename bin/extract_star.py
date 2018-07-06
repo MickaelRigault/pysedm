@@ -7,6 +7,40 @@ MARKER_PROP = {"astrom": dict(marker="x", lw=2, s=80, color="C1", zorder=8),
                "manual": dict(marker="+", lw=2, s=100, color="k", zorder=8),
                "auto":  dict(marker="o", lw=2, s=200, facecolors="None", edgecolors="C3", zorder=8)
                    }
+
+
+def position_source(cube, centroid=None, centroiderr=None):
+    """ How is the source position selected ? """
+    if centroiderr is None or centroiderr in ["None"]:
+        centroid_err_given = False
+        centroids_err = [3,3]
+    else:
+        centroid_err_given = True
+        centroids_err = np.asarray(centroiderr, dtype="float")
+        
+    if centroid is None or centroid in ["None"]:
+        from pysedm.astrometry  import get_object_ifu_pos
+        xcentroid,ycentroid = get_object_ifu_pos( cube )
+        if np.isnan(xcentroid*ycentroid):
+            print("IFU target location based on CCD astrometry failed. centroid guessed based on brightness used instead")
+            sl = cube.get_slice(lbda_min=lbdaranges[0], lbda_max=lbdaranges[1], slice_object=True)
+            x,y = np.asarray(sl.index_to_xy(sl.indexes)).T # Slice x and y
+            argmaxes = np.argwhere(sl.data>np.percentile(sl.data,95)).flatten() # brightest points
+            xcentroid,ycentroid  = np.nanmean(x[argmaxes]),np.nanmean(y[argmaxes]) # centroid
+            if not centroid_err_given:
+                centroids_err = [5,5]
+                            
+                position_type="auto" 
+        else:
+            print("IFU position based on CCD wcs solution used : ",xcentroid,ycentroid)
+            position_type="astrom" 
+    else:
+        xcentroid, ycentroid = np.asarray(centroid, dtype="float")
+        print("centroid used", centroid)
+        position_type="manual"
+
+    return [xcentroid, ycentroid], centroids_err, position_type
+
 #################################
 #
 #   MAIN 
@@ -123,44 +157,29 @@ if  __name__ == "__main__":
                 # ----------------- #
                 print("Automatic extraction of target %s, file: %s"%(target, filecube))
                 cube_ = get_sedmcube(filecube)
+                [xcentroid, ycentroid], centroids_err, position_type = position_source(cube_, centroid = args.centroid, centroiderr= args.centroiderr)
                 if args.display:
-                    iplot = cube_.show(interactive=True)
+                    iplot = cube_.show(interactive=True, launch=False)
+                    iplot.axim.scatter( xcentroid, ycentroid, **MARKER_PROP[position_type] )
+                    iplot.launch(vmin="2", vmax="98", notebook=False)
                     cube = cube_.get_partial_cube( iplot.get_selected_idx(), np.arange( len(cube_.lbda)) )
                     args.buffer = 20
+                    if iplot.picked_position is not None:
+                        print("You picked the position : ", iplot.picked_position )
+                        print(" updating the centroid accordingly ")
+                        xcentroid, ycentroid = iplot.picked_position
+                        centroids_err = [1.5,1.5]
+                        position_type = "manual"
                 else:
                     cube = cube_
-                
+                    
                 # Centroid ?
-                if args.centroiderr is None or args.centroiderr in ["None"]:
-                    centroid_err_given = False
-                    centroids_err = [3,3]
-                else:
-                    centroid_err_given = True
-                    centroids_err = np.asarray(args.centroiderr, dtype="float")
+                
+               
                     
-                if args.centroid is None or args.centroid in ["None"]:
-                    from pysedm.astrometry  import get_object_ifu_pos
-                    xcentroid,ycentroid = get_object_ifu_pos(cube)
-                    if np.isnan(xcentroid*ycentroid):
-                        print("IFU target location based on CCD astrometry failed. centroid guessed based on brightness used instead")
-                        sl = cube.get_slice(lbda_min=lbdaranges[0], lbda_max=lbdaranges[1], slice_object=True)
-                        x,y = np.asarray(sl.index_to_xy(sl.indexes)).T # Slice x and y
-                        argmaxes = np.argwhere(sl.data>np.percentile(sl.data,95)).flatten() # brightest points
-                        xcentroid,ycentroid  = np.nanmean(x[argmaxes]),np.nanmean(y[argmaxes]) # centroid
-                        if not centroid_err_given:
-                            centroids_err = [5,5]
-                            
-                        position_type="auto" 
-                    else:
-                        print("IFU position based on CCD wcs solution used : ",xcentroid,ycentroid)
-                        position_type="astrom" 
-                else:
-                    xcentroid, ycentroid = np.asarray(args.centroid, dtype="float")
-                    print("centroid used", args.centroid)
-                    position_type="manual"
-                    
-                print("INFO: PSF centroid **")
-                print("centroid: %.1f %.1f"%(xcentroid, ycentroid)+ "error: %.1f %.1f"%(centroids_err[0], centroids_err[1]))
+                print("INFO: PSF centroid (%s)**"%position_type)
+                print("centroid: %.1f %.1f"%(xcentroid, ycentroid)+ " error: %.1f %.1f"%(centroids_err[0], centroids_err[1]))
+                
                 # Aperture area ?
                 point_polygon = geometry.Point(xcentroid, ycentroid).buffer( float(args.buffer) )
                 # => Cube to fit

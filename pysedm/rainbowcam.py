@@ -52,7 +52,10 @@ def build_meta_ifu_guider(ifufile, outdir=None, solve_wcs=True, verbose=False):
         if verbose:
             print(" running astrometry on %s"%savefile)
         run_do_astrom(savefile)
-
+        if not os.path.isfile( savefile.replace( ".fits", "_astrom.fits" ) ):
+            print("do_astrom has failed. Let's rerun it")
+            run_do_astrom(savefile)
+        
 # ================== #
 #   Function         #
 # ================== #

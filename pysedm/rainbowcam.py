@@ -114,9 +114,6 @@ def get_ifu_guider_images(ifufile):
     """ """    
     ifu_header = fits.getheader(ifufile)
     
-    if ifu_header['IMGTYPE'].lower() not in ['science', "standard"]:
-        raise TypeError("ifu_header is not a header of a Science of standard ifu target")
-
     fileid = io.filename_to_id(ifufile)
     # - starting
     jd_ini = time.Time("%s %s"%(io.header_to_date(ifu_header, sep="-"),

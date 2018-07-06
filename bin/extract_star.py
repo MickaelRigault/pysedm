@@ -173,10 +173,7 @@ if  __name__ == "__main__":
                 else:
                     cube = cube_
                     
-                # Centroid ?
-                
-               
-                    
+                # Centroid ?    
                 print("INFO: PSF centroid (%s)**"%position_type)
                 print("centroid: %.1f %.1f"%(xcentroid, ycentroid)+ " error: %.1f %.1f"%(centroids_err[0], centroids_err[1]))
                 

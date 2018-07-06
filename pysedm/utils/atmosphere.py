@@ -35,6 +35,12 @@ class ExtinctionSpectrum( Spectrum ):
               interp1d(self.lbda, self.data, kind=kind)
 
         return self._properties['interpolation']
+
+
+
+def fit_telluric(spec):
+    """ """
+    print("not done yet")
     
 ##########################
 #                        #

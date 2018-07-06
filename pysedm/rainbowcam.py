@@ -18,7 +18,7 @@ RAINBOW_DATA_SOURCE = "/scr2/sedm/raw/"
 # ================== #
 #  Main Function     #
 # ================== #
-def build_meta_levelifu_guider(ifufile, outdir=None, solve_wcs=True, verbose=False):
+def build_meta_ifu_guider(ifufile, outdir=None, solve_wcs=True, verbose=False):
     """ Higher level function. 
     It:
     1) fetches the guider images from the rainbow camera raw directory

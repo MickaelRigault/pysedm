@@ -97,20 +97,23 @@ if  __name__ == "__main__":
                         help='What error do you expect on your given centroid.'+
                             '\nIf not provided, it will be 3 3 for general cases and 5 5 for maximum brightnes backup plan')
     
-
     parser.add_argument('--lstep',  type=int, default=1,
                         help='Slice width in lbda step: default is 1, use 2 for fainter source and maybe 3 for really faint target')
     
     parser.add_argument('--display',  action="store_true", default=False,
                         help='Select the area to fit using the display function.')
+    
 
     # - Standard Star object
     parser.add_argument('--std',  action="store_true", default=False,
                         help='Set this to True to tell the program you what to build a calibration spectrum from this object')
     
+    parser.add_argument('--fluxcalsource',  type=str, default="None",
+                        help='Path to a "fluxcal" .fits file. This file will be used for the flux calibration. If nothing given, the nearest (in time and within the night) fluxcal will be used.')
+    
+
     parser.add_argument('--nofluxcal',  action="store_true", default=False,
                         help='No Flux calibration')
-
     
     parser.add_argument('--nofig',    action="store_true", default=False,
                         help='')
@@ -207,13 +210,19 @@ if  __name__ == "__main__":
                 if not args.nofluxcal:
                     from pyifu import load_spectrum
                     try:
-                        fluxcal = load_spectrum(io.fetch_nearest_fluxcal(date, cube.filename))
+                        if args.fluxcalsource is None or args.fluxcalsource in ["None"]:
+                            print("INFO: default nearest fluxcal file used")
+                            fluxcal = load_spectrum( io.fetch_nearest_fluxcal(date, cube.filename) )
+                        else:
+                            print("INFO: given fluxcal used.")
+                            fluxcal = load_spectrum( args.fluxcalsource )
+                            
                         spec.scale_by(1/fluxcal.data)
                         spec.header["FLUXCAL"] = ("True","has the spectra been flux calibrated")
                         spec.header["CALSRC"] = (fluxcal.filename.split("/")[-1], "Flux calibrator filename")
                         notflux_cal=False
                     except:
-                        print("FAILING to flux calibrate the spectra. Uncalibrated spectra recovered")
+                        print("ERROR: FAILING to flux calibrate the spectra. Uncalibrated spectra recovered")
                         spec.header["FLUXCAL"] = ("False","has the spectra been flux calibrated")
                         spec.header["CALSRC"] = (None, "Flux calibrator filename")
                         notflux_cal=True

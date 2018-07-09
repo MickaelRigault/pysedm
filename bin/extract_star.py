@@ -41,6 +41,7 @@ def position_source(cube, centroid=None, centroiderr=None):
 
     return [xcentroid, ycentroid], centroids_err, position_type
 
+
 #################################
 #
 #   MAIN 
@@ -267,6 +268,8 @@ if  __name__ == "__main__":
                     ax.scatter(xcentroid, ycentroid, **MARKER_PROP[position_type])
                     ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".pdf"))
                     ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".png"), dpi=150)
+                    
+                    # Special Standard
                     
                 # -----------------
                 #  Is that a STD  ?

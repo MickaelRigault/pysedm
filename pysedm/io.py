@@ -388,7 +388,10 @@ def _saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=None,
     # ----------------- #
     # - build the spectrum
     if spec is not None:
-        spec.set_header(cube.header)
+        for k,v in cube.header.items():
+            if k not in spec.header:
+                spec.header.set(k,v)
+
         spec.header["SOURCE"]   = (filecube.split("/")[-1], "This object has been derived from this file")
         spec.header["PYSEDMT"]  = ("Force 3DPSF extraction: Spectral Model", "This is the fitted flux spectrum")
         spec.header["PSFTYPE"]  = (mode, "Kind of PSF extraction")

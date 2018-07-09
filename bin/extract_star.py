@@ -209,24 +209,28 @@ if  __name__ == "__main__":
                 # --------------
                 notflux_cal=False
                 if not args.nofluxcal:
-                    from pyifu import load_spectrum
-                    try:
-                        if args.fluxcalsource is None or args.fluxcalsource in ["None"]:
-                            print("INFO: default nearest fluxcal file used")
-                            fluxcal = load_spectrum( io.fetch_nearest_fluxcal(date, cube.filename) )
-                        else:
-                            print("INFO: given fluxcal used.")
-                            fluxcal = load_spectrum( args.fluxcalsource )
-                            
+                    # Which Flux calibration file ?
+                    if args.fluxcalsource is None or args.fluxcalsource in ["None"]:
+                        print("INFO: default nearest fluxcal file used")
+                        fluxcalfile = io.fetch_nearest_fluxcal(date, cube.filename)
+                    else:
+                        print("INFO: given fluxcal used.")
+                        fluxcalfile =  args.fluxcalsource 
+
+                    # Do I have a flux calibration file ?
+                    if fluxcalfile is None:
+                        print("ERROR: No fluxcal for night %s and no alternative fluxcalsource provided. Uncalibrated spectra saved."%date)
+                        spec.header["FLUXCAL"] = ("False","has the spectra been flux calibrated")
+                        spec.header["CALSRC"] = (None, "Flux calibrator filename")
+                        notflux_cal=True
+                    else:
+                        from pyifu import load_spectrum
+                        fluxcal = load_spectrum( fluxcalfile ) 
                         spec.scale_by(1/fluxcal.data)
                         spec.header["FLUXCAL"] = ("True","has the spectra been flux calibrated")
                         spec.header["CALSRC"] = (fluxcal.filename.split("/")[-1], "Flux calibrator filename")
                         notflux_cal=False
-                    except:
-                        print("ERROR: FAILING to flux calibrate the spectra. Uncalibrated spectra recovered")
-                        spec.header["FLUXCAL"] = ("False","has the spectra been flux calibrated")
-                        spec.header["CALSRC"] = (None, "Flux calibrator filename")
-                        notflux_cal=True
+                        
                 else:
                     spec.header["FLUXCAL"] = ("False","has the spectra been flux calibrated")
                     spec.header["CALSRC"] = (None, "Flux calibrator filename")
@@ -270,7 +274,11 @@ if  __name__ == "__main__":
                     ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".png"), dpi=150)
                     
                     # Special Standard
-                    
+                    if cube.header['IMGTYPE'].lower() in ['standard'] and not notflux_cal:
+                        from pysedm.fluxcalibration import show_fluxcalibrated_standard
+                        show_fluxcalibrated_standard(spec, savefile=spec.filename.replace("spec","calibcheck_spec").replace(".fits",".pdf"))
+                        show_fluxcalibrated_standard(spec, savefile=spec.filename.replace("spec","calibcheck_spec").replace(".fits",".png"))
+                        
                 # -----------------
                 #  Is that a STD  ?
                 # -----------------

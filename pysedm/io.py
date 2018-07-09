@@ -7,8 +7,8 @@ import os
 import re
 import warnings
 from glob import glob
-from astropy.io.fits import getheader
-
+from astropy.io.fits import getheader, getval
+from astropy.time import Time
 REDUXPATH   = os.getenv('SEDMREDUXPATH',default="~/redux/")
 _PACKAGE_ROOT = os.path.abspath(os.path.dirname(__file__))+"/"
 ############################
@@ -151,16 +151,16 @@ def fetch_nearest_fluxcal(date, file, kind="spec.fluxcal"):
     """ """
     filefluxcal = get_night_files(date, kind)
     if len(filefluxcal)==0:
-        raise IOError("No %s file for the night %s"%(kind, date))
+        warnings.warn("No %s file for the night %s"%(kind, date))
+        return None
     if len(filefluxcal)==1:
         warnings.warn("Only 1 file of kind %s for the night %s"%(kind, date))
         return filefluxcal[0]
 
     import numpy as np
-    target_mjd_obs  = fetch_header(date, filename_to_id(file), getkey="MJD_OBS")
-    fluxcal_mjd_obs = [fetch_header(date, filename_to_id(f), getkey="MJD_OBS") 
-                       for f in filefluxcal]
-    
+    target_mjd_obs  = getval(file,"MJD_OBS")
+    fluxcal_mjd_obs = [getval(f,"MJD_OBS") for f in filefluxcal]
+
     return filefluxcal[ np.argmin( np.abs( target_mjd_obs - np.asarray(fluxcal_mjd_obs) ) ) ]
 
 def filename_to_id(filename):
@@ -169,10 +169,14 @@ def filename_to_id(filename):
 
 def header_to_date( header, sep=""):
     """ returns the datetiume YYYYMMDD associated with the 'JD' from the header """
-    from astropy.time import Time
     datetime = Time(header["JD"], format="jd").datetime
 
     return sep.join(["%4s"%datetime.year, "%02d"%datetime.month, "%02d"%datetime.day])
+
+def filename_to_time(filename):
+    """ """
+    date, hour, minut, sec = filename.split("ifu")[-1].split("_")[:4]
+    return Time("-".join(['20180708'[i:j] for i,j in [[0,4],[4,6],[6,8]]]) +" "+ ":".join([hour, minut, sec]))
 
 
 def fetch_guider(date, filename, astrom=True, extinction=".fits"):

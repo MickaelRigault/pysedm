@@ -21,6 +21,59 @@ def get_fluxcalibrator(stdspectrum, polydegree=POLYDEGREE, fullout=False):
     return get_spectrum(stdspectrum.lbda, fl.fit_inverse_sensitivity(polydegree=polydegree), header=stdspectrum.header)
 
 
+def show_fluxcalibrated_standard(stdspectrum, savefile=None):
+    """ """
+    import matplotlib.pyplot as mpl
+    import pycalspec
+    import pyifu
+    from astropy import units
+    from . import io
+    ### Data
+    objectname = stdspectrum.header['OBJECT'].replace("STD-","")
+    # 
+    specref = pycalspec.std_spectrum(objectname).reshape(stdspectrum.lbda,"linear")
+    specres = pyifu.get_spectrum(stdspectrum.lbda, specref.data / stdspectrum.data )
+    scale_ratio = specres.data.mean()
+    specres.scale_by(scale_ratio)
+    #
+    dtime = io.filename_to_time( stdspectrum.filename) - io.filename_to_time( stdspectrum.header["CALSRC"] )
+    ###
+
+    fig = mpl.figure(figsize=[6,4])
+
+    ax   = fig.add_axes([0.13,0.43,0.8,0.5])
+    axr  = fig.add_axes([0.13,0.13,0.8,0.28])
+
+    stdspectrum.show(ax=ax, label="observation", show=False)
+    specref.show(ax=ax, color="C1", label="calspec", show=False)
+
+    axr.axhline(1, ls="--", color="0.5")
+    axr.axhspan(0.9,1.1, color="0.5", alpha=0.1)
+    axr.axhspan(0.8,1.2, color="0.5", alpha=0.1)
+    # Residual
+    specres.show(ax=axr, color="k", lw=1.5, show=False)
+
+    ax.set_yscale("log")
+    for l in AVOIDANCE_AREA["telluric"]: 
+        ax.axvspan(l[0],l[1], color=mpl.cm.Blues(0.6), alpha=0.2)
+        axr.axvspan(l[0],l[1], color=mpl.cm.Blues(0.6), alpha=0.2)
+        
+    axr.text(0.02,0.92, "scale ratio: %.1f"%scale_ratio, transform=axr.transAxes,
+                va="top", ha="left", backgroundcolor= mpl.cm.binary(0.,0.8))
+
+    ax.set_xlabel(["" for l in ax.get_xlabel()])
+    ax.set_ylabel(r"Flux [erg s$^{-1}$ cm$^{-2}$ A$^{-1}$]")
+    ax.set_title( "%s"%objectname+ r" | t$_{obs}$ - t$_{fluxcal}$ : %.2f hours"%((dtime.sec * units.second).to("hour")).value)
+
+    axr.set_ylabel(r"Flux ratio")
+    axr.set_xlabel(r"Wavelength [$\AA$]")
+
+    ax.legend(loc="lower left")
+    if savefile:
+        fig.savefig(savefile)
+    else:
+        return fig
+
 class FluxCalibrator( BaseObject ):
     """ """
     PROPERTIES = ["spectrum", "calspec"]

@@ -35,6 +35,7 @@ def get_ccd_jflexure(ccd, ntraces=100, tracewidth=1,
 
     savefile: [string/None] -optional-
         If you want to save the figure, provide here it's name.
+        If could be a list of filename (if you want several extention for instance)
 
     get_object: [bool] -optional-
         By default the function returns the j-shift (float).
@@ -49,8 +50,9 @@ def get_ccd_jflexure(ccd, ntraces=100, tracewidth=1,
     smap.set_buffer(tracewidth)
     jflex = TraceFlexureFit(ccd, smap)
     jflex.build_pseudomag_scan(*jscan)
-    if savefile:
-        jflex.show(savefile=savefile)
+    if savefile is not None:
+        for savefile_ in np.atleast_1d(savefile):
+            jflex.show(savefile=savefile_)
         
     return jflex.estimate_jshift() if not get_object else jflex
 

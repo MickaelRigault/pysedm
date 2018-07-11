@@ -272,6 +272,7 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
             cube._side_properties["filename"] = fileout
             savefile= fileout.replace(PROD_CUBEROOT,"flex_sodiumline_"+PROD_CUBEROOT).replace(".fits",".pdf")
             flexure.show(savefile=savefile,show=False)
+            flexure.show(savefile=savefile.replace(".pdf",".png"),show=False)
             
         i_shift = flexure.get_i_flexure()
         

@@ -11,7 +11,7 @@ MAINTAINER_EMAIL = 'mickael.rigault@clermont.in2p3.fr'
 URL = 'https://github.com/MickaelRigault/pysedm/'
 LICENSE = 'BSD (3-clause)'
 DOWNLOAD_URL = 'https://github.com/MickaelRigault/pysedm/tarball/0.13'
-VERSION = '0.13.3'
+VERSION = '0.13.4'
 
 try:
     from setuptools import setup, find_packages
@@ -62,6 +62,7 @@ if __name__ == "__main__":
                    "bin/display_cube.py",
                    "bin/extract_star.py",
                    "bin/cube_quality.py",
+                   "bin/pysedm_report.py",
                    "bin/derive_wavesolution.py",
                    "bin/quality_check.py",
                     "bin/build_guider.py"],

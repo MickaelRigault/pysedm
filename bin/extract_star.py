@@ -265,8 +265,8 @@ if  __name__ == "__main__":
                     ax.figure.savefig(spec.filename.replace("spec","spaxels_source").replace(".fits",".pdf"))
                     
                     # Pure spaxel
-                    fig = mpl.figure(figsize=[4,4])
-                    ax  = fig.add_subplot(111)
+                    fig = mpl.figure(figsize=[3.5,3.5])
+                    ax  = ax = fig.add_axes([0.15,0.15,0.75,0.75])
                     _ = cube_._display_im_(ax, vmax="98", vmin="2")
                     ax.plot(x,y, marker=".", ls="None", ms=1, color="k")
                     ax.scatter(xcentroid, ycentroid, **MARKER_PROP[position_type])

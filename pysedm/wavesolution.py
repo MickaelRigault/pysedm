@@ -441,17 +441,17 @@ class Flexure( BaseObject ):
         ax.axvspan( meanmus-meanmus_err,meanmus+meanmus_err, color="C2", alpha=0.5,
                         label=r"Obs. Sodium SkyLine $(%.1f \pm %.1f)$"%(meanmus,meanmus_err))
         
-        ax.legend(loc="upper left",fontsize="small")
+        ax.legend(loc="upper left",fontsize="x-small")
         
         ax.text(0.98,0.98,"%d spectra made by \n averaging over %d spaxels"%(len(self._indexes),len(self._indexes[0])),
-                    va="top",ha="right", transform=ax.transAxes, color="0.5")
+                    va="top",ha="right", transform=ax.transAxes, color="0.5", fontsize="x-small")
         
         ax.text(0.5,0.05,"corresponds to a typical ccd 'i'-shift of %.2f pixels"%(self.get_i_flexure()),
                     va="bottom",ha="center", transform=ax.transAxes, color="k",
-                    bbox={'facecolor':'w', 'alpha':0.7,'edgecolor':'0.5', "boxstyle":"round"})
+                    bbox={'facecolor':'w', 'alpha':0.7,'edgecolor':'0.5', "boxstyle":"round"}, fontsize="x-small")
         
         ax.set_title("obs: %s | airmass: %.2f"%(self.cube.filename.split("/")[-1],self.cube.header["AIRMASS"]),
-                fontsize="medium", color="0.5")
+                fontsize="x-small", color="0.5")
 
         ax.set_ylim(0, ax.get_ylim()[-1]*1.2 )
         if savefile is not None:

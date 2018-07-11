@@ -255,6 +255,7 @@ if  __name__ == "__main__":
                 if not args.nofig:
                     psffit.show_adr(savefile=spec.filename.replace("spec","adr_fit").replace(".fits",".pdf") ) 
                     psffit.slices[2]["slpsf"].show(savefile=spec.filename.replace("spec","psfprofile").replace(".fits",".pdf"))
+                    psffit.slices[2]["slpsf"].show(savefile=spec.filename.replace("spec","psfprofile").replace(".fits",".png"))
                     
                     import matplotlib.pyplot as mpl
                     cube_.show(show=False)

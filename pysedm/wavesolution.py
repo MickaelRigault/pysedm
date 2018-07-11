@@ -425,15 +425,15 @@ class Flexure( BaseObject ):
     def show(self, savefile=None, show=True, sodium_reference=SODIUM_SKYLINE_LBDA):
         """" """
         import matplotlib.pyplot as mpl
-        fig = mpl.figure()
-        ax  = fig.add_subplot(111)
+        fig = mpl.figure(figsize=[5,3])
+        ax  = fig.add_axes([0.15,0.2,0.75,0.7])
 
         # - Data
         mus, mus_err         = self.get_cube_sodiumline_wavelength(True)
         meanmus, meanmus_err = self.get_cube_sodiumline_wavelength(False)
         
         ax.hist(mus[mus==mus], bins="auto", normed=True)
-        ax.set_xlabel(r"Fitted sodium line on spaxels.", fontsize="large")
+        ax.set_xlabel(r"Fitted sodium line on spaxels", fontsize="medium")
         
         ax.axvline( sodium_reference, ls="-", color="C1", label="Exp. Sodium SkyLine (%.1f)"%sodium_reference)
 

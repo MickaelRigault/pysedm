@@ -148,8 +148,9 @@ def fetch_header(date, target, kind="ccd.crr", getkey=None):
 
 
 def fetch_nearest_fluxcal(date, file, kind="spec.fluxcal"):
-    """ """
+    """ Look for the fluxcal_*.fits file the closest (in time) from the given file and returns it. """
     filefluxcal = get_night_files(date, kind)
+    
     if len(filefluxcal)==0:
         warnings.warn("No %s file for the night %s"%(kind, date))
         return None
@@ -407,7 +408,7 @@ def _saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=None,
         spec._side_properties["filename"] = fileout
         if not nofig:
             from pyifu import get_spectrum
-            spec_to_plot = get_spectrum(spec.lbda[10:], spec.data[10:], variance=spec.variance[10:] if spec.has_variance() else None,
+            spec_to_plot = get_spectrum(spec.lbda[3:], spec.data[3:], variance=spec.variance[3:] if spec.has_variance() else None,
                                             header=spec.header)
             spec_to_plot.show(savefile=spec.filename.replace(".fits",".pdf"), show=False)
             spec_to_plot.show(savefile=spec.filename.replace(".fits",".png"), show=False)

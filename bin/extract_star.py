@@ -253,7 +253,8 @@ if  __name__ == "__main__":
                                           cubefitted=cube_to_fit, spec=spec)
                 # Figure
                 if not args.nofig:
-                    psffit.show_adr(savefile=spec.filename.replace("spec","adr_fit").replace(".fits",".pdf") ) 
+                    psffit.show_adr(savefile=spec.filename.replace("spec","adr_fit").replace(".fits",".pdf") )
+                    psffit.show_adr(savefile=spec.filename.replace("spec","adr_fit").replace(".fits",".png") ) 
                     psffit.slices[2]["slpsf"].show(savefile=spec.filename.replace("spec","psfprofile").replace(".fits",".pdf"))
                     psffit.slices[2]["slpsf"].show(savefile=spec.filename.replace("spec","psfprofile").replace(".fits",".png"))
                     

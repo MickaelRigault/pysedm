@@ -85,6 +85,9 @@ if  __name__ == "__main__":
 
     parser.add_argument('--psfmodel',  type=str, default="NormalMoffatTilted",
                         help='PSF model used for the PSF fit: NormalMoffat{Flat/Tilted/Curved}')
+    
+    parser.add_argument('--normed',  action="store_true", default=False,
+                        help='[DEV USE ONLY]: apply psfcube normalization on the psf profile.')
 
     # Apperture
 
@@ -197,7 +200,7 @@ if  __name__ == "__main__":
                                           centroids=[xcentroid, ycentroid], centroids_err=centroids_err,
                                           spaxel_unit = IFU_SCALE_UNIT,
                                           final_slice_width = final_slice_width,
-                                          lbda_step1=lbda_step1, psfmodel=args.psfmodel)
+                                          lbda_step1=lbda_step1, psfmodel=args.psfmodel, normalized=args.normed)
                 # Hack to be removed:
                 print("INFO: Temporary variance hacking to be removed ")
                 spec._properties['variance'] = np.ones(len(spec.lbda)) * np.min([ np.nanmean( spec.variance ), np.nanmedian( spec.variance )]) / 2.

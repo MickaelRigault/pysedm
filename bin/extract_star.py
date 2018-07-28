@@ -104,6 +104,8 @@ if  __name__ == "__main__":
     parser.add_argument('--display',  action="store_true", default=False,
                         help='Select the area to fit using the display function.')
     
+    parser.add_argument('--tag',  action=str, default="None",
+                        help='Add the tag on output filename.')
 
     # - Standard Star object
     parser.add_argument('--std',  action="store_true", default=False,
@@ -246,7 +248,14 @@ if  __name__ == "__main__":
                 # --------------
                 # Recording
                 # --------------
-                add_info_spec = "_notfluxcal" if notflux_cal else ""
+                if args.tag is not None and args.tag not in ["None", ""]:
+                    add_info_spec = "_%s"args.tag
+                else:
+                    add_info_spec = ""
+                    
+                if notflux_cal:
+                    add_info_spec += "_notfluxcal"
+                    
                 spec_info = "_lstep%s"%final_slice_width + add_info_spec
                 io._saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=cubemodel,
                                           mode="auto",spec_info=spec_info,

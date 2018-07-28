@@ -174,7 +174,7 @@ if  __name__ == "__main__":
                         print("You picked the position : ", iplot.picked_position )
                         print(" updating the centroid accordingly ")
                         xcentroid, ycentroid = iplot.picked_position
-                        centroids_err = [1.5,1.5]
+                        centroids_err = [2. ,2. ]
                         position_type = "manual"
                 else:
                     cube = cube_
@@ -199,8 +199,8 @@ if  __name__ == "__main__":
                                           final_slice_width = final_slice_width,
                                           lbda_step1=lbda_step1, psfmodel=args.psfmodel)
                 # Hack to be removed:
-                #print("INFO: Temporary variance hacking to be removed ")
-                #spec._properties['variance'] = np.ones(len(spec.lbda)) * np.mean([np.nanmean( spec.variance ),np.nanmedian( spec.variance )])
+                print("INFO: Temporary variance hacking to be removed ")
+                spec._properties['variance'] = np.ones(len(spec.lbda)) * np.mean([np.nanmean( spec.variance ),np.nanmedian( spec.variance )])
 
                 if final_slice_width != 1:
                     spec = spec.reshape(cube.lbda)

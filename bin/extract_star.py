@@ -249,7 +249,7 @@ if  __name__ == "__main__":
                 # Recording
                 # --------------
                 if args.tag is not None and args.tag not in ["None", ""]:
-                    add_info_spec = "_%s"args.tag
+                    add_info_spec = "_%s"%args.tag
                 else:
                     add_info_spec = ""
                     

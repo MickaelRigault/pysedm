@@ -248,17 +248,12 @@ if  __name__ == "__main__":
                 # --------------
                 # Recording
                 # --------------
-                if args.tag is not None and args.tag not in ["None", ""]:
-                    add_info_spec = "_%s"%args.tag
-                else:
-                    add_info_spec = ""
-                    
-                if notflux_cal:
-                    add_info_spec += "_notfluxcal"
+                add_tag = "_%s"%args.tag if args.tag is not None and args.tag not in ["None", ""] else ""
+                add_info_spec = "_notfluxcal" if notflux_cal else ""
                     
                 spec_info = "_lstep%s"%final_slice_width + add_info_spec
                 io._saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=cubemodel,
-                                          mode="auto",spec_info=spec_info,
+                                          mode="auto"+add_tag,spec_info=spec_info,
                                           cubefitted=cube_to_fit, spec=spec)
                 # Figure
                 if not args.nofig:

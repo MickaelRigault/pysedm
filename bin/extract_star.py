@@ -104,7 +104,7 @@ if  __name__ == "__main__":
     parser.add_argument('--display',  action="store_true", default=False,
                         help='Select the area to fit using the display function.')
     
-    parser.add_argument('--tag',  action=str, default="None",
+    parser.add_argument('--tag',  type=str, default="None",
                         help='Add the tag on output filename.')
 
     # - Standard Star object

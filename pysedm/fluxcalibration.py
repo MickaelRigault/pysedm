@@ -21,6 +21,7 @@ def get_fluxcalibrator(stdspectrum, polydegree=POLYDEGREE, fullout=False):
     return get_spectrum(stdspectrum.lbda, fl.fit_inverse_sensitivity(polydegree=polydegree), header=stdspectrum.header)
 
 
+
 def show_fluxcalibrated_standard(stdspectrum, savefile=None):
     """ """
     import matplotlib.pyplot as mpl

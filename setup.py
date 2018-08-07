@@ -27,9 +27,9 @@ def check_dependencies():
     # tested what the minimal versions that will work are
     # (help on that would be awesome)
     try:
-        import propobject
+        import pyifu
     except ImportError:
-        install_requires.append('propobject')
+        install_requires.append('pyifu')
         
     return install_requires
 

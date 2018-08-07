@@ -4,7 +4,13 @@ Data Reduction Pipeline for the SEDmachine (no ready yet)
 *This module is under development and is not yet ready to be used*
 
 # Installation
-Not ready yet
+
+```bash
+git pull https://github.com/MickaelRigault/pysedm.git
+cd psfcube
+python setup.py install
+```
+
 
 # Dependencies
 

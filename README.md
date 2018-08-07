@@ -24,7 +24,7 @@ works in python 2.7+ and 3.x, but the 2.7+ might not be supported in the future.
 
 ### If you want to reproduce the spectral extraction:
 
-- psfcube (https://github.com/MickaelRigault/psfcube) _which needs Minuit (fitter) and modefit (structure)_
+- psfcube (pip install psfcube or see https://github.com/MickaelRigault/psfcube) _Minuit (fitter) and modefit (structure) dependencies automatically installed if needed_
 
 ### If you need to reproduce the cube creation:
 

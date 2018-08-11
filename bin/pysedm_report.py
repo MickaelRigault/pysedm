@@ -1,7 +1,12 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import pysedm
+import datetime
+import os
+from astropy.io import fits
 
+    
 
 def build_image_report(specfile):
     """ """
@@ -12,8 +17,8 @@ def build_image_report(specfile):
     footer = pil.get_buffer([20,1], "pysedm version %s"%pysedm.__version__+ "  |  " + timestring,
                                 fontsize=15, textprop=dict(color="0.5"), barcolor="k")
 
-    date    = io.header_to_date(fits.getheader(specfile))
-    spec_id = io.filename_to_id(specfile)
+    date    = pysedm.io.header_to_date(fits.getheader(specfile))
+    spec_id = pysedm.io.filename_to_id(specfile)
     
     prop_missing = dict(fontsize=30, textprop=dict(color="C1"))
     
@@ -91,12 +96,6 @@ def build_image_report(specfile):
 #################################
 if  __name__ == "__main__":
     import argparse
-    import numpy as np
-    import pysedm
-    from pysedm import io
-    import datetime
-    
-    from astropy.io import fits
 
     parser = argparse.ArgumentParser(
         description=""" run the interactive plotting of a given cube
@@ -133,7 +132,7 @@ if  __name__ == "__main__":
     date = args.infile
     
     # Loads all the spectra 
-    specfiles = io.get_night_files(date, "spec.basic", args.contains)
+    specfiles = pysedm.io.get_night_files(date, "spec.basic", args.contains)
     print(specfiles)
     for specfile in specfiles:
             
@@ -148,7 +147,7 @@ if  __name__ == "__main__":
             else:
                 print("pushing the report to %s"%SLACK_CHANNEL)
                 header  = fits.getheader(specfile)
-                file_id = io.filename_to_id(specfile)
+                file_id = pysedm.io.filename_to_id(specfile)
                 # Title & caption
                 title = "pysedm-report: %s | %s (%s)"%(header["OBJECT"], file_id, date)
                 caption = ""

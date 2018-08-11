@@ -18,7 +18,7 @@ def get_image_row(images, interpolation=3, height="min"):
     else:
         raise TypeError("height should be a int or a string (numpy attribute like min/max/median)")
 
-    print(img_.resize( np.round(np.asarray(img_.size)*( height / img_.size[1] ) ).astype("int") )
+    print( np.round(np.asarray(img_.size)*( height / img_.size[1] ) ).astype("int") )
     imgs_comn = np.hstack([img_.resize( np.round(np.asarray(img_.size)*( height / img_.size[1] ) ).astype("int"), interpolation)
                            for img_ in images])
     return Image.fromarray(imgs_comn)
@@ -32,7 +32,7 @@ def get_image_column(images, interpolation=3, width="min"):
     else:
         raise TypeError("width should be a int or a string (numpy attribute like min/max/median)")
 
-    print(img_.resize( np.round((np.asarray(img_.size)*( width / img_.size[0] ) )).astype("int"))
+    print( np.round((np.asarray(img_.size)*( width / img_.size[0] ) )).astype("int")) 
     imgs_comn = np.vstack([img_.resize( np.round((np.asarray(img_.size)*( width / img_.size[0] ) )).astype("int"), interpolation)
                            for img_ in images])
     return Image.fromarray(imgs_comn)

@@ -35,7 +35,7 @@ def get_image_column(images, interpolation=3, width="min"):
                            for img_ in images])
     return Image.fromarray(imgs_comn)
 
-def get_buffer(size, text="", hline=None, fontsize='medium',
+def get_buffer(size, text="", hline=None, vline=None, fontsize='medium',
                xy=[0.5,0.5], va="center",ha="center", barcolor="k",
                textprop={}, barprop={}, get_figure=False):
     """ Uses matplotlib to create a simple full size axis in which you can add text and horizonthal lines """
@@ -48,6 +48,10 @@ def get_buffer(size, text="", hline=None, fontsize='medium',
     if hline is not None:
         for hline_ in np.atleast_1d(hline):
             ax.axhline(hline_, color=barcolor, **barprop )
+            
+    if vline is not None:
+        for vline_ in np.atleast_1d(vline):
+            ax.axvline(vline_, color=barcolor, **barprop )
     
     if get_figure:
         return fig

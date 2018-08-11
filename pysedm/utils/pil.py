@@ -1,5 +1,6 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
+from __future__ import division
 
 from PIL import Image
 import os
@@ -7,7 +8,7 @@ import io
 import numpy as np
 import matplotlib.pyplot as mpl
 
-from __future__ import division
+
 
 
 def get_image_row(images, interpolation=3, height="min"):

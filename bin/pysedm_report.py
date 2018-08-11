@@ -143,7 +143,7 @@ if  __name__ == "__main__":
 
         # Slack push report
         if args.slack:
-            if not os.path.isfile( report_filename )
+            if not os.path.isfile( report_filename ):
                 warnings.warn("No file-image created by the pysedm_report.build_image_report(). Nothing to push on slack")
             else:
                 print("pushing the report to %s"%SLACK_CHANNEL)

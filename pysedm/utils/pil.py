@@ -7,6 +7,8 @@ import io
 import numpy as np
 import matplotlib.pyplot as mpl
 
+from __future__ import division
+
 
 def get_image_row(images, interpolation=3, height="min"):
     """ combine PIL images in row from left to right  """

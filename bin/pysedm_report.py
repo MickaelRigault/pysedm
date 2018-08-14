@@ -64,7 +64,7 @@ def build_image_report(specfile):
     typed_spectra     = [f for f in all_spectra_files if not f.endswith("%s.png"%object_name)]
     used_spec_file = pysedm_spec_file if len(typed_spectra) ==0 else typed_spectra
     try:
-        img_spec = pil.Image.open( used_spec_file[0] )
+        img_spec = pil.Image.open( used_spec_file[-1] )
     except:
         img_spec = pil.get_buffer([13, 7], "Spectra image missing" , **prop_missing)
 

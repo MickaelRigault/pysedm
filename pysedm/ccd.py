@@ -69,11 +69,11 @@ def get_ccd(lampfile, ccdspec_mask=None,
             new_tracematch = lamp.tracematch.get_shifted_tracematch(0, j_offset)
             new_tracematch.set_buffer( TRACE_DISPERSION)
             lamp.set_tracematch(new_tracematch)
-            lamp.header["FLXTRACE"] =  (True, "Is TraceMatch corrected for j flexure?")
-            lamp.header["FLXTRVAL"] =  (j_offset, "amplitude in pixel of the  j flexure Trace correction")
+            lamp.header["JFLXCORR"] =  (True, "Is TraceMatch corrected for j flexure?")
+            lamp.header["CCDJFLX"] =  (j_offset, "amplitude in pixel of the  j flexure Trace correction")
         else:
-            lamp.header["FLXTRACE"] =  (False, "Is TraceMatch corrected for j flexure?")
-            lamp.header["FLXTRVAL"] =  (0, "amplitude in pixel of the  j flexure Trace correction")
+            lamp.header["JFLXCORR"] =  (False, "Is TraceMatch corrected for j flexure?")
+            lamp.header["CCDJFLX"] =  (0, "amplitude in pixel of the  j flexure Trace correction")
 
     if background is None:
         lamp.set_background(lamp._get_default_background_(**kwargs), force_it=True)

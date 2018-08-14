@@ -287,11 +287,11 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
                                   flexure_corrected=False,
                                   pixel_shift= i_shift,
                                   return_cube=True)
-        cube.header['FLXCORR']  = (True, "Has the Flexure been corrected?")
-        cube.header['FLXSCALE'] = (i_shift, "Number of i (ccd-x) pixel shifted")
+        cube.header['IFLXCORR']  = (True, "Has the Flexure been corrected?")
+        cube.header['CCDIFLX'] = (i_shift, "Number of i (ccd-x) pixel shifted")
     else:
-        cube.header['FLXCORR']  = (False, "Has the Flexure been corrected?")
-        cube.header['FLXSCALE'] = (0, "Number of i (ccd-x) pixel shifted")
+        cube.header['IFLXCORR']  = (False, "Has the Flexure been corrected?")
+        cube.header['CCDIFLX'] = (0, "Number of i (ccd-x) pixel shifted")
         
     # - Return it.
     if return_cube:

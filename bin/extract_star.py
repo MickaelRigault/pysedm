@@ -281,7 +281,6 @@ if  __name__ == "__main__":
                 cube_.load_adr()
                 spec = cube_.get_aperture_spec(aper_xcentroid, aper_ycentroid, radius, bkgd_annulus=[1, bkgd_radius/radius],
                                                     adr=cube_.adr)
-                spec_raw = spec.copy()
                 # --------------
                 # header info passed 
                 # --------------
@@ -289,7 +288,20 @@ if  __name__ == "__main__":
                 for k,v in cube_.header.items():
                     if k not in spec.header:
                         spec.header.set(k,v)
-                        spec_raw.header.set(k,v)
+                        
+                spec.header.set('XPOS', xcentroid, "x centroid position at reference wavelength (in spaxels)")
+                spec.header.set('YPOS', ycentroid, "y centroid position at reference wavelength (in spaxels)")
+                spec.header.set('LBDAPOS', psffit.adrfitter.model.lbdaref, "reference wavelength for the centroids (in angstrom)")
+                spec.header.set('SRCPOS', position_type, "How was the centroid selected ?")
+
+                # Aperture shape
+                fwhm_arcsec = psffit.slices[2]["slpsf"].model.fwhm * IFU_SCALE_UNIT * 2
+                spec.header.set('PSFFWHM', fwhm_arcsec, "twice the radius needed to reach half of the pick brightness [in arcsec]")
+                # fwhm & A/B ratio
+                spec.header.set('PSFELL', psffit.slices[2]["slpsf"].fitvalues['ell'], "Ellipticity of the PSF")
+
+                
+                spec_raw = spec.copy()
                 # --------------
                 # Flux Calibation
                 # --------------
@@ -395,8 +407,6 @@ if  __name__ == "__main__":
                 if final_slice_width != 1:
                     spec = spec.reshape(cube.lbda)
 
-                spec_raw = spec.copy()
-
                 # --------------
                 # header info passed
                 # --------------
@@ -404,8 +414,24 @@ if  __name__ == "__main__":
                 for k,v in cube.header.items():
                     if k not in spec.header:
                         spec.header.set(k,v)
-                        spec_raw.header.set(k,v)
+                # Additional information
+                # centroid
+                spec.header.set('XPOS', xcentroid, "x centroid position at reference wavelength (in spaxels)")
+                spec.header.set('YPOS', ycentroid, "y centroid position at reference wavelength (in spaxels)")
+                spec.header.set('LBDAPOS', psffit.adrfitter.model.lbdaref, "reference wavelength for the centroids (in angstrom)")
+                spec.header.set('SRCPOS', position_type, "How was the centroid selected ?")
+                # PSF shape
+                fwhm_arcsec = psffit.slices[2]["slpsf"].model.fwhm * IFU_SCALE_UNIT * 2
+                spec.header.set('PSFFWHM', fwhm_arcsec, "twice the radius needed to reach half of the pick brightness [in arcsec]")
+                # fwhm & A/B ratio
+                spec.header.set('PSFELL', psffit.slices[2]["slpsf"].fitvalues['ell'], "Ellipticity of the PSF")
+                # ADR
+                spec.header.set('PSFADRPA', psffit.adrfitter.fitvalues["parangle"], "Fitted ADR paralactic angle")
+                spec.header.set('PSFADRZ', psffit.adrfitter.fitvalues["airmass"], "Fitted ADR airmass")
+                spec.header.set('PSFADRC2', psffit.adrfitter.fitvalues["chi2"]/psffit.adrfitter.dof, "ADR chi2/dof")
+                # Basic quality check ?
 
+                spec_raw = spec.copy()
                 # --------------
                 # Flux Calibation
                 # --------------                        

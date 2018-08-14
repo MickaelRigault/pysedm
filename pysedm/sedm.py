@@ -6,7 +6,7 @@
 import numpy              as np
 import warnings
 
-from pyifu.spectroscopy   import Cube, Spectrum
+from pyifu.spectroscopy   import Cube, Spectrum, get_spectrum
 from .utils.tools         import kwargs_update, is_arraylike
 
 from .io import PROD_CUBEROOT
@@ -773,7 +773,7 @@ class ApertureSpectrum( Spectrum ):
     def set_background(self, background):
         """ """
         if type(background) == np.array:
-            self._properties['background'] = ApertureSpectrum(self.lbda, background)
+            self._properties['background'] = get_spectrum(self.lbda, background)
         else:
             self._properties['background'] = background
             
@@ -818,17 +818,47 @@ class ApertureSpectrum( Spectrum ):
         Void
         """
         from pyifu.tools import figout, specplot
-        pl = super(ApertureSpectrum, self).show(toshow=toshow, ax=ax, savefile=None, show=False, **kwargs)
+        pl = super(ApertureSpectrum, self).show(toshow=toshow, ax=ax, savefile=None, show=False, lw=2, **kwargs)
         fig = pl["fig"]
         ax  = pl["ax"]
         if show_background and self.has_background():
-            alpha = kwargs.pop("alpha",1.)/4.
+            alpha = kwargs.pop("alpha",1.)/5.
             super(ApertureSpectrum, self).show(toshow="rawdata", ax=ax,
                                                    savefile=None, show=False, alpha=alpha, **kwargs)
             self.background.show(ax=ax, savefile=None, show=False, alpha=alpha, color=bcolor, **kwargs)
             
         fig.figout(savefile=savefile, show=show)
 
+    def scale_by(self, coef):
+        """ divide the data by the given scaling factor 
+        If this object has a variance attached, the variance will be divided by the square of `coef`.
+        Parameters
+        ----------
+        coef: [float or array of]
+            scaling factor for the data 
+
+        Returns
+        -------
+        Void, affect the object (data, variance)
+        """
+        if not is_arraylike(coef) or len(coef)==1 or np.shape(coef)==self.data.shape:
+            
+            self._properties["rawdata"]  = self.rawdata / coef
+            if self.has_variance():
+                self._properties["variance"]  = self.variance / coef**2
+                
+        elif len(coef) == self.data.shape[0]:
+            self._properties["rawdata"]  = np.asarray(self.rawdata.T / coef).T
+            if self.has_variance():
+                self._properties["variance"]  = np.asarray(self.variance.T / coef**2).T
+        else:
+            raise ValueError("scale_by is not able to parse the shape of coef.", np.shape(coef), self.data.shape)
+
+
+        if self.has_background():
+            self.background.scale_by(coef)
+
+            
     # -------- #
     #  I/O     #
     # -------- #

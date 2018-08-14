@@ -1,10 +1,13 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
+from pysedm       import get_sedmcube, io, fluxcalibration, sedm
+from pysedm.sedm  import IFU_SCALE_UNIT
 
 
 MARKER_PROP = {"astrom": dict(marker="x", lw=2, s=80, color="C1", zorder=8),
                "manual": dict(marker="+", lw=2, s=100, color="k", zorder=8),
+               "aperture": dict(marker="+", lw=2, s=100, color="k", zorder=8),
                "auto":  dict(marker="o", lw=2, s=200, facecolors="None", edgecolors="C3", zorder=8)
                    }
 
@@ -41,7 +44,97 @@ def position_source(cube, centroid=None, centroiderr=None):
 
     return [xcentroid, ycentroid], centroids_err, position_type
 
+# Aperture Spectroscopy
 
+def build_aperture_param(stored_picked_poly, default_bkgd_scale=1.4):
+    """ Build an aperture spectroscopy parameters
+
+    Parameters
+    ----------
+    stored_picked_poly: [list]
+        list made by InteractivePlot:
+        - [ [ "Circle",[[xcentroid, ycentroid], radius]],
+            [ "Circle",[[xcentroid_i, ycentroid_i], radius_i]]
+          ]
+        It should contains 1 or 2 Circle entries:
+        - If only 1, then the background will be defined by the annulus made of 1 and `default_bkgd_scale` times the picked circle.
+        - If 2, the background will be the annulus defined by the difference between the 2 circles. 
+          The centroid will be the average of the 2 picked circles. 
+    
+    default_bkgd_scale: [float] -optional-
+        Default scale used to define the background if only 1 circle provided (see above)
+
+    Returns
+    -------
+    2x2 numpy array 
+        ([xcentroid, ycentroid], [aperture_radius, background_outer_radius])
+        
+    """
+    idx_circles = [i for i,k in enumerate(stored_picked_poly) if k[0] == "Circle"]
+    if len(idx_circles)>2:
+        raise AttributeError("More than 2 Circle instance currently stored in plot_interactive. Cannot build a Aperture")
+        
+    elif len(idx_circles)<1:
+        raise AttributeError("You need to have defined at least 1 circular aperture.")
+    
+    centroids = [stored_picked_poly[i][1][0] for i in idx_circles]
+    radiuses  = [stored_picked_poly[i][1][1] for i in idx_circles]
+    if len(idx_circles) == 2:
+        return np.mean(centroids, axis=0), np.sort(radiuses)
+    else:
+        print("INFO: default background radius scale used (annulus made of [1,%s] times the aperture radius)"%default_bkgd_scale)
+        return np.asarray(centroids[0]), radiuses[0]*np.asarray([1, default_bkgd_scale])
+
+
+
+
+
+# ======================= #
+#
+#   Pipeline Steps        #
+#
+# ======================= #
+
+
+# -------------------- #
+#  Flux Calibration    #
+# -------------------- #
+def flux_calibrate(spec, fluxcalfile=None, nofluxcal=False):
+    """ """
+    if fluxcalfile in ["None"]:
+        fluxcalfile = None
+        
+    notflux_cal=False
+    if not nofluxcal:
+        # Which Flux calibration file ?
+        if fluxcalfile is None:
+            from pysedm import io
+            print("INFO: default nearest fluxcal file used")
+            date = io.header_to_date(spec.header)
+            fluxcalfile = io.fetch_nearest_fluxcal(date, spec.filename)
+        else:
+            print("INFO: given fluxcal used.")
+
+        # Do I have a flux calibration file ?
+        if fluxcalfile is None:
+            print("ERROR: No fluxcal for night %s and no alternative fluxcalsource provided. Uncalibrated spectra saved."%date)
+            spec.header["FLUXCAL"] = ("False","has the spectra been flux calibrated")
+            spec.header["CALSRC"] = (None, "Flux calibrator filename")
+            notflux_cal=True
+        else:
+            from pyifu import load_spectrum
+            fluxcal = load_spectrum( fluxcalfile ) 
+            spec.scale_by(1/fluxcal.data)
+            spec.header["FLUXCAL"] = ("True","has the spectra been flux calibrated")
+            spec.header["CALSRC"] = (fluxcal.filename.split("/")[-1], "Flux calibrator filename")
+            notflux_cal=False
+            
+    else:
+        spec.header["FLUXCAL"] = ("False","has the spectra been flux calibrated")
+        spec.header["CALSRC"] = (None, "Flux calibrator filename")
+        notflux_cal=True
+        
+    return spec, ~notflux_cal
 #################################
 #
 #   MAIN 
@@ -54,8 +147,6 @@ if  __name__ == "__main__":
     from shapely      import geometry
     # 
     from psfcube      import script
-    from pysedm       import get_sedmcube, io, fluxcalibration, sedm
-    from pysedm.sedm  import IFU_SCALE_UNIT
     
     # ================= #
     #   Options         #
@@ -70,6 +161,11 @@ if  __name__ == "__main__":
     # // AUTOMATIC EXTRACTION
 
     #  which extraction
+    parser.add_argument('--aperture',  type=str, default=None,
+                        help='Do you want a simple aperture extraction ?')
+    parser.add_argument('--ap_bkgdscale',  type=float, default=1.4,
+                        help='Default width scale of the outter background ring [default 1.4]')
+
     # Auto PSF
     parser.add_argument('--auto',  type=str, default=None,
                         help='Shall this run an automatic PSF extraction')
@@ -145,9 +241,100 @@ if  __name__ == "__main__":
     # Extraction #
     # ---------- #
 
+    # wavelength Step
 
-    
-    # - Automatic extraction
+    # ------------- #
+    #               #
+    # APERTURE      #
+    #               #
+    # ------------- #
+    if args.aperture is not None and len(args.aperture) >0:
+        if args.std:
+            raise NotImplementedError("--std option cannot be used (yet) with --aperture. Use --auto")
+        
+        for target in args.aperture.split(","):
+            filecubes = io.get_night_files(date, "cube.*", target=target.replace(".fits",""))
+            print("cube file from which the spectra will be extracted [aperture]: "+ ", ".join(filecubes))
+            
+            # - loop over the file cube
+            for filecube in filecubes:
+                # ----------------- #
+                #  Cube to Fit?     #
+                # ----------------- #
+                print("Automatic extraction of target %s, file: %s"%(target, filecube))
+                cube_ = get_sedmcube(filecube)
+                [xcentroid, ycentroid], centroids_err, position_type = position_source(cube_, centroid = args.centroid, centroiderr= args.centroiderr)
+                if args.display:
+                    iplot = cube_.show(interactive=True, launch=False)
+                    iplot.axim.scatter( xcentroid, ycentroid, **MARKER_PROP[position_type] )
+                    iplot.launch(vmin="2", vmax="98", notebook=False)
+                else:
+                    print("WARNING: aperture spectroscopy currently works solely with --display on")
+                    print("WARNING: aperture extraction ignored for: %s "%filecube)
+                    continue
+
+
+                # Actual aperture extraction
+                print("INFO: Aperture extraction ongoing...")
+                [aper_xcentroid, aper_ycentroid], [radius, bkgd_radius] = build_aperture_param(iplot._stored_picked_poly, args.ap_bkgdscale)
+                position_type = "aperture"
+                cube_.load_adr()
+                spec = cube_.get_aperture_spec(aper_xcentroid, aper_ycentroid, radius, bkgd_annulus=[1, bkgd_radius/radius],
+                                                    adr=cube_.adr)
+                spec_raw = spec.copy()
+                # --------------
+                # header info passed 
+                # --------------
+                spec._side_properties["filename"] = cube_.filename
+                for k,v in cube_.header.items():
+                    if k not in spec.header:
+                        spec.header.set(k,v)
+                        spec_raw.header.set(k,v)
+                # --------------
+                # Flux Calibation
+                # --------------
+                spec, flux_calibrated = flux_calibrate(spec, fluxcalfile=args.fluxcalsource, nofluxcal=args.nofluxcal)
+                # --------------
+                # Recording
+                # --------------
+                add_tag = "_%s"%args.tag if args.tag is not None and args.tag not in ["None", ""] else ""
+                add_info_spec = "_notfluxcal" if not flux_calibrated else ""
+                    
+                spec_info = add_info_spec
+                io._saveout_forcepsf_(filecube, cube_, cuberes=None, cubemodel=None,
+                                          mode="aperture"+add_tag,spec_info=spec_info,
+                                          cubefitted=None, spec=spec)
+                # --------------
+                # Recording
+                # --------------
+                if not args.nofig:                    
+                    # Pure spaxel
+                    import matplotlib.pyplot as mpl
+                    from matplotlib import patches
+                    fig = mpl.figure(figsize=[3.5,3.5])
+                    ax = fig.add_axes([0.15,0.15,0.75,0.75])
+                    _ = cube_._display_im_(ax, vmax="98", vmin="2")
+                    ax.scatter(aper_xcentroid, aper_ycentroid, **MARKER_PROP[position_type])
+
+                    aper_circle = patches.Circle([aper_xcentroid, aper_ycentroid],
+                                                     radius=radius, fc="None", ec="k",lw=1)
+                    aper_back   = patches.Wedge([aper_xcentroid, aper_ycentroid], radius, 0, 360, width=radius-bkgd_radius,
+                                                facecolor="0.6", edgecolor="k",
+                                                linewidth=1,fill=True, alpha=0.3)
+                    ax.add_patch(aper_back)
+                    ax.add_patch(aper_circle)
+
+                    ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".pdf"))
+                    ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".png"), dpi=150)
+                    
+            # ----------------------- #                    
+            # End Aperture Extraction #
+            # ----------------------- #
+    # ------------- #
+    #               #
+    # AUTO: PSF     #
+    #               #
+    # ------------- #    
     if args.auto is not None and len(args.auto) >0:
         final_slice_width = int(args.lstep)
         # - Step 1 parameters
@@ -157,7 +344,7 @@ if  __name__ == "__main__":
         
         for target in args.auto.split(","):
             filecubes = io.get_night_files(date, "cube.*", target=target.replace(".fits",""))
-            print("cube file from which the spectra will be extracted: "+ ", ".join(filecubes))
+            print("cube file from which the spectra will be extracted [auto]: "+ ", ".join(filecubes))
             
             # - loop over the file cube
             for filecube in filecubes:
@@ -209,50 +396,26 @@ if  __name__ == "__main__":
                     spec = spec.reshape(cube.lbda)
 
                 spec_raw = spec.copy()
-                # --------------
-                # Flux Calibation
-                # --------------
-                notflux_cal=False
-                if not args.nofluxcal:
-                    # Which Flux calibration file ?
-                    if args.fluxcalsource is None or args.fluxcalsource in ["None"]:
-                        print("INFO: default nearest fluxcal file used")
-                        fluxcalfile = io.fetch_nearest_fluxcal(date, cube.filename)
-                    else:
-                        print("INFO: given fluxcal used.")
-                        fluxcalfile =  args.fluxcalsource 
 
-                    # Do I have a flux calibration file ?
-                    if fluxcalfile is None:
-                        print("ERROR: No fluxcal for night %s and no alternative fluxcalsource provided. Uncalibrated spectra saved."%date)
-                        spec.header["FLUXCAL"] = ("False","has the spectra been flux calibrated")
-                        spec.header["CALSRC"] = (None, "Flux calibrator filename")
-                        notflux_cal=True
-                    else:
-                        from pyifu import load_spectrum
-                        fluxcal = load_spectrum( fluxcalfile ) 
-                        spec.scale_by(1/fluxcal.data)
-                        spec.header["FLUXCAL"] = ("True","has the spectra been flux calibrated")
-                        spec.header["CALSRC"] = (fluxcal.filename.split("/")[-1], "Flux calibrator filename")
-                        notflux_cal=False
-                        
-                else:
-                    spec.header["FLUXCAL"] = ("False","has the spectra been flux calibrated")
-                    spec.header["CALSRC"] = (None, "Flux calibrator filename")
-                    notflux_cal=True
                 # --------------
                 # header info passed
                 # --------------
+                spec._side_properties["filename"] = cube_.filename
                 for k,v in cube.header.items():
                     if k not in spec.header:
                         spec.header.set(k,v)
                         spec_raw.header.set(k,v)
+
+                # --------------
+                # Flux Calibation
+                # --------------                        
+                spec, flux_calibrated  = flux_calibrate(spec, fluxcalfile=args.fluxcalsource, nofluxcal=args.nofluxcal)
                         
                 # --------------
                 # Recording
                 # --------------
                 add_tag = "_%s"%args.tag if args.tag is not None and args.tag not in ["None", ""] else ""
-                add_info_spec = "_notfluxcal" if notflux_cal else ""
+                add_info_spec = "_notfluxcal" if not flux_calibrated else ""
                     
                 spec_info = "_lstep%s"%final_slice_width + add_info_spec
                 io._saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=cubemodel,
@@ -275,7 +438,7 @@ if  __name__ == "__main__":
                     
                     # Pure spaxel
                     fig = mpl.figure(figsize=[3.5,3.5])
-                    ax  = ax = fig.add_axes([0.15,0.15,0.75,0.75])
+                    ax = fig.add_axes([0.15,0.15,0.75,0.75])
                     _ = cube_._display_im_(ax, vmax="98", vmin="2")
                     ax.plot(x,y, marker=".", ls="None", ms=1, color="k")
                     ax.scatter(xcentroid, ycentroid, **MARKER_PROP[position_type])
@@ -311,6 +474,6 @@ if  __name__ == "__main__":
                 # - for the record
                 extracted_objects.append(spec)
                 
-    else:
-        print("NO  AUTO")
-        
+            # -------------------------- #                    
+            # End Auto (PSF) Extraction  #
+            # -------------------------- #

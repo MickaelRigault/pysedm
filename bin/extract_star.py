@@ -472,7 +472,7 @@ if  __name__ == "__main__":
                     ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".png"), dpi=150)
                     
                     # Special Standard
-                    if cube.header['IMGTYPE'].lower() in ['standard'] and not notflux_cal:
+                    if cube.header['IMGTYPE'].lower() in ['standard'] and flux_calibrated:
                         from pysedm.fluxcalibration import show_fluxcalibrated_standard
                         show_fluxcalibrated_standard(spec, savefile=spec.filename.replace("spec","calibcheck_spec").replace(".fits",".pdf"))
                         show_fluxcalibrated_standard(spec, savefile=spec.filename.replace("spec","calibcheck_spec").replace(".fits",".png"))

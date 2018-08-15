@@ -36,8 +36,12 @@ def build_image_report(specfile):
     header  = fits.getheader(specfile)
     date    = pysedm.io.header_to_date(header)
     spec_id = pysedm.io.filename_to_id(specfile)
-    filesourcename = specfile.split("spec_")[-1].split(".")[0]
+    filesourcename = specfile.split("spec_")[-1].split(".fits")[0]
+    if "+" in filesourcename:
+        filesourcename = filesourcename.split("+")[0]
+        
     object_name = header['OBJECT'].split()[0] # remove the [A] in 'TARGET [A]'
+    
     if "STD" in filesourcename:
         STD = True
         filesourcename = filesourcename.split("STD")[0]
@@ -74,8 +78,9 @@ def build_image_report(specfile):
     # Output Spectra
     all_spectra_files = pysedm.io.get_night_files(date, "re:spec", filesourcename, extention=".png")
     if not STD:
-        pysedm_spec_file  = pysedm.io.get_night_files(date, "re:spec", filesourcename, extention="%s.png"%object_name)
-        typed_spectra     = [f for f in all_spectra_files if not f.endswith("%s.png"%object_name)]
+        extention = "%s.png"%object_name.split("+")[-1] if "+" in object_name else "%s.png"%object_name
+        pysedm_spec_file  = pysedm.io.get_night_files(date, "re:spec", spec_id, extention=extention)
+        typed_spectra     = [f for f in all_spectra_files if not f.endswith(extention)]
         used_spec_file = pysedm_spec_file if len(typed_spectra) ==0 else typed_spectra
     else:
         calib_spectra = pysedm.io.get_night_files(date, "re:calibcheck", filesourcename, extention=".png")
@@ -118,8 +123,6 @@ def build_image_report(specfile):
         img_lowerright = pil.get_image_column([img_flexi, img_flexj])
         img_right      = pil.get_image_column([title_img, pil.get_image_row([img_spax,img_lowerright])])
         img_combined   = pil.get_image_row([img_spec, img_right])
-        
-        
         return img_combined
 
     

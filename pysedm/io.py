@@ -115,7 +115,7 @@ def get_night_files(date, kind, target=None, extention=".fits"):
     return [path+f for f in os.listdir(get_datapath(date))
                if re.search(r'%s'%regex, f) and
                  (target is None or re.search(r'%s'%target, f)) and
-                 (extention is None or re.search(r'%s'%extention, f))]
+                 (extention is None or f.endswith(extention))]
 
 #########################
 #                       #

@@ -105,7 +105,6 @@ def build_image_report(specfile):
     # ============== #
     #  Combination   #
     # ============== #    
-    print(extraction_mode)
     # title
     title = "%s"%object_name
     title+= " | exposure time: %.1f s"%header["EXPTIME"]

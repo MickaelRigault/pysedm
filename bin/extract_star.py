@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
+import pysedm
 from pysedm       import get_sedmcube, io, fluxcalibration, sedm
 from pysedm.sedm  import IFU_SCALE_UNIT
 
@@ -145,7 +146,8 @@ if  __name__ == "__main__":
     import argparse
     import numpy as np
     from shapely      import geometry
-    # 
+    #
+    import psfcube
     from psfcube      import script
     
     # ================= #
@@ -159,6 +161,8 @@ if  __name__ == "__main__":
                         help='cube filepath')
 
     # // AUTOMATIC EXTRACTION
+    parser.add_argument('--observer',  type=str, default="pysedm-team",
+                        help='What is your name? This will be added in the header [default: pysedm-team]')
 
     #  which extraction
     parser.add_argument('--aperture',  type=str, default=None,
@@ -289,11 +293,16 @@ if  __name__ == "__main__":
                     if k not in spec.header:
                         spec.header.set(k,v)
                         
+                spec.header.set('PYSEDMV', pysedm.__version__, "Version of pysedm used")
+                spec.header.set('PYSEDMPI', "M. Rigault and D. Neill", "authors of the pysedm pipeline")
+                spec.header.set('EXTRACT', "manual" if args.display else "auto", "Was the Extraction manual or automatic")
+                spec.header.set('OBSERVER', args.observer, "How has extracted the spectrum (if manual). pysedm-team is default")
+                
                 spec.header.set('XPOS', xcentroid, "x centroid position at reference wavelength (in spaxels)")
                 spec.header.set('YPOS', ycentroid, "y centroid position at reference wavelength (in spaxels)")
                 spec.header.set('LBDAPOS', psffit.adrfitter.model.lbdaref, "reference wavelength for the centroids (in angstrom)")
                 spec.header.set('SRCPOS', position_type, "How was the centroid selected ?")
-
+                
                 # Aperture shape
                 fwhm_arcsec = psffit.slices[2]["slpsf"].model.fwhm * IFU_SCALE_UNIT * 2
                 spec.header.set('PSFFWHM', fwhm_arcsec, "twice the radius needed to reach half of the pick brightness [in arcsec]")
@@ -416,10 +425,19 @@ if  __name__ == "__main__":
                         spec.header.set(k,v)
                 # Additional information
                 # centroid
+                spec.header.set('PYSEDMV', pysedm.__version__, "Version of pysedm used")
+                spec.header.set('PYSEDMPI', "M. Rigault and D. Neill", "authors of the pysedm pipeline")
+                spec.header.set('PSFV', psfcube.__version__, "Version of psfcube used")
+                spec.header.set('PSFPI', "M. Rigault", "authors of the psfcube")
+                spec.header.set('PSFMODEL', args.psfmodel, "PSF model used in psfcube")
+                spec.header.set('EXTRACT', "manual" if args.display else "auto", "Was the Extraction manual or automatic")
+                spec.header.set('OBSERVER', args.observer, "How has extracted the spectrum (if manual). pysedm-team is default")
+                
                 spec.header.set('XPOS', xcentroid, "x centroid position at reference wavelength (in spaxels)")
                 spec.header.set('YPOS', ycentroid, "y centroid position at reference wavelength (in spaxels)")
                 spec.header.set('LBDAPOS', psffit.adrfitter.model.lbdaref, "reference wavelength for the centroids (in angstrom)")
                 spec.header.set('SRCPOS', position_type, "How was the centroid selected ?")
+                
                 # PSF shape
                 fwhm_arcsec = psffit.slices[2]["slpsf"].model.fwhm * IFU_SCALE_UNIT * 2
                 spec.header.set('PSFFWHM', fwhm_arcsec, "twice the radius needed to reach half of the pick brightness [in arcsec]")
@@ -428,7 +446,11 @@ if  __name__ == "__main__":
                 # ADR
                 spec.header.set('PSFADRPA', psffit.adrfitter.fitvalues["parangle"], "Fitted ADR paralactic angle")
                 spec.header.set('PSFADRZ', psffit.adrfitter.fitvalues["airmass"], "Fitted ADR airmass")
-                spec.header.set('PSFADRC2', psffit.adrfitter.fitvalues["chi2"]/psffit.adrfitter.dof, "ADR chi2/dof")
+                try:
+                    spec.header.set('PSFADRC2', psffit.adrfitter.fitvalues["chi2"]/psffit.adrfitter.dof, "ADR chi2/dof")
+                except:
+                    spec.header.set('PSFADRC2', "nan", "ADR chi2/dof")
+                
                 # Basic quality check ?
 
                 spec_raw = spec.copy()

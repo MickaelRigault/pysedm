@@ -172,6 +172,7 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000,
     if savefig:
         print("Saving flat3d Figure")
         slice_.show(savefile=timedir+"%s_flat3d.pdf"%date)
+        slice_.show(savefile=timedir+"%s_flat3d.png"%date)
 
     
 ############################

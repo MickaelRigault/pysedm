@@ -313,6 +313,7 @@ if  __name__ == "__main__":
                 # --------------
                 # Flux Calibation
                 # --------------
+                # APERTURE EXTRACTION
                 spec, flux_calibrated = flux_calibrate(spec, fluxcalfile=args.fluxcalsource, nofluxcal=args.nofluxcal)
                 print("FLUX CALIBRATED? : This spectra is fluxcalibrated")
                 # --------------
@@ -456,9 +457,10 @@ if  __name__ == "__main__":
                 spec_raw = spec.copy()
                 # --------------
                 # Flux Calibation
-                # --------------                        
+                # --------------
+                # PSF EXTRACTION
                 spec, flux_calibrated  = flux_calibrate(spec, fluxcalfile=args.fluxcalsource, nofluxcal=args.nofluxcal)
-                        
+                print("FLUX CALIBRATED? : This spectra is fluxcalibrated")
                 # --------------
                 # Recording
                 # --------------

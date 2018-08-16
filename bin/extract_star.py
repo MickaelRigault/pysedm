@@ -104,8 +104,8 @@ def flux_calibrate(spec, fluxcalfile=None, nofluxcal=False):
     """ """
     if fluxcalfile in ["None"]:
         fluxcalfile = None
-        
-    notflux_cal=False
+
+    flux_calibrated = False
     if not nofluxcal:
         # Which Flux calibration file ?
         if fluxcalfile is None:
@@ -121,21 +121,21 @@ def flux_calibrate(spec, fluxcalfile=None, nofluxcal=False):
             print("ERROR: No fluxcal for night %s and no alternative fluxcalsource provided. Uncalibrated spectra saved."%date)
             spec.header["FLUXCAL"] = ("False","has the spectra been flux calibrated")
             spec.header["CALSRC"] = (None, "Flux calibrator filename")
-            notflux_cal=True
+            flux_calibrated=True
         else:
             from pyifu import load_spectrum
             fluxcal = load_spectrum( fluxcalfile ) 
             spec.scale_by(1/fluxcal.data)
             spec.header["FLUXCAL"] = ("True","has the spectra been flux calibrated")
             spec.header["CALSRC"] = (fluxcal.filename.split("/")[-1], "Flux calibrator filename")
-            notflux_cal=False
+            flux_calibrated=False
             
     else:
         spec.header["FLUXCAL"] = ("False","has the spectra been flux calibrated")
         spec.header["CALSRC"] = (None, "Flux calibrator filename")
-        notflux_cal=True
+        flux_calibrated=False
         
-    return spec, ~notflux_cal
+    return spec, flux_calibrated
 #################################
 #
 #   MAIN 
@@ -315,6 +315,7 @@ if  __name__ == "__main__":
                 # Flux Calibation
                 # --------------
                 spec, flux_calibrated = flux_calibrate(spec, fluxcalfile=args.fluxcalsource, nofluxcal=args.nofluxcal)
+                print("This spectra is fluxcalibrated")
                 # --------------
                 # Recording
                 # --------------

@@ -160,8 +160,8 @@ if  __name__ == "__main__":
                         help='cube filepath')
 
     # // AUTOMATIC EXTRACTION
-    parser.add_argument('--observer',  type=str, default="pysedm-team",
-                        help='What is your name? This will be added in the header [default: pysedm-team]')
+    parser.add_argument('--observer',  type=str, default="SEDM-robot",
+                        help='What is your name? This will be added in the header [default: SEDM-robot]')
 
     #  which extraction
     parser.add_argument('--aperture',  type=str, default=None,
@@ -432,7 +432,7 @@ if  __name__ == "__main__":
                 spec.header.set('PSFPI', "M. Rigault", "authors of the psfcube")
                 spec.header.set('PSFMODEL', args.psfmodel, "PSF model used in psfcube")
                 spec.header.set('EXTRACT', "manual" if args.display else "auto", "Was the Extraction manual or automatic")
-                spec.header.set('OBSERVER', args.observer, "How has extracted the spectrum (if manual). pysedm-team is default")
+                spec.header.set('OBSERVER', args.observer, "How has extracted the spectrum (if manual). SEDM-robot is default")
                 
                 spec.header.set('XPOS', xcentroid, "x centroid position at reference wavelength (in spaxels)")
                 spec.header.set('YPOS', ycentroid, "y centroid position at reference wavelength (in spaxels)")

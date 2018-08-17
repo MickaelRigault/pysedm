@@ -414,8 +414,8 @@ def _saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=None,
             from pyifu import get_spectrum
             spec_to_plot = get_spectrum(spec.lbda[3:], spec.data[3:], variance=spec.variance[3:] if spec.has_variance() else None,
                                             header=spec.header)
-            spec_to_plot.show(savefile=spec.filename.replace(".fits",".pdf"), show=False)
-            spec_to_plot.show(savefile=spec.filename.replace(".fits",".png"), show=False)
+            spec_to_plot.show(savefile=spec.filename.replace(".fits",".pdf"), show_zero=True,show=False)
+            spec_to_plot.show(savefile=spec.filename.replace(".fits",".png"), show_zero=True,show=False)
         
     # - background
     if bkgd is not None:

@@ -324,6 +324,7 @@ if  __name__ == "__main__":
                 spec_info = add_info_spec
                 io._saveout_forcepsf_(filecube, cube_, cuberes=None, cubemodel=None,
                                           mode="aperture"+add_tag,spec_info=spec_info,
+                                          fluxcal=flux_calibrated,
                                           cubefitted=None, spec=spec)
                 # --------------
                 # Recording
@@ -467,7 +468,7 @@ if  __name__ == "__main__":
                     
                 spec_info = "_lstep%s"%final_slice_width + add_info_spec
                 io._saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=cubemodel,
-                                          mode="auto"+add_tag,spec_info=spec_info,
+                                          mode="auto"+add_tag,spec_info=spec_info, fluxcal=flux_calibrated,
                                           cubefitted=cube_to_fit, spec=spec)
                 # Figure
                 if not args.nofig:

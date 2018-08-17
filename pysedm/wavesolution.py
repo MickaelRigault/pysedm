@@ -459,7 +459,7 @@ class Flexure( BaseObject ):
         if show:
             fig.show()
 
-        
+
     # ================== #
     #   Properties       #
     # ================== #
@@ -1654,7 +1654,7 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
         for lampname,d in list(self.arcspectra.items()):
             for k,v in list(d.arclines.items()):
                 if "backup" in v.keys() and v["backup"] in self.arcnames:
-                    warnings.warn("line %s skiped since %s loaded"%(k,v["backup"]))
+                    warnings.warn("line %s skipped since %s loaded"%(k,v["backup"]))
                     d.remove_line(k)
                     continue
                 v["arcname"] = lampname

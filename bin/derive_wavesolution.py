@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import os
+import tempfile
 
 #################################
 #
@@ -100,7 +100,8 @@ if  __name__ == "__main__":
     for i,bounds in enumerate(idxbounds):          
         command = ["ccd_to_cube.py", date, "--wavesol","--spaxelrange","%s,%s"%(bounds[0],bounds[1])] + options
         print("launching command: "+" ".join(command))
-        f = os.tmpfile()
+        fd, path = tempfile.mkstemp()
+        f = open(path, "w")
         p = subprocess.Popen(command, stdout=f)
         processes.append((p,f))
 

@@ -13,7 +13,7 @@ MARKER_PROP = {"astrom": dict(marker="x", lw=2, s=80, color="C1", zorder=8),
                    }
 
 
-def position_source(cube, centroid=None, centroiderr=None):
+def position_source(cube, centroid=None, centroiderr=None, lbdaranges=[5000,7000]):
     """ How is the source position selected ? """
     if centroiderr is None or centroiderr in ["None"]:
         centroid_err_given = False

@@ -299,14 +299,14 @@ if  __name__ == "__main__":
                 
                 spec.header.set('XPOS', xcentroid, "x centroid position at reference wavelength (in spaxels)")
                 spec.header.set('YPOS', ycentroid, "y centroid position at reference wavelength (in spaxels)")
-                spec.header.set('LBDAPOS', psffit.adrfitter.model.lbdaref, "reference wavelength for the centroids (in angstrom)")
+                spec.header.set('LBDAPOS', -99, "reference wavelength for the centroids (in angstrom) | not defined in apeture")
                 spec.header.set('SRCPOS', position_type, "How was the centroid selected ?")
                 
                 # Aperture shape
-                fwhm_arcsec = psffit.slices[2]["slpsf"].model.fwhm * IFU_SCALE_UNIT * 2
-                spec.header.set('PSFFWHM', fwhm_arcsec, "twice the radius needed to reach half of the pick brightness [in arcsec]")
+                #fwhm_arcsec = psffit.slices[2]["slpsf"].model.fwhm * IFU_SCALE_UNIT * 2
+                spec.header.set('PSFFWHM', -99, "Not defined in Aperture Mode")
                 # fwhm & A/B ratio
-                spec.header.set('PSFELL', psffit.slices[2]["slpsf"].fitvalues['ell'], "Ellipticity of the PSF")
+                spec.header.set('PSFELL', -99, "Ellipticity of the PSF | Not defined in Aperture mode")
 
                 
                 spec_raw = spec.copy()

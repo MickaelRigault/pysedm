@@ -205,6 +205,12 @@ if  __name__ == "__main__":
     
     parser.add_argument('--display',  action="store_true", default=False,
                         help='Select the area to fit using the display function.')
+
+    parser.add_argument('--vmin',  type=str, default="2",
+                        help='Data Percentage used for imshow "vmin" when using the --display mode')
+    
+    parser.add_argument('--vmax',  type=str, default="98",
+                        help='Data Percentage used for imshow "vmax" when using the --display mode')
     
     parser.add_argument('--tag',  type=str, default="None",
                         help='Add the tag on output filename.')
@@ -270,7 +276,7 @@ if  __name__ == "__main__":
                 if args.display:
                     iplot = cube_.show(interactive=True, launch=False)
                     iplot.axim.scatter( xcentroid, ycentroid, **MARKER_PROP[position_type] )
-                    iplot.launch(vmin="2", vmax="98", notebook=False)
+                    iplot.launch(vmin=args.vmin, vmax=args.vmax, notebook=False)
                 else:
                     print("WARNING: aperture spectroscopy currently works solely with --display on")
                     print("WARNING: aperture extraction ignored for: %s "%filecube)
@@ -335,7 +341,7 @@ if  __name__ == "__main__":
                     from matplotlib import patches
                     fig = mpl.figure(figsize=[3.5,3.5])
                     ax = fig.add_axes([0.15,0.15,0.75,0.75])
-                    _ = cube_._display_im_(ax, vmax="98", vmin="2")
+                    _ = cube_._display_im_(ax, vmax=args.vmax, vmin=args.vmin)
                     ax.scatter(aper_xcentroid, aper_ycentroid, **MARKER_PROP[position_type])
 
                     aper_circle = patches.Circle([aper_xcentroid, aper_ycentroid],
@@ -379,7 +385,7 @@ if  __name__ == "__main__":
                 if args.display:
                     iplot = cube_.show(interactive=True, launch=False)
                     iplot.axim.scatter( xcentroid, ycentroid, **MARKER_PROP[position_type] )
-                    iplot.launch(vmin="2", vmax="98", notebook=False)
+                    iplot.launch(vmin=args.vmin, vmax=args.vmax, notebook=False)
                     cube = cube_.get_partial_cube( iplot.get_selected_idx(), np.arange( len(cube_.lbda)) )
                     args.buffer = 20
                     if iplot.picked_position is not None:
@@ -488,7 +494,7 @@ if  __name__ == "__main__":
                     # Pure spaxel
                     fig = mpl.figure(figsize=[3.5,3.5])
                     ax = fig.add_axes([0.15,0.15,0.75,0.75])
-                    _ = cube_._display_im_(ax, vmax="98", vmin="2")
+                    _ = cube_._display_im_(ax, vmax=args.vmax, vmin=args.vmin)
                     ax.plot(x,y, marker=".", ls="None", ms=1, color="k")
                     ax.scatter(xcentroid, ycentroid, **MARKER_PROP[position_type])
                     ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".pdf"))

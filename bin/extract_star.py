@@ -33,7 +33,6 @@ def position_source(cube, centroid=None, centroiderr=None, lbdaranges=[5000,7000
             xcentroid,ycentroid  = np.nanmean(x[argmaxes]),np.nanmean(y[argmaxes]) # centroid
             if not centroid_err_given:
                 centroids_err = [5,5]
-                            
                 position_type="auto" 
         else:
             print("IFU position based on CCD wcs solution used : ",xcentroid,ycentroid)

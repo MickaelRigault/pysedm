@@ -32,7 +32,7 @@ def show_fluxcalibrated_standard(stdspectrum, savefile=None):
     ### Data
     objectname = stdspectrum.header['OBJECT'].replace("STD-","")
     # 
-    specref = pycalspec.std_spectrum(objectname).reshape(stdspectrum.lbda,"linear")
+    specref = pycalspec.std_spectrum(objectname).filter(0.7).reshape(stdspectrum.lbda,"linear")
     specres = pyifu.get_spectrum(stdspectrum.lbda, specref.data / stdspectrum.data )
     scale_ratio = specres.data.mean()
     specres.scale_by(scale_ratio)
@@ -137,7 +137,7 @@ class FluxCalibrator( BaseObject ):
             raise ImportError("You need pycalspec. Please pip install pycalspec (or grab it on github)")
         
         self._properties['calspec'] = pycalspec.std_spectrum(self.objectname)
-        self._derived_properties['calspec_spectrum'] = self._calspec.reshape(self.spectrum.lbda,"linear")
+        self._derived_properties['calspec_spectrum'] = self._calspec.filter(0.7).reshape(self.spectrum.lbda,"linear")
 
     # --------- #
     #  PLOTTER  #

@@ -121,9 +121,9 @@ def flux_calibrate(spec, fluxcalfile=None, nofluxcal=False):
             spec.header["CALSRC"] = (None, "Flux calibrator filename")
             flux_calibrated=False
         else:
-            from pyifu import load_spectrum
-            fluxcal = load_spectrum( fluxcalfile ) 
-            spec.scale_by(1/fluxcal.data)
+            from pysedm.fluxcalibration import load_fluxcal_spectrum
+            fluxcal = load_fluxcal_spectrum( fluxcalfile ) 
+            spec.scale_by( fluxcal.get_inversed_sensitivity(spec.header["AIRMASS"]) )
             spec.header["FLUXCAL"] = ("True","has the spectra been flux calibrated")
             spec.header["CALSRC"] = (fluxcal.filename.split("/")[-1], "Flux calibrator filename")
             flux_calibrated=True
@@ -224,6 +224,10 @@ if  __name__ == "__main__":
 
     parser.add_argument('--nofluxcal',  action="store_true", default=False,
                         help='No Flux calibration')
+    
+    parser.add_argument('--notroncation',  action="store_true", default=False,
+                        help='Do not apply the blue and red end edge troncation on flux calibrated spectra')
+
     
     parser.add_argument('--nofig',    action="store_true", default=False,
                         help='')
@@ -335,7 +339,7 @@ if  __name__ == "__main__":
                 # Recording
                 # --------------
                 if not args.nofig:                    
-                    # Pure spaxel
+                    # SHOWING THE IFU
                     import matplotlib.pyplot as mpl
                     from matplotlib import patches
                     fig = mpl.figure(figsize=[3.5,3.5])
@@ -357,6 +361,7 @@ if  __name__ == "__main__":
             # ----------------------- #                    
             # End Aperture Extraction #
             # ----------------------- #
+            
     # ------------- #
     #               #
     # AUTO: PSF     #
@@ -465,23 +470,42 @@ if  __name__ == "__main__":
                 # --------------
                 # PSF EXTRACTION
                 spec, flux_calibrated  = flux_calibrate(spec, fluxcalfile=args.fluxcalsource, nofluxcal=args.nofluxcal)
+                # -------------
+                # Cut Edges of fluxcalibrated
+                # -------------
+                if flux_calibrated and not args.notroncation:
+                    from pyifu import get_spectrum
+                    from pysedm.sedm import LBDA_PIXEL_CUT
+                    spec = get_spectrum(spec.lbda[LBDA_PIXEL_CUT:-LBDA_PIXEL_CUT], spec.data[LBDA_PIXEL_CUT:-LBDA_PIXEL_CUT],
+                                        variance=spec.variance[LBDA_PIXEL_CUT:-LBDA_PIXEL_CUT] if spec.has_variance() else None,
+                                        header=spec.header, logwave=spec.spec_prop["logwave"])
+                    spec._side_properties["filename"] = spec_raw.filename
+                    spec.header.set("EDGECUT", True, "have some edge pixels been removed during flux cal")
+                    spec.header.set("EDGECUTL", LBDA_PIXEL_CUT, "number of edge pixels removed during flux cal")
+                else:
+                    spec.header.set("EDGECUT", False, "bluer and redder pixel of the spectra have been removed during flux calibration")
+                    spec.header.set("EDGECUTL", None, "number of bluer and redder pixels of the spectra have been removed during flux calibration")
+                                        
                 # --------------
                 # Recording
                 # --------------
                 add_tag = "_%s"%args.tag if args.tag is not None and args.tag not in ["None", ""] else ""
                 add_info_spec = "_notfluxcal" if not flux_calibrated else ""
-                    
                 spec_info = "_lstep%s"%final_slice_width + add_info_spec
+                # MAIN IO
                 io._saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=cubemodel,
                                           mode="auto"+add_tag,spec_info=spec_info, fluxcal=flux_calibrated,
                                           cubefitted=cube_to_fit, spec=spec)
                 # Figure
                 if not args.nofig:
+                    # SHOWING ADR
                     psffit.show_adr(savefile=spec.filename.replace("spec","adr_fit").replace(".fits",".pdf") )
-                    psffit.show_adr(savefile=spec.filename.replace("spec","adr_fit").replace(".fits",".png") ) 
+                    psffit.show_adr(savefile=spec.filename.replace("spec","adr_fit").replace(".fits",".png") )
+                    # SHOWING PSFPROFILE (metaslice)
                     psffit.slices[2]["slpsf"].show(savefile=spec.filename.replace("spec","psfprofile").replace(".fits",".pdf"))
                     psffit.slices[2]["slpsf"].show(savefile=spec.filename.replace("spec","psfprofile").replace(".fits",".png"))
-                    
+
+                    # SHOWING SPAXEL (IFU)
                     import matplotlib.pyplot as mpl
                     cube_.show(show=False)
                     ax = mpl.gca()
@@ -489,7 +513,6 @@ if  __name__ == "__main__":
                     ax.plot(x,y, marker=".", ls="None", ms=1, color="k")
                     ax.scatter(xcentroid, ycentroid, **MARKER_PROP[position_type])
                     ax.figure.savefig(spec.filename.replace("spec","spaxels_source").replace(".fits",".pdf"))
-                    
                     # Pure spaxel
                     fig = mpl.figure(figsize=[3.5,3.5])
                     ax = fig.add_axes([0.15,0.15,0.75,0.75])
@@ -509,21 +532,23 @@ if  __name__ == "__main__":
                 #  Is that a STD  ?
                 # -----------------
                 if args.std and cube.header['IMGTYPE'].lower() in ['standard']:
-                    # Based on the flux non calibrated spectra
+                    # Based on the flux non calibrated spectsra
                     spec_raw.header['OBJECT'] = cube.header['OBJECT']
-                    speccal, fl = fluxcalibration.get_fluxcalibrator(spec_raw, fullout=True)
                     for k,v in cube.header.items():
-                        if k not in speccal.header:
-                            speccal.header.set(k,v)
+                        if k not in spec_raw.header:
+                            spec_raw.header.set(k,v)
+                            
+                    speccal, fl = fluxcalibration.get_fluxcalibrator(spec_raw, fullout=True)
+                    
 
                     speccal.header["SOURCE"] = (spec.filename.split("/")[-1], "This object has been derived from this file")
                     speccal.header["PYSEDMT"] = ("Flux Calibration Spectrum", "Object to use to flux calibrate")
-                    filename_inv = spec.filename.replace(io.PROD_SPECROOT,io.PROD_SENSITIVITYROOT)
+                    filename_inv = spec.filename.replace(io.PROD_SPECROOT,io.PROD_SENSITIVITYROOT).replace("notfluxcal","")
                     speccal._side_properties['filename'] = filename_inv
                     speccal.writeto(filename_inv)
                     if not args.nofig:
-                        fl.show(savefile=speccal.filename.replace(".fits",".pdf"), show=False, fluxcal=speccal.data)
-                        fl.show(savefile=speccal.filename.replace(".fits",".png"), show=False, fluxcal=speccal.data)
+                        fl.show(savefile=speccal.filename.replace(".fits",".pdf"), show=False)
+                        fl.show(savefile=speccal.filename.replace(".fits",".png"), show=False)
                                     
                 # - for the record
                 extracted_objects.append(spec)

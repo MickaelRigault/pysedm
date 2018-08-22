@@ -7,7 +7,7 @@ import warnings
 import numpy                as np
 
 from pyifu.spectroscopy import Spectrum
-
+from scipy.special import orthogonal
 
 
 ##########################
@@ -119,12 +119,28 @@ class TelluricLines( Spectrum ):
             
         return pl
         
-        
+
+    def _get_telluric_data_(self, airmass, coefo2=1, coefh2o=1, rho_o2=0.58, rho_h2o=0.4):
+        """ """
+        return self.data_o2 ** (airmass**rho_o2 * coefo2) * self.data_h2o ** (airmass**rho_h2o * coefh2o)
+
     def get_telluric_absorption(self, airmass, coefo2=1, coefh2o=1, rho_o2=0.58, rho_h2o=0.4,
                                     filter=None):
         """ """
-        flux = self.data_o2 ** (airmass**rho_o2 * coefo2) * self.data_h2o ** (airmass**rho_h2o * coefh2o)
-        return get_telluric_spectrum(self.lbda, flux, variance=None, header=self.header, filter=filter)
+        flux = self._get_telluric_data_(airmass, coefo2=coefo2, coefh2o=coefh2o,
+                                            rho_o2=rho_o2, rho_h2o=rho_h2o)
+        
+        return get_telluric_spectrum(self.lbda, flux, variance=None,
+                                         header=self.header, filter=filter)
+    
+    def get_telluric_throughput(self, airmass, coefo2=1, coefh2o=1, rho_o2=0.58, rho_h2o=0.4,
+                                    filter=None):
+        """ """
+        flux = self._get_telluric_data_(airmass, coefo2=coefo2, coefh2o=coefh2o,
+                                            rho_o2=rho_o2, rho_h2o=rho_h2o)
+        return get_telluric_spectrum(self.lbda, (1-flux), variance=None,
+                                         header=self.header, filter=filter)
+
     
     # =============== #
     #   Property      #
@@ -156,3 +172,231 @@ class TelluricLines( Spectrum ):
     def flag_inh2o(self):
         """ boolean array returning True for wavelengthes within the H2O lines (see TELLURIC_REGIONS) """
         return np.asarray(np.sum([ (self.lbda>=l[0]) * (self.lbda<l[1]) for l in TELLURIC_REGIONS["H2O"]], axis=0), dtype="bool")
+
+
+
+
+
+
+######################################
+#                                    #
+# Fitting Atmosphere and Tellurics   #
+#                                    #
+######################################
+import modefit
+from modefit.basics import PolyModel, PolynomeFit
+
+class TelluricPolynomeFit( PolynomeFit ):
+    """ """
+    def __init__(self, x, y, dy, degree, tellspectrum, maskin=None,
+                 names=None, legendre=True):
+        """ """
+        self.__build__()
+        if maskin is None:
+            self.set_data(x, y, dy)
+        else:
+            self.set_data(x[maskin], y[maskin], dy[maskin])
+        self.set_model(telluric_and_polynomial_model(degree, tellspectrum),
+                           use_legendre=legendre)
+        self.model.set_xsource(x)
+        self.model.set_maskin(maskin)
+        
+        
+    def _display_data_(self, ax, ecolor="0.3", **prop):
+        """ """
+        from modefit.utils import specplot
+        return ax.specplot(self.xdata,self.data, var=self.errors**2,
+                        bandprop={"color":ecolor},**prop)
+        
+    def show(self,savefile=None, show=True, ax=None, 
+             show_model=True, modelcolor='k', modellw=2,
+             show_details=True, contcolor="C1",tellcolor="0.7",
+                 mcmc=False, nsample=100, ecolor='0.3',
+                 mcmccolor=None,  **kwargs):
+        """ """
+        import matplotlib.pyplot as mpl 
+        from modefit.utils import figout, errorscatter, kwargs_update
+
+        pkwargs = kwargs_update(dict(ls="-", marker="None", zorder=5),**kwargs)
+        if ax is None:
+            fig = mpl.figure(figsize=[7,4])
+            ax  = fig.add_axes([0.12,0.15,0.78,0.75])
+        else:
+            fig = ax.figure
+            
+        
+        # Data
+        self._display_data_(ax, ecolor=ecolor, label="Data", **pkwargs)
+        
+        # Model
+        if show_model:
+            model_to_show = self.model.get_model()
+            model = ax.plot(self.model.xsource, model_to_show, ls="-", lw=modellw,
+                            color=modelcolor, zorder=np.max([pkwargs["zorder"]+1,2]),
+                           label="Full Model" if show_details else "Model")
+        
+        # -- Add telluric
+        if show_details:
+            ax.plot(self.model.xsource,
+                            self.model._get_continuum_(),
+                            ls="-", lw=modellw,
+                            color=contcolor, scalex=False, scaley=False, 
+                            zorder=1, label="calibration response")
+                               
+            ax.fill_between(self.model.xsource, -self.model.get_telluric_model(), 
+                                  facecolor=tellcolor, alpha=0.5)
+            ax.plot(self.model.xsource, -self.model.get_telluric_model(), 
+                          color=tellcolor, label="Telluric absorption")
+
+        ax.legend(loc="best", fontsize="medium")
+        ax.set_ylabel("Flux", fontsize="large")
+        ax.set_xlabel(r"Wavelength [$\AA$]", fontsize="large")
+        fig.figout(savefile=savefile, show=show)
+        return fig
+
+
+# ==================== #
+#                      #
+#   Telluric Polynome  #
+#                      #
+# ==================== #
+def telluric_and_polynomial_model(degree, tellspectrum):
+    """ 
+    Build a model with a continuum that has a `degree` polynomial continuum
+    and `ngauss` on top of it.
+    
+    Returns
+    -------
+    Child of NormPolyModel
+    """
+    class N_TelluricPolyModel( TelluricPolyModel ):
+        DEGREE = degree
+        
+    return N_TelluricPolyModel(tellspectrum)
+
+
+class TelluricPolyModel( PolyModel ):
+    DEGREE = 0
+    TELL_FREEPARAMETERS = ["airmass","coefo2", "coefh2o", "rho_o2", "rho_h2o","filter", "amplitude"]
+
+    PROPERTIES = ["tellparameters", "tellspectrum","maskin"]
+    # parameter inputs
+    airmass_guess = 1.1
+    airmass_boundaries= [1,3]
+    
+    filter_guess = 15
+    filter_boundaries = [12,18]
+    
+    amplitude_guess = -1 # negative because absorption
+    amplitude_boundaries= [None,0]
+    
+    coefo2_guess=1 
+    coefo2_boundaries=[0.1,2]
+    coefh2o_guess=1
+    coefh2o_boundaries=[0.5,3] 
+    rho_o2_guess=0.58 
+    rho_o2_boundaries=[0.3, 3]
+    rho_h2o_guess=0.4 
+    rho_h2o_boundaries=[0.1,1]
+
+    # Continuum
+    a0_guess = 1
+    
+    def __new__(cls,*arg,**kwarg):
+        """ Black Magic allowing generalization of Polynomial models """
+        if not hasattr(cls,"FREEPARAMETERS"):
+            cls.FREEPARAMETERS = ["a%d"%(i) for i in range(cls.DEGREE)]
+        else:
+            cls.FREEPARAMETERS += ["a%d"%(i) for i in range(cls.DEGREE)]
+        cls.FREEPARAMETERS += [c for c in cls.TELL_FREEPARAMETERS]
+        
+        return super(PolyModel,cls).__new__(cls)
+
+    def __init__(self, tellspectrum):
+        """ """
+        self._properties["tellspectrum"] = tellspectrum
+        
+    def set_maskin(self, maskin):
+        """ """
+        if maskin is None:
+            self._properties["maskin"] = None
+        else:
+            self._properties["maskin"] = np.asarray(maskin, dtype="bool")
+    def setup(self, parameters):
+        """ read and parse the parameters """
+        # good strategy to have 2 names to easily super() the continuum in get_model
+        self._properties["parameters"]     = np.asarray(parameters[:self.DEGREE])
+        self._properties["tellparameters"] = np.asarray(parameters[self.DEGREE:])
+
+    def set_tellparameters(self, tellparameters):
+        """ """
+        if len(tellparameters) != len(self.TELL_FREEPARAMETERS):
+            raise ValueError("%d parameter given for tellparameters, %d given"%(len(tellparameters), 
+                                                                                len(self.TELL_FREEPARAMETERS)))
+        self._properties["tellparameters"] = tellparameters
+        
+    def get_telluric_model(self, tellparam=None):
+        """ """
+        if tellparam is not None:
+            self.set_tellparameters(tellparam)
+            
+        # Last tellparameter is the amplitude
+        return self.tellparameters[-1]*self.tellspectrum.get_telluric_throughput(**{k:v for k,v in 
+                                zip(self.TELL_FREEPARAMETERS[:-1], self.tellparameters[:-1])}).reshape(self.xsource,"linear").data
+
+    def get_model(self, param=None):
+        """ return the model for the given data.
+        The modelization is based on legendre polynomes that expect x to be between -1 and 1.
+        This will create a reshaped copy of x to scale it between -1 and 1 but
+        if x is already as such, save time by setting reshapex to False
+
+        Returns
+        -------
+        array (size of x)
+        """
+        if param is not None:
+            self.setup(param)
+
+        if self.maskin is not None:
+            return (self._get_continuum_() + self.get_telluric_model())[self.maskin]
+        return self._get_continuum_() + self.get_telluric_model()
+
+    def _get_continuum_(self, x=None):
+        """ """
+        
+        if x is not None:
+            self.set_xsource(x)
+            
+        if self.use_legendre:            
+            model = np.asarray([orthogonal.legendre(i)(self.xsource_scaled) for i in range(self.DEGREE)])
+            return np.dot(model.T, self.parameters.T).T[self._xsource_extra_:-self._xsource_extra_]
+        else:
+            return np.dot(np.asarray([self.xfit**i for i in range(self.DEGREE)]).T, self.parameters.T).T
+
+    @property
+    def xsource_scaled(self):
+        """ """
+        if self._derived_properties["xsource_scaled"] is None and self.xsource is not None:
+            self._derived_properties["xsource_scaled"] = np.linspace(-1, 1, len(self.xsource)+self._xsource_extra_*2)
+        return self._derived_properties["xsource_scaled"]
+    
+    @property
+    def _xsource_extra_(self):
+        """ """
+        return 30
+    
+    @property
+    def normparameters(self):
+        return self._properties["normparameters"]
+
+    @property
+    def tellparameters(self):
+        return self._properties["tellparameters"]
+
+    @property
+    def tellspectrum(self):
+        return self._properties["tellspectrum"]
+
+    @property
+    def maskin(self):
+        return self._properties["maskin"]

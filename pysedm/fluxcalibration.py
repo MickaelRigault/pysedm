@@ -3,7 +3,7 @@
 
 import numpy as np
 from propobject import BaseObject
-
+from pyifu.spectroscopy import Spectrum, get_spectrum
 """ Library to estimate the flux response based on standard star spectra """
 
 AVOIDANCE_AREA = {"telluric":[[7450,7750],[6850,7050]],
@@ -11,14 +11,12 @@ AVOIDANCE_AREA = {"telluric":[[7450,7750],[6850,7050]],
                                 [4300,4350],[4030,4130],[3900,3980]]}
 
 POLYDEGREE = 20
-def get_fluxcalibrator(stdspectrum, polydegree=POLYDEGREE, fullout=False):
+def get_fluxcalibrator(stdspectrum, polydegree=POLYDEGREE, fullout=False, filter=None):
     """ fit a smooth polynome through the ratio between observed standard and their expected flux (calspec) """
-    from pyifu import get_spectrum
     fl = FluxCalibrator()
     fl.set_std_spectrum(stdspectrum)
-    if fullout:
-        return get_spectrum(stdspectrum.lbda, fl.fit_inverse_sensitivity(polydegree=polydegree), header=stdspectrum.header), fl
-    return get_spectrum(stdspectrum.lbda, fl.fit_inverse_sensitivity(polydegree=polydegree), header=stdspectrum.header)
+    return  fl.fit_inverse_sensitivity(polydegree=polydegree, filter=filter), fl
+
 
 
 
@@ -26,18 +24,20 @@ def show_fluxcalibrated_standard(stdspectrum, savefile=None):
     """ """
     import matplotlib.pyplot as mpl
     import pycalspec
-    import pyifu
     from astropy import units
     from . import io
     ### Data
     objectname = stdspectrum.header['OBJECT'].replace("STD-","")
     # 
-    specref = pycalspec.std_spectrum(objectname).filter(0.7).reshape(stdspectrum.lbda,"linear")
-    specres = pyifu.get_spectrum(stdspectrum.lbda, specref.data / stdspectrum.data )
+    specref = pycalspec.std_spectrum(objectname).filter(5).reshape(stdspectrum.lbda,"linear")
+    specres = get_spectrum(stdspectrum.lbda, specref.data / stdspectrum.data )
     scale_ratio = specres.data.mean()
     specres.scale_by(scale_ratio)
     #
-    dtime = io.filename_to_time( stdspectrum.filename) - io.filename_to_time( stdspectrum.header["CALSRC"] )
+    try:
+        dtime = io.filename_to_time( stdspectrum.filename) - io.filename_to_time( stdspectrum.header["CALSRC"] )
+    except:
+        dtime = None
     ###
 
     fig = mpl.figure(figsize=[6,4])
@@ -64,7 +64,10 @@ def show_fluxcalibrated_standard(stdspectrum, savefile=None):
 
     ax.set_xlabel(["" for l in ax.get_xlabel()])
     ax.set_ylabel(r"Flux [erg s$^{-1}$ cm$^{-2}$ A$^{-1}$]")
-    ax.set_title( "%s"%objectname+ r" | t$_{obs}$ - t$_{fluxcal}$ : %.2f hours"%((dtime.sec * units.second).to("hour")).value)
+    if dtime is not None:
+        ax.set_title( "%s"%objectname+ r" | t$_{obs}$ - t$_{fluxcal}$ : %.2f hours"%((dtime.sec * units.second).to("hour")).value)
+    else:
+        ax.set_title( "%s"%objectname)
 
     axr.set_ylabel(r"Flux ratio")
     axr.set_xlabel(r"Wavelength [$\AA$]")
@@ -75,31 +78,247 @@ def show_fluxcalibrated_standard(stdspectrum, savefile=None):
     else:
         return fig
 
+
+# =================== #
+#  INTERNAL Tools     #
+# =================== #
+_TELL_HEADERKEY = "TELL"
+def _paramkey_to_headerkey_( paramkey):
+    """ converts the argument names from TelluricLines into Fits format header entry """
+    return _TELL_HEADERKEY+paramkey.replace("coef","c").replace("rho_","r").replace("filter","fltr").replace("amplitude","AMP").upper()
+def _headerkey_to_paramkey_( headerkey ):
+    """ converts  Fits format header entry into argument names from TelluricLines into """
+    return  headerkey.replace(_TELL_HEADERKEY+"C","coef").replace(_TELL_HEADERKEY+"R","rho_").replace(_TELL_HEADERKEY+"FLTR","filter").replace(_TELL_HEADERKEY+"AMP","amplitude").lower()
+
+    
+def get_fluxcal_spectrum(lbda, flux, variance=None, header=None, logwave=None):
+    """ Create a Flux Calibrator spectrum from the given data
+    
+    Parameters
+    ----------
+    lbda: [array]
+        wavelength of the spectrum
+
+    flux: [array]
+        flux of the spectrum
+    
+    variance: [array/None] -optional-
+        variance associated to the flux.
+
+    header: [fits header / None]
+        fits header assoiated to the data
+        
+    logwave: [None / bool] -optional-
+        If the wavelength given in log of wavelength. 
+        If you known set True (= given in log) or False (= given in angstrom)
+        If let to None, this will test if the first wavelength is smaller or 
+        higher than a default number (50).
+
+
+    Returns
+    -------
+    Spectrum
+    """
+    spec = FluxCalSpectrum(None)
+    spec.create(data=flux, variance=variance, header=header, lbda=lbda, logwave=logwave)
+    return spec
+
+
+def load_fluxcal_spectrum(filename,**kwargs):
+    """ """
+    return FluxCalSpectrum(filename, **kwargs)
+
+class FluxCalSpectrum( Spectrum ):
+    """ """
+    PROPERTIES      = ["tellspec","tellparam"]
+    SIDE_PROPERTIES = ["refairmass", "ref_amplitude"]
+
+    # ================= #
+    #   Methods         #
+    # ================= #
+    # -------- #
+    #  SETTER  #
+    # -------- #
+    def set_header(self, header):
+        """ 
+        Attach a header. 
+        If the given header is None, an empty header will be attached.
+
+        If Telluric parameter information are found in the header. They are set.
+        """
+        super(FluxCalSpectrum, self).set_header(header)
+        [self.set_telluric_parameters(**{_headerkey_to_paramkey_(k):v})
+             for k,v in self.header.items() if k.startswith(_TELL_HEADERKEY)]
+        
+    def set_telluric_parameters(self, **kwargs):
+        """ Telluric parameter could be:
+        - coefo2, 
+        - coefh2o, 
+        - rho_o2, 
+        - rho_h2o, 
+        - filter 
+        - amplitude """
+        VALIDS =["coefo2", "coefh2o",
+                 "rho_o2", "rho_h2o",
+                "filter","amplitude"]
+        
+        for k,v in kwargs.items():
+            if k not in VALIDS:
+                raise ValueError("%s is not a valid telluric parameter"%k +"these are: "+ ", ".join(VALIDS))
+            if k in ["amplitude"]:
+                self._side_properties["ref_amplitude"] = v
+            else:
+                self.tellparam[k] = v
+
+    def load_telluric_spectrum(self):
+        """ """
+        from .io import load_telluric_line
+        self._properties['tellspec'] = load_telluric_line()
+        
+    # -------- #
+    #  GETTER  #
+    # -------- #
+    def get_inversed_sensitivity(self, airmass, amplitude=None, **kwargs):
+        """ """
+        if self.is_old_format:
+            return 1/self.data
+        
+        if amplitude is None: amplitude = self.ref_amplitude
+        self.set_telluric_parameters(**kwargs)
+        return self.data + self.get_telluric_throughput(airmass, amplitude=amplitude)
+    
+    def get_telluric_absorption(self, airmass, amplitude=None,**kwargs):
+        """ """
+        if self.is_old_format:
+            return 0
+        if amplitude is None: amplitude = self.ref_amplitude
+        self.set_telluric_parameters(**kwargs)
+        return amplitude*self.tellspec.get_telluric_absorption(airmass, **self.tellparam).reshape(self.lbda, "linear").data
+
+    def get_telluric_throughput(self, airmass, amplitude=None, **kwargs):
+        """ """
+        if self.is_old_format:
+            return 0
+        if amplitude is None: amplitude = self.ref_amplitude
+        self.set_telluric_parameters(**kwargs)
+        return amplitude*self.tellspec.get_telluric_throughput(airmass, **self.tellparam).reshape(self.lbda, "linear").data
+
+    
+    # -------- #
+    # PLOTTER  #
+    # -------- #
+    def show(self, ax=None, airmass=1, color="C0", fillcolor="0.7", fillalpha=0.7,
+                 inversed=False, show=True, zorder=4, telllabel="_no_legend_", label=None,**kwargs):
+        """ """
+        import matplotlib.pyplot as mpl
+        if ax is None:
+            fig = mpl.figure(figsize=[7,4])
+            ax  = fig.add_axes([0.12,0.15,0.78,0.75])
+        else:
+            fig = ax.figure
+        
+        power= 1 if not inversed else -1
+        if not self.is_old_format:
+            ax.fill_between(self.lbda, self.data**power, self.get_inversed_sensitivity(airmass)**power, 
+                            color=fillcolor, alpha=0.7,zorder=zorder-1, label=telllabel)
+        ax.plot( self.lbda, self.get_inversed_sensitivity(airmass)**power, color=color, zorder=zorder,
+                     label=label,**kwargs)
+        if show:
+            fig.show()
+            
+        return fig
+        
+            
+    # ================= #
+    #   Properties      #
+    # ================= #
+    def has_tellspec(self):
+        """ """
+        return self._properties['tellspec'] is not None
+    
+    @property
+    def tellparam(self):
+        """ """
+        if self._properties["tellparam"] is None:
+            self._properties["tellparam"] = {}
+        return self._properties["tellparam"]
+    
+    @property
+    def tellspec(self):
+        """ """
+        if not self.has_tellspec(): self.load_telluric_spectrum()
+        return self._properties['tellspec']
+
+    @property
+    def ref_amplitude(self):
+        """ amplitude of the telluric line in during the calibration """
+        return self._side_properties["ref_amplitude"]
+
+    @property
+    def is_old_format(self):
+        """ """
+        return "TELLFLTR" not in self.header
+
+    
 class FluxCalibrator( BaseObject ):
     """ """
     PROPERTIES = ["spectrum", "calspec"]
-    DERIVED_PROPERTIES = ['calspec_spectrum']
+    DERIVED_PROPERTIES = ['calspec_spectrum', "fluxcalspectrum"]
     # ==================== #
     #  Method              #
     # ==================== #
     # -------- #
     # GETTER   #
     # -------- #
-    def fit_inverse_sensitivity(self, polydegree=POLYDEGREE, maskout_avoidance_area=True, **kwargs):
-        """ **kwargs goes to polyfit.fit(**kwargs)"""
-        from modefit import get_polyfit
+    def fit_inverse_sensitivity(self, polydegree=POLYDEGREE, filter=None, masked_area=None,**kwargs):
+        """ **kwargs goes to polyfit.fit(**kwargs)
         
-        flag_kept = self.get_avoidance_mask(which="both") if maskout_avoidance_area \
-          else np.ones(len(self.spectrum.lbda))
+        Parameters
+        ----------
+        filter: [None, float] -optional-
+            if not None, the free_parameter 'filter' will be forced to the given value (hence not fitted)
+                This is similar as doing: `filter_guess=XX, filter_fixed=True`
+            if None, nothing will be made.
+            If you only want to give initial guess and e.g. boundaries:
+               - set filter to None: filter=None
+               - provide the fit entry: filter_guess=XX, filter_boundaries=[YY,ZZ]
+               
+        """
+        from .utils.atmosphere import TelluricPolynomeFit
+        from .io import load_telluric_line
 
-        datacal = self.calspec_spectrum.data / self.spectrum.data
+        if masked_area is not None:
+            maskin = self.get_avoidance_mask("absorption")
+        else:
+            maskin = None
+        datacal = self.spectrum.data/self.calspec_spectrum.data
         norm = datacal.mean()
+        datacal/=norm
         
-        calfit = get_polyfit(self.spectrum.lbda[flag_kept], datacal[flag_kept]/norm,
-                                 np.ones(len(datacal[flag_kept]))/10,
-                                 polydegree,legendre=True)
-        calfit.fit(**kwargs)
-        return calfit.model.get_model(self.spectrum.lbda) * norm
+        errcal = datacal * (np.sqrt(self.spectrum.variance)/self.spectrum.data)# + np.sqrt(self.calspec_spectrum.variance)/self.calspec_spectrum.data)
+        
+        self.tpoly = TelluricPolynomeFit(self.spectrum.lbda, datacal, errcal, polydegree, load_telluric_line(), maskin=maskin)
+        
+        if filter is not None:
+            kwargs["filter_guess"] = filter
+            kwargs["filter_fixed"] = True
+            
+        self.tpoly.fit(airmass_guess= self.spectrum.header["AIRMASS"], airmass_boundaries= [self.spectrum.header["AIRMASS"], self.spectrum.header["AIRMASS"]*1.1],
+                        **kwargs)
+        self.tpoly.norm = norm
+        
+        #
+        header = self.spectrum.header.copy()
+    
+        self.tpoly.fitvalues['amplitude'] *= self.tpoly.norm
+        for tellk in self.tpoly.model.TELL_FREEPARAMETERS:
+            if tellk in ["airmass"]: continue
+            header.set(_paramkey_to_headerkey_(tellk), self.tpoly.fitvalues[tellk], "Telluric Parameter")
+
+        header.set("CONTDEG", POLYDEGREE, "degree of the continuum polynome (legendre)")
+        self._derived_properties["fluxcalspectrum"] = get_fluxcal_spectrum(self.spectrum.lbda, self.tpoly.model._get_continuum_()*self.tpoly.norm, header=header)
+        
+        return self.fluxcalspectrum
 
     def get_avoidance_mask(self, which="both"):
         """ boolean mask.
@@ -137,34 +356,33 @@ class FluxCalibrator( BaseObject ):
             raise ImportError("You need pycalspec. Please pip install pycalspec (or grab it on github)")
         
         self._properties['calspec'] = pycalspec.std_spectrum(self.objectname)
-        self._derived_properties['calspec_spectrum'] = self._calspec.filter(0.7).reshape(self.spectrum.lbda,"linear")
+        self._derived_properties['calspec_spectrum'] = self._calspec.filter(5).reshape(self.spectrum.lbda,"linear")
 
     # --------- #
     #  PLOTTER  #
     # --------- #
-    def show(self, savefile=None, show=True, fluxcal=None):
+    def show(self, savefile=None, show=True, ratiocolor="k", fluxcalcolor="C2", **kwargs):
         """ """
         import matplotlib.pyplot as mpl
         from pyifu import get_spectrum
-
-        if fluxcal is None:
-            fluxcal= self.fit_inverse_sensitivity(polydegree=POLYDEGREE)
-
                 
         fig = mpl.figure()
-        ax   = fig.add_axes([0.15,0.62,0.8,0.3])
-        ax2  = fig.add_axes([0.15,0.1,0.8,0.5])
+        ax   = fig.add_axes([0.15,0.64,0.8,0.3])
+        ax2  = fig.add_axes([0.15,0.12,0.8,0.5])
         axt  = ax.twinx()
         self.spectrum.show(ax=ax, show=False)
         self.calspec_spectrum.show(ax=axt, color="C1", show=False)
+        
         for avoidance,c in zip(AVOIDANCE_AREA.values(), [mpl.cm.Blues(0.6),"0.5"]) :
             for l in avoidance: ax.axvspan(l[0],l[1], color=c, alpha=0.2)
         
         spec = get_spectrum(self.spectrum.lbda, self.calspec_spectrum.data / self.spectrum.data )
 
-        speccal = get_spectrum(self.spectrum.lbda, fluxcal )
-        spec.show(ax=ax2, color="0.7", lw=2, label="Calspec / SEDM", show=False)
-        speccal.show(ax=ax2, color="C2", lw=1.5, label="Used Polynome ", show=False)
+        spec.show(ax=ax2, color=ratiocolor, label="Calspec / SEDM", show=False, zorder=5, **kwargs)
+        if self.fluxcalspectrum is not None:
+            self.fluxcalspectrum.show(ax=ax2, color=fluxcalcolor, label="Flux Calibration",
+                                          telllabel="incl. telluric", show=False, inversed=True, zorder=4)
+            
         ax2.set_yscale("log")
 
         ax.set_xticks([])
@@ -201,3 +419,8 @@ class FluxCalibrator( BaseObject ):
     def calspec_spectrum(self):
         """ CalSpec Spectrum at the `spectrum` wavelength interpolation """
         return self._derived_properties['calspec_spectrum']
+    
+    @property
+    def fluxcalspectrum(self):
+        """ """
+        return self._derived_properties["fluxcalspectrum"]

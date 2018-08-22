@@ -54,6 +54,8 @@ INDEX_CCD_CONTOURS = MLA_CIRCLE.intersection(MLA_GRID)
     
 # --- LBDA
 SEDM_LBDA = np.linspace(3700, 9300, 220)
+LBDA_PIXEL_CUT = 3
+
 
 # --- ADR
 MLA_ROTATION_DEG= 263

@@ -303,7 +303,7 @@ class FluxCalibrator( BaseObject ):
             kwargs["filter_guess"] = filter
             kwargs["filter_fixed"] = True
             
-        self.tpoly.fit(airmass_guess= self.spectrum.header["AIRMASS"], airmass_boundaries= [self.spectrum.header["AIRMASS"], self.spectrum.header["AIRMASS"]*1.1],
+        self.tpoly.fit(airmass_guess= self.spectrum.header["AIRMASS"], airmass_fixed= True, airmass_boundaries=[self.spectrum.header["AIRMASS"], self.spectrum.header["AIRMASS"]*1.1],
                         **kwargs)
         self.tpoly.norm = norm
         

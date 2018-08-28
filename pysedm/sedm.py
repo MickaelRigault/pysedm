@@ -467,9 +467,17 @@ def display_on_hexagrid(value, traceindexes,
     colors = mpl.cm.viridis((value-vmin)/(vmax-vmin))
     # - where
     if xy is None:
-        x,y = np.asarray(hexagrid.index_to_xy(hexagrid.ids_to_index(traceindexes)))
+        x,y = np.asarray(hexagrid.index_to_xy(hexagrid.ids_to_index(traceindexes),
+                                            invert_rotation=False,
+                                            rot_degree=SEDM_ROT, switch_axis=SEDM_INVERT))
     else:
         x,y = xy
+
+    #invert_rotation=False, rot_degree= SEDM_ROT,
+    """            
+    cube.create(cubeflux.T,lbda=lbda, spaxel_mapping=spaxel_map, variance=cubevar.T)
+    cube.set_spaxel_vertices(np.dot(hexagrid.grid_rotmatrix,SEDMSPAXELS.T).T)
+    """
     
     # - The Patchs
     ps = [patches.Polygon(SEDMSPAXELS+np.asarray([x[i],y[i]]),

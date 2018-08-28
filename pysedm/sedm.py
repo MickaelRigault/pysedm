@@ -269,7 +269,7 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
         mapper.derive_spaxel_mapping( list(wavesolution.wavesolutions.keys()) )
         
         flexure = Flexure(cube, mapper=mapper)
-        flexure.fit_cube_sodiumlines()
+        flexure.fit_cube_lines()
         if savefig:
             cube._side_properties["filename"] = fileout
             savefile= fileout.replace(PROD_CUBEROOT,"flex_sodiumline_"+PROD_CUBEROOT).replace(".fits",".pdf")

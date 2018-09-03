@@ -29,7 +29,7 @@ def position_source(cube, centroid=None, centroiderr=None, lbdaranges=[5000,7000
             print("IFU target location based on CCD astrometry failed. centroid guessed based on brightness used instead")
             sl = cube.get_slice(lbda_min=lbdaranges[0], lbda_max=lbdaranges[1], slice_object=True)
             x,y = np.asarray(sl.index_to_xy(sl.indexes)).T # Slice x and y
-            argmaxes = np.argwhere(sl.data>np.percentile(sl.data,95)).flatten() # brightest points
+            argmaxes = np.argwhere(sl.data>np.percentile(sl.data, 99)).flatten() # brightest points
             xcentroid,ycentroid  = np.nanmean(x[argmaxes]),np.nanmean(y[argmaxes]) # centroid
             if not centroid_err_given:
                 centroids_err = [5,5]

@@ -327,17 +327,34 @@ class Flexure( BaseObject ):
         mu_t_eff, mu_t_efferr = self.get_cube_line_wavelength(array=False, which="telluric")
 
         # Sodium
-        ijs_eff    = self.mapper.get_lbda_ij(mu_eff)
-        ijs_reff   = self.mapper.get_lbda_ij(sodium_reference)
+        if mu_efferr==mu_efferr:
+            ijs_eff    = self.mapper.get_lbda_ij(mu_eff)
+            ijs_reff   = self.mapper.get_lbda_ij(sodium_reference)
+            delta_i_na  = [ijs_reff[traceindex][0]-ijs_eff[traceindex][0]
+                        for traceindex in self.mapper.traceindexes]
+        else:
+            delta_i_na = None
+            
+            
         # Telluric
-        ijs_eff_t  = self.mapper.get_lbda_ij(mu_t_eff)
-        ijs_reff_t = self.mapper.get_lbda_ij(telluric_reference)
+        if mu_t_efferr==mu_t_efferr:
+            ijs_eff_t  = self.mapper.get_lbda_ij(mu_t_eff)
+            ijs_reff_t = self.mapper.get_lbda_ij(telluric_reference)
+            delta_i_t   = [ijs_reff_t[traceindex][0]-ijs_eff_t[traceindex][0]
+                        for traceindex in self.mapper.traceindexes]
+        else:
+            delta_i_t = None
+
+        # Get the shift
+        if delta_i_na is not None and delta_i_t is not None:
+            delta_i     = np.average([delta_i_na, delta_i_t], weights=[1/mu_efferr**2,1/mu_t_efferr**2], axis=0)
+        elif delta_i_t is not None:
+            delta_i     = np.average([delta_i_t], weights=[1/mu_t_efferr**2], axis=0)
+        elif delta_i_na is not None:
+            delta_i     = np.average([delta_i_na], weights=[1/mu_efferr**2], axis=0)
+        else:
+            raise AttributeError("I cannot build the Flexure correction. Not a single method (telluric or Na) worked !")
         
-        delta_i_na  = [ijs_reff[traceindex][0]-ijs_eff[traceindex][0]
-                        for traceindex in self.mapper.traceindexes]
-        delta_i_t   = [ijs_reff_t[traceindex][0]-ijs_eff_t[traceindex][0]
-                        for traceindex in self.mapper.traceindexes]
-        delta_i     = np.average([delta_i_na, delta_i_t], weights=[1/mu_efferr**2,1/mu_t_efferr**2], axis=0)
         if not as_slice:
             return {i:d for i,d in zip(self.mapper.traceindexes, delta_i)}
 
@@ -361,16 +378,21 @@ class Flexure( BaseObject ):
         else:
             raise ValueError("which can only be 'sodium' or 'telluric', %s given"%which)
         
-        mus, muserr = np.asarray([[v["mu%s"%id_],v["mu%s.err"%id_]] for v in self.fitvalues_sodiumlines]).T
+        mus, muserr, sigm, sigmerr = np.asarray([[v["mu%s"%id_],v["mu%s.err"%id_],v["sig%s"%id_], v["sig%s.err"%id_]]
+                                                      for v in self.fitvalues_sodiumlines]).T
+        
+        flagin = (mus==mus) * (muserr>1e-3) * (sigmerr>1e-4) * (sigm < 49)
+                                                
         if array:
-            return mus, muserr
+            return mus[flagin], muserr[flagin]
         
         # - robust calc:
-        median  = np.nanmedian(mus)
-        nmad    = mad_std(mus[mus==mus])
-        flagin = (np.abs(mus-median) <= nmad*2.) * (mus==mus)
-        return np.nanmean(mus[flagin]), np.std(mus[flagin])/np.sqrt(len(mus[flagin])-1)
-
+        if np.any(flagin):
+            median  = np.nanmedian(mus)
+            nmad    = mad_std(mus[mus==mus])
+            flagin = (np.abs(mus-median) <= nmad*2.) * flagin
+            return np.nanmean(mus[flagin]), np.std(mus[flagin])/np.sqrt(len(mus[flagin])-1)
+        return np.NaN, np.NaN
     
     
     # --------- #
@@ -412,18 +434,18 @@ class Flexure( BaseObject ):
         norm    = np.nanmean(spectrum.data[~flagout])
         nfit    = get_normpolyfit(spectrum.lbda[~flagout], spectrum.data[~flagout]/norm, 
                                     spectrum.variance[~flagout]/norm**2*2 if spectrum.has_variance() else None, 
-                                degree=3, ngauss=2)
+                                degree=5, ngauss=2)
         
         nfit.fit(**{# Sodium 
                     "ampl0_guess": 100,
                     "ampl0_boundaries": [1,1000],
                     "mu0_guess":  sodium_reference,"mu0_boundaries":  [sodium_reference-100.,sodium_reference+100],
-                    "sig0_guess": 30,"sig0_boundaries": [15,50],
+                    "sig0_guess": 30,"sig0_boundaries": [15,60],
                     # Telluric
                     "ampl1_guess": -100,
                     "ampl1_boundaries": [-1000,-1],
                     "mu1_guess":  telluric_reference,"mu1_boundaries":  [telluric_reference-100.,telluric_reference+100],
-                    "sig1_guess": 40,"sig1_boundaries": [35,70], # larger since composition of
+                    "sig1_guess": 40,"sig1_boundaries": [20,70], # larger since composition of
                     # Continuum                    
                     "a0_guess": 1, "a1_guess": 0})
         

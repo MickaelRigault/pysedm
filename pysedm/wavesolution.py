@@ -505,13 +505,15 @@ class Flexure( BaseObject ):
         ax.axvline( 0 , ls="-", color="C1", label="Expectation (Na: %.1f ; Tell: %.1f)"%(sodium_reference,
                                                                                          telluric_reference))
         # Sodium
-        ax.axvline( meanmus, ls="--", color="C2")
-        ax.axvspan( meanmus-meanmus_err,meanmus+meanmus_err, color="C2", alpha=0.5,
-                        label=r"Sodium shift $(%.1f \pm %.1f)$"%(meanmus,meanmus_err))
+        if meanmus_err == meanmus_err:
+            ax.axvline( meanmus, ls="--", color="C2")
+            ax.axvspan( meanmus-meanmus_err,meanmus+meanmus_err, color="C2", alpha=0.5,
+                            label=r"Sodium shift $(%.1f \pm %.1f)$"%(meanmus,meanmus_err))
         # Telluriv
-        ax.axvline( meanmus_t, ls="--", color="C3")
-        ax.axvspan( meanmus_t-meanmus_t_err,meanmus_t+meanmus_t_err, color="C3", alpha=0.5,
-                        label=r"Telluric shift $(%.1f \pm %.1f)$"%(meanmus_t,meanmus_t_err))
+        if meanmus_t_err==meanmus_t_err:
+            ax.axvline( meanmus_t, ls="--", color="C3")
+            ax.axvspan( meanmus_t-meanmus_t_err,meanmus_t+meanmus_t_err, color="C3", alpha=0.5,
+                            label=r"Telluric shift $(%.1f \pm %.1f)$"%(meanmus_t,meanmus_t_err))
             
             
         ax.legend(loc="upper left",fontsize="x-small")

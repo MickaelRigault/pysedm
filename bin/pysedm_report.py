@@ -199,6 +199,7 @@ if  __name__ == "__main__":
     date = args.infile
 
     if args.final:
+        print("NOT READY YET")
         
 
     else:

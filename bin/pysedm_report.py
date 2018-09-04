@@ -117,7 +117,7 @@ def build_image_report(specfile):
 
 
     
-    if extraction_mode in ["aperture"]:
+    if "aperture" in extraction_mode:
         title_img = pil.get_buffer([7,1], title , fontsize=16, hline=[0.3,0.7], barprop=dict(lw=1))
     
         img_lowerright = pil.get_image_column([img_flexi, img_flexj])
@@ -168,9 +168,11 @@ if  __name__ == "__main__":
     parser.add_argument('infile', type=str, default=None,
                         help='cube filepath')
 
-
     parser.add_argument('--contains',  type=str, default="*",
                         help='Provide here part of the filename. This will build the guider images of all crr images of the given night having `contains` in there name')
+
+    parser.add_argument('--final',  action="store_true", default=False,
+                        help='Push to slack final sedm daily report')
 
     parser.add_argument('--slack',  action="store_true", default=False,
                         help='Submit the report to slack')
@@ -195,28 +197,31 @@ if  __name__ == "__main__":
     #  Date     #
     # --------- #
     date = args.infile
-    
-    # Loads all the spectra 
-    specfiles = pysedm.io.get_night_files(date, "spec.basic", args.contains)
-    print(specfiles)
-    for specfile in specfiles:
-            
-        img_report = build_image_report(specfile)
-        report_filename = specfile.replace("spec_","pysedm_report_").replace(".fits",".png")
-        img_report.save(report_filename, dpi=(1000,1000))
 
-        # Slack push report
-        if args.slack:
-            if not os.path.isfile( report_filename ):
-                warnings.warn("No file-image created by the pysedm_report.build_image_report(). Nothing to push on slack")
-            else:
-                print("pushing the report to %s"%SLACK_CHANNEL)
-                header  = fits.getheader(specfile)
-                file_id = pysedm.io.filename_to_id(specfile)
-                # Title & caption
-                title = "pysedm-report: %s | %s (%s)"%(header["OBJECT"], file_id, date)
-                caption = ""
-                # Push
-                slack.push_image(report_filename, caption=caption, title=title,
+    if args.final:
+        
+
+    else:
+        # Loads all the spectra 
+        specfiles = pysedm.io.get_night_files(date, "spec.basic", args.contains)
+        print(specfiles)
+        for specfile in specfiles:        
+            img_report = build_image_report(specfile)
+            report_filename = specfile.replace("spec_","pysedm_report_").replace(".fits",".png")
+            img_report.save(report_filename, dpi=(1000,1000))
+
+            # Slack push report
+            if args.slack:
+                if not os.path.isfile( report_filename ):
+                    warnings.warn("No file-image created by the pysedm_report.build_image_report(). Nothing to push on slack")
+                else:
+                    print("pushing the report to %s"%SLACK_CHANNEL)
+                    header  = fits.getheader(specfile)
+                    file_id = pysedm.io.filename_to_id(specfile)
+                    # Title & caption
+                    title = "pysedm-report: %s | %s (%s)"%(header["OBJECT"], file_id, date)
+                    caption = ""
+                    # Push
+                    slack.push_image(report_filename, caption=caption, title=title,
                                  channel=SLACK_CHANNEL)
         

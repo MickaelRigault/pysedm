@@ -355,6 +355,10 @@ if  __name__ == "__main__":
                     ax.add_patch(aper_back)
                     ax.add_patch(aper_circle)
 
+                    ax.set_xticks(np.arange(-20,20, 5))
+                    ax.set_yticks(np.arange(-20,20, 5))
+                    ax.grid(color='0.6', linestyle='-', linewidth=0.5, alpha=0.5)
+                    
                     ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".pdf"))
                     ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".png"), dpi=150)
                     
@@ -512,6 +516,10 @@ if  __name__ == "__main__":
                     x,y = np.asarray(cube_to_fit.index_to_xy(cube_to_fit.indexes)).T
                     ax.plot(x,y, marker=".", ls="None", ms=1, color="k")
                     ax.scatter(xcentroid, ycentroid, **MARKER_PROP[position_type])
+                    ax.set_xticks(np.arange(-20,20, 5))
+                    ax.set_yticks(np.arange(-20,20, 5))
+                    ax.grid(color='0.6', linestyle='-', linewidth=0.5, alpha=0.5)
+                    
                     ax.figure.savefig(spec.filename.replace("spec","spaxels_source").replace(".fits",".pdf"))
                     # Pure spaxel
                     fig = mpl.figure(figsize=[3.5,3.5])
@@ -519,6 +527,10 @@ if  __name__ == "__main__":
                     _ = cube_._display_im_(ax, vmax=args.vmax, vmin=args.vmin)
                     ax.plot(x,y, marker=".", ls="None", ms=1, color="k")
                     ax.scatter(xcentroid, ycentroid, **MARKER_PROP[position_type])
+                    ax.set_xticks(np.arange(-20,20, 5))
+                    ax.set_yticks(np.arange(-20,20, 5))
+                    ax.grid(color='0.6', linestyle='-', linewidth=0.5, alpha=0.5)
+                    
                     ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".pdf"))
                     ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".png"), dpi=150)
                     

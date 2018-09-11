@@ -87,7 +87,23 @@ def build_aperture_param(stored_picked_poly, default_bkgd_scale=1.4):
 
 
 
+def asses_quality(spec, negative_threshold_percent=20):
+    """ 
+    // default
+    - 0 = default
 
+    // good 
+    - 1: to be defined
+    - 2: to be defined
+
+    // bad
+    - 3: to be defined
+    - 4: more than `negative_threshold_percent` of the flux is negative 
+    """
+    flagnegative = spec.data<0
+    if len(spec.data[flagnegative]) / len(spec.data) > negative_threshold_percent/100:
+        return 4
+    return 0
 
 # ======================= #
 #
@@ -310,6 +326,9 @@ if  __name__ == "__main__":
                 spec.header.set('YPOS', ycentroid, "y centroid position at reference wavelength (in spaxels)")
                 spec.header.set('LBDAPOS', -99, "reference wavelength for the centroids (in angstrom) | not defined in apeture")
                 spec.header.set('SRCPOS', position_type, "How was the centroid selected ?")
+
+                spec.header.set("QUALITY", asses_quality(spec), "spectrum extraction quality flag [3,4 means band ; 0=default] ")
+                spec.header.set("REDUCER", io.SEDM_REDUCER, "Name of the pysedm pipeline reducer [default: auto]")
                 
                 # Aperture shape
                 #fwhm_arcsec = psffit.slices[2]["slpsf"].model.fwhm * IFU_SCALE_UNIT * 2
@@ -456,8 +475,10 @@ if  __name__ == "__main__":
                 # PSF shape
                 fwhm_arcsec = psffit.slices[2]["slpsf"].model.fwhm * IFU_SCALE_UNIT * 2
                 spec.header.set('PSFFWHM', fwhm_arcsec, "twice the radius needed to reach half of the pick brightness [in arcsec]")
+                
                 # fwhm & A/B ratio
                 spec.header.set('PSFELL', psffit.slices[2]["slpsf"].fitvalues['ell'], "Ellipticity of the PSF")
+                
                 # ADR
                 spec.header.set('PSFADRPA', psffit.adrfitter.fitvalues["parangle"], "Fitted ADR paralactic angle")
                 spec.header.set('PSFADRZ', psffit.adrfitter.fitvalues["airmass"], "Fitted ADR airmass")
@@ -465,6 +486,9 @@ if  __name__ == "__main__":
                     spec.header.set('PSFADRC2', psffit.adrfitter.fitvalues["chi2"]/psffit.adrfitter.dof, "ADR chi2/dof")
                 except:
                     spec.header.set('PSFADRC2', "nan", "ADR chi2/dof")
+
+                spec.header.set("QUALITY", asses_quality(spec), "spectrum extraction quality flag [3,4 means band ; 0=default] ")
+                spec.header.set("REDUCER", io.SEDM_REDUCER, "Name of the pysedm pipeline reducer [default: auto]")
                 
                 # Basic quality check ?
 

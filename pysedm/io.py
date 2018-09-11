@@ -11,6 +11,8 @@ from astropy.io.fits import getheader, getval
 from astropy.time import Time
 REDUXPATH   = os.getenv('SEDMREDUXPATH',default="~/redux/")
 _PACKAGE_ROOT = os.path.abspath(os.path.dirname(__file__))+"/"
+SEDM_REDUCER     = os.getenv('SEDM_USER',default="auto")
+
 ############################
 #                          #
 #  PROD/DB STRUCTURE       #

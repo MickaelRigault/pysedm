@@ -24,7 +24,7 @@ TRACE_DISPERSION = 1.2*2 # PSF (sigma assuming gaussian) of the traces on the CC
 
 SEDM_INVERT = False #  Shalle the x and y axis extracted in the hexagrid be inverted ?
 SEDM_ROT    = 103
-
+SEDM_MLA_RADIUS = 20
 
 _rot = SEDM_ROT*np.pi/  180
 SEDMSPAXELS = np.dot( np.asarray([[np.cos(_rot), -np.sin(_rot)],[np.sin(_rot),np.cos(_rot)]]) ,

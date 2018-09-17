@@ -3,8 +3,8 @@
 
 import pysedm
 from pysedm       import get_sedmcube, io, fluxcalibration, sedm
-from pysedm.sedm  import IFU_SCALE_UNIT
-
+from pysedm.sedm  import IFU_SCALE_UNIT, SEDM_MLA_RADIUS
+from pyifu import get_spectrum
 
 MARKER_PROP = {"astrom": dict(marker="x", lw=2, s=80, color="C1", zorder=8),
                "manual": dict(marker="+", lw=2, s=100, color="k", zorder=8),
@@ -97,9 +97,11 @@ def asses_quality(spec, negative_threshold_percent=20):
     - 2: to be defined
 
     // bad
-    - 3: to be defined
+    - 3: Pointing Problem
     - 4: more than `negative_threshold_percent` of the flux is negative 
     """
+    if not spec.header.get("POSOK",True):
+        return 3
     flagnegative = spec.data<0
     if len(spec.data[flagnegative]) / len(spec.data) > negative_threshold_percent/100:
         return 4
@@ -316,7 +318,9 @@ if  __name__ == "__main__":
                 for k,v in cube_.header.items():
                     if k not in spec.header:
                         spec.header.set(k,v)
-                        
+
+                spec.header.set('POSOK', True, "Is the Target centroid inside the MLA?")
+                
                 spec.header.set('PYSEDMV', pysedm.__version__, "Version of pysedm used")
                 spec.header.set('PYSEDMPI', "M. Rigault and D. Neill", "authors of the pysedm pipeline")
                 spec.header.set('EXTRACT', "manual" if args.display else "auto", "Was the Extraction manual or automatic")
@@ -414,7 +418,7 @@ if  __name__ == "__main__":
                     iplot.axim.scatter( xcentroid, ycentroid, **MARKER_PROP[position_type] )
                     iplot.launch(vmin=args.vmin, vmax=args.vmax, notebook=False)
                     cube = cube_.get_partial_cube( iplot.get_selected_idx(), np.arange( len(cube_.lbda)) )
-                    args.buffer = 20
+                    args.buffer = SEDM_MLA_RADIUS
                     if iplot.picked_position is not None:
                         print("You picked the position : ", iplot.picked_position )
                         print(" updating the centroid accordingly ")
@@ -423,33 +427,56 @@ if  __name__ == "__main__":
                         position_type = "manual"
                 else:
                     cube = cube_
+
                     
-                # Centroid ?    
+                # Centroid ?
                 print("INFO: PSF centroid (%s)**"%position_type)
                 print("centroid: %.1f %.1f"%(xcentroid, ycentroid)+ " error: %.1f %.1f"%(centroids_err[0], centroids_err[1]))
-                
-                # Aperture area ?
-                point_polygon = geometry.Point(xcentroid, ycentroid).buffer( float(args.buffer) )
-                # => Cube to fit
-                cube_to_fit = cube.get_partial_cube( cube.get_spaxels_within_polygon(point_polygon),
+                if not geometry.Point(0,0).buffer(sedm.SEDM_MLA_RADIUS).contains(geometry.Point(xcentroid, ycentroid)):
+                    print("WARNING: centroid outside the MLA field of view. NaN spectra returned. * Quality 3. *")
+                    spec  = get_spectrum( sedm.SEDM_LBDA, np.ones(len(sedm.SEDM_LBDA))*np.NaN, header=cube.header )
+                    # Other
+                    cubemodel, psfmodel, bkgdmodel, psffit, slpsf = None, None, None, None, None
+                    cube_to_fit = None
+                    # Header info
+                    POSOK = False
+                    lbdaref     = "nan"
+                    fwhm_arcsec = "nan"
+                    psf_ell     = "nan"
+                    psf_pa      = "nan"
+                    psf_airmass = "nan"
+                    psf_chi2    = "nan"
+                else:
+                    # Aperture area ?
+                    point_polygon = geometry.Point(xcentroid, ycentroid).buffer( float(args.buffer) )
+                    
+                    # => Cube to fit
+                    cube_to_fit = cube.get_partial_cube( cube.get_spaxels_within_polygon(point_polygon),
                                                       np.arange(len(cube.lbda)))
-                # --------------
-                # Fitting
-                # --------------
-                print("INFO: Starting MetaSlice fit")
-                spec, cubemodel, psfmodel, bkgdmodel, psffit, slpsf  = \
-                  script.extract_star(cube_to_fit,
+                    # --------------
+                    # Fitting
+                    # --------------
+                    print("INFO: Starting MetaSlice fit")
+                    spec, cubemodel, psfmodel, bkgdmodel, psffit, slpsf  = \
+                      script.extract_star(cube_to_fit,
                                           centroids=[xcentroid, ycentroid], centroids_err=centroids_err,
                                           spaxel_unit = IFU_SCALE_UNIT,
                                           final_slice_width = final_slice_width,
                                           lbda_step1=lbda_step1, psfmodel=args.psfmodel, normalized=args.normed)
-                # Hack to be removed:
-                print("INFO: Temporary variance hacking to be removed ")
-                spec._properties['variance'] = np.ones(len(spec.lbda)) * np.min([ np.nanmean( spec.variance ), np.nanmedian( spec.variance )]) / 2.
+                    # Hack to be removed:
+                    print("INFO: Temporary variance hacking to be removed ")
+                    spec._properties['variance'] = np.ones(len(spec.lbda)) * np.min([ np.nanmean( spec.variance ), np.nanmedian( spec.variance )]) / 2.
 
-                if final_slice_width != 1:
-                    spec = spec.reshape(cube.lbda)
-
+                    if final_slice_width != 1:
+                        spec = spec.reshape(cube.lbda)
+                    # For header:
+                    POSOK       = True
+                    lbdaref     = psffit.adrfitter.model.lbdaref
+                    fwhm_arcsec = psffit.slices[2]["slpsf"].model.fwhm * IFU_SCALE_UNIT * 2
+                    psf_ell     = psffit.slices[2]["slpsf"].fitvalues['ell']
+                    psf_pa      = psffit.adrfitter.fitvalues["parangle"]
+                    psf_airmass = psffit.adrfitter.fitvalues["airmass"]
+                    psf_chi2    = psffit.adrfitter.fitvalues["chi2"]/psffit.adrfitter.dof
                 # --------------
                 # header info passed
                 # --------------
@@ -459,6 +486,7 @@ if  __name__ == "__main__":
                         spec.header.set(k,v)
                 # Additional information
                 # centroid
+                spec.header.set('POSOK', POSOK, "Is the Target centroid inside the MLA?")
                 spec.header.set('PYSEDMV', pysedm.__version__, "Version of pysedm used")
                 spec.header.set('PYSEDMPI', "M. Rigault and D. Neill", "authors of the pysedm pipeline")
                 spec.header.set('PSFV', psfcube.__version__, "Version of psfcube used")
@@ -469,21 +497,21 @@ if  __name__ == "__main__":
                 
                 spec.header.set('XPOS', xcentroid, "x centroid position at reference wavelength (in spaxels)")
                 spec.header.set('YPOS', ycentroid, "y centroid position at reference wavelength (in spaxels)")
-                spec.header.set('LBDAPOS', psffit.adrfitter.model.lbdaref, "reference wavelength for the centroids (in angstrom)")
+                spec.header.set('LBDAPOS',lbdaref , "reference wavelength for the centroids (in angstrom)")
                 spec.header.set('SRCPOS', position_type, "How was the centroid selected ?")
                 
                 # PSF shape
-                fwhm_arcsec = psffit.slices[2]["slpsf"].model.fwhm * IFU_SCALE_UNIT * 2
+                
                 spec.header.set('PSFFWHM', fwhm_arcsec, "twice the radius needed to reach half of the pick brightness [in arcsec]")
                 
                 # fwhm & A/B ratio
-                spec.header.set('PSFELL', psffit.slices[2]["slpsf"].fitvalues['ell'], "Ellipticity of the PSF")
+                spec.header.set('PSFELL', psf_ell , "Ellipticity of the PSF")
                 
                 # ADR
-                spec.header.set('PSFADRPA', psffit.adrfitter.fitvalues["parangle"], "Fitted ADR paralactic angle")
-                spec.header.set('PSFADRZ', psffit.adrfitter.fitvalues["airmass"], "Fitted ADR airmass")
+                spec.header.set('PSFADRPA', psf_pa, "Fitted ADR paralactic angle")
+                spec.header.set('PSFADRZ', psf_airmass, "Fitted ADR airmass")
                 try:
-                    spec.header.set('PSFADRC2', psffit.adrfitter.fitvalues["chi2"]/psffit.adrfitter.dof, "ADR chi2/dof")
+                    spec.header.set('PSFADRC2',psf_chi2, "ADR chi2/dof")
                 except:
                     spec.header.set('PSFADRC2', "nan", "ADR chi2/dof")
 
@@ -502,7 +530,6 @@ if  __name__ == "__main__":
                 # Cut Edges of fluxcalibrated
                 # -------------
                 if flux_calibrated and not args.notroncation:
-                    from pyifu import get_spectrum
                     from pysedm.sedm import LBDA_PIXEL_CUT
                     spec = get_spectrum(spec.lbda[LBDA_PIXEL_CUT:-LBDA_PIXEL_CUT], spec.data[LBDA_PIXEL_CUT:-LBDA_PIXEL_CUT],
                                         variance=spec.variance[LBDA_PIXEL_CUT:-LBDA_PIXEL_CUT] if spec.has_variance() else None,
@@ -525,7 +552,7 @@ if  __name__ == "__main__":
                                           mode="auto"+add_tag,spec_info=spec_info, fluxcal=flux_calibrated,
                                           cubefitted=cube_to_fit, spec=spec)
                 # Figure
-                if not args.nofig:
+                if not args.nofig and psffit is not None:
                     # SHOWING ADR
                     psffit.show_adr(savefile=spec.filename.replace("spec","adr_fit").replace(".fits",".pdf") )
                     psffit.show_adr(savefile=spec.filename.replace("spec","adr_fit").replace(".fits",".png") )

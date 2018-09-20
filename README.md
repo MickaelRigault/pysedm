@@ -23,16 +23,6 @@ Basic installation detailed here enables you to:
 - *load*, *visualize* and *use* pysedm product objects (spectra, cubes, but also calibration object)
 - *extract* spectra from cubes. 
 
-**Dependencies** automatically installed if needed:
-- _numpy_, _scipy_, _matpotlib_, _astropy_ (basic anaconda)
-- _propobject_ (pip install propobject) _for the structure of the classes_
-- _pyifu_ (pip install pyifu or see https://github.com/MickaelRigault/pyifu) _cube and spectra object library_
-- _psfcube_ (pip install psfcube or see https://github.com/MickaelRigault/psfcube) 
-  _psfcube depends on Minuit (fitter) and modefit (structure), which are automatically installed if needed_
-
-
-See details [here](pysedm) for additional dependencies you will need for full pipeline functionalities (like re-creating the wavelength solution etc.)
-
 # Running a manual spectral extraction
 
 ...doc ongoing...
@@ -40,3 +30,19 @@ See details [here](pysedm) for additional dependencies you will need for full pi
 # Modules
 
 See details [here](pysedm)
+
+# Dependencies
+
+The following dependencies are automatically installed (if needed only):
+
+- _numpy_, _scipy_, _matpotlib_, _astropy_ (basic anaconda)
+
+- _propobject_ (pip install propobject) _for the structure of the classes_
+
+- _pyifu_ (pip install pyifu or see https://github.com/MickaelRigault/pyifu) _cube and spectra object library_
+
+- _psfcube_ (pip install psfcube or see https://github.com/MickaelRigault/psfcube) 
+  _psfcube depends on Minuit (fitter) and modefit (structure), which are automatically installed if needed_
+
+
+See details [here](pysedm) for additional dependencies you will need for full pipeline functionalities (like re-creating the wavelength solution etc.)

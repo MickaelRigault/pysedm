@@ -57,7 +57,7 @@ Main functionalities:
 - `get_ccd_jflexure(ccd)`: measures j-shift offset of a given `ScienceCCD` object.
 
 ***
-## `luxcalibration.py`
+## `fluxcalibration.py`
 
 _the method needs `pycalspec` (pip install pycalspec)_
 Build and get a `FluxCalibrator` object, which enables you to flux calibrate spectra, including telluric correction.

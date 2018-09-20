@@ -1,6 +1,8 @@
 # pysedm
 Data Reduction Pipeline for the SEDmachine (no ready yet)
 
+[![PyPI](https://img.shields.io/pypi/v/pysedm.svg?style=flat-square)](https://pypi.python.org/pypi/pysedm)
+
 _This module is under development and is not yet ready to be used_
 
 _works in python 2.7+ and 3.x, but the 2.7+ might not be supported in the future._

@@ -9,7 +9,7 @@ Main functionalities:
 - `get_ccd_coords(cube_)` target position in metaguider given its wcs solution.
 
 ***
-## `pysedm.background.py`
+## `background.py`
 
 This module contains tools to build the ccd background image. 
 
@@ -17,7 +17,7 @@ _low level module_
 
 
 ***
-## `pysedm.ccd.py`
+## `ccd.py`
 
 _Full usage of ccd functionalities requires: shapely, astrobject, pynverse (all "pipable")_
 
@@ -46,7 +46,7 @@ Main Object:
    // ScienceCCD contains more methods.
 
 ***
-## `pysedm.flexure.py`
+## `flexure.py`
 
 j-offset flexure tool. 
 "J-offsets" (perpendicular to trace dispersion) lead to lower signal to noise (more background, less signal).
@@ -57,7 +57,7 @@ Main functionalities:
 - `get_ccd_jflexure(ccd)`: measures j-shift offset of a given `ScienceCCD` object.
 
 ***
-## `pysedm.fluxcalibration.py`
+## `luxcalibration.py`
 
 _the method needs `pycalspec` (pip install pycalspec)_
 Build and get a `FluxCalibrator` object, which enables you to flux calibrate spectra, including telluric correction.

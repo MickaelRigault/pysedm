@@ -72,6 +72,16 @@ Some other important `extract_star.py` options:
 - "--observer": Your name, this will be stored in the header as "OBSERVER"
 - "--vmin", "--vmax": lower and upper values (in percent) of the MLA spaxel plot (`--vmax 80` to saturate the color at the 80% brightest spaxel signal)
 
+
+### Output Data
+`extract_star.py` creates several files (see `*_auto_*crr_date_fileid_ztfname.fits`). Most interesting ones are:
+
+- `spec_auto...`: extracted spectrum with formats .fits or .txt (and figures in .png/.pdf)
+
+- `psfprofile...`: figure showing the quality of the PSF extraction
+
+- `adr_fit...`: figure showing the quality of the ADR (i.e. target centroid as a function of wavelength)
+
 ***
 # pysedm in details:
 

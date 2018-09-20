@@ -77,11 +77,13 @@ Some other important `extract_star.py` options:
 `extract_star.py` creates several files (see `*_auto_*crr_date_fileid_ztfname.fits`). Most interesting ones are:
 
 - `spec_auto...`: extracted spectrum with formats .fits or .txt (and figures in .png/.pdf)
-
+   ![](examples/spec_example.gif)
+ 
 - `psfprofile...`: figure showing the quality of the PSF extraction
-
+   ![](examples/psfprofile_example.gif)
+   
 - `adr_fit...`: figure showing the quality of the ADR (i.e. target centroid as a function of wavelength)
-
+   ![](examples/adr_fit_example.gif)
 ***
 # pysedm in details:
 

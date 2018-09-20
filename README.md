@@ -20,7 +20,7 @@ python setup.py install
 
 
 Basic installation detailed here enables you to:
-- *load*, *visualize* and *use* pysedm product objects (spectra, cubes, but also calibration object)
+- *load*, *visualize* and *use* pysedm product objects (spectra, cubes, but also calibration objects)
 - *extract* spectra from cubes. 
 
 ***

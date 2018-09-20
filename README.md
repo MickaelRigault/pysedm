@@ -24,10 +24,10 @@ Basic installation detailed here enables you to:
 - *extract* spectra from cubes. 
 
 **Dependencies** automatically installed if needed:
-- numpy, scipy, matpotlib, astropy
-- propobject (pip install propobject) _for the structure of the classes_
-- pyifu (pip install pyifu or see https://github.com/MickaelRigault/pyifu) _cube and spectra object library_
-- psfcube (pip install psfcube or see https://github.com/MickaelRigault/psfcube) 
+- _numpy_, _scipy_, _matpotlib_, _astropy_ (basic anaconda)
+- _propobject_ (pip install propobject) _for the structure of the classes_
+- _pyifu_ (pip install pyifu or see https://github.com/MickaelRigault/pyifu) _cube and spectra object library_
+- _psfcube_ (pip install psfcube or see https://github.com/MickaelRigault/psfcube) 
   _psfcube depends on Minuit (fitter) and modefit (structure), which are automatically installed if needed_
 
 

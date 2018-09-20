@@ -38,3 +38,5 @@ works in python 2.7+ and 3.x, but the 2.7+ might not be supported in the future.
 ...doc ongoing...
 
 # Modules
+
+See details [here](pysedm)

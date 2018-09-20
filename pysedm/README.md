@@ -1,5 +1,5 @@
 ***
-## `pysedm.astrometry.py`
+## `astrometry.py`
 
 This module contains tools to determine the target position inside the MLA given metaguider rainbow camera wcs solution.
 (see `rainbowcam.py`)

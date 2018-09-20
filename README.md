@@ -77,7 +77,44 @@ Main Object:
    
    // Visualization
    - `show()`: plot the ccd as imshow.
-   - `show_traceindex()`: plot the ccd using `show()` and overplot the trace coutours.
+   - `show_traceindex(traceindex)`: plot the ccd using `show()` and overplot the trace coutours.
+
+   // ScienceCCD contains more methods.
+
+### `pysedm.flexure.py`
+
+j-offset flexure tool. 
+"J-offsets" (perpendicular to trace dispersion) lead to lower signal to noise (more background, less signal).
+
+j-offset of an exposure is measured by maximizing the total flux within randomly selected traces while moving the traces contour vertices up and down around the original trace position.
+
+Main functionalities:
+- `get_ccd_jflexure(ccd)`: measures j-shift offset of a given `ScienceCCD` object.
+
+### `pysedm.fluxcalibration.py`
+
+_the method needs `pycalspec` (pip install pycalspec)_
+Build and get a `FluxCalibrator` object, which enables you to flux calibrate spectra, including telluric correction.
+
+Main functionalities:
+- `get_fluxcalibrator(std_spectrum)`: provide a non-flux calibrated spectrum of a standard star. This will create a `FluxCalibrator` object and fit for the flux calibration and telluric correction using calspec spectrum as reference. 
+
+- `load_fluxcal_spectrum(fluxcal_file)`: load a `FluxCalSpectrum` object from a fluxcal_file created by the `FluxCalibration` object.
+
+Main Object:
+- `FluxCalSpectrum`:
+  - `get_inversed_sensitivity(airmass)`: sum of fitted inverse sensitivity of the instrument and telluric correction, which is airmass dependent. The returned array should be used to flux calibrated a non-calibrated spectrum. 
+  - `show()`: display the flux calibration file.
+  
+  
+- `FluxCalibrator`:
+
+   // Main methods
+   - `fit_inverse_sensitivity()`: fit the sum of a N-degree polynome (see option) and a telluric spectra reshaped to match the spectral resolution (free parameter). O2 and H2O telluric properties are also free parameters. 
+   - `set_std_spectrum(std_spectrum)`: attach to the object the standard star spectrum. The std object name will be looked for in calspec by pycalspec and also loaded into the object.
+   - `show()`: Display the flux calibration.
+   - `writeto()`: save the fluxcalibration file, which could be loaded as a `FluxCalSpectrum`. See `load_fluxcal_spectrum`.
+  
 
 ### wavelength solution
 

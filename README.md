@@ -78,7 +78,7 @@ Some other important `extract_star.py` options:
 
 - `spec_auto...`: extracted spectrum with formats .fits or .txt (and figures in .png/.pdf)
    
-   <img src="examples/spec_example.png" width="400">
+   <img src="examples/spec_example.png" width="450">
    
 - `psfprofile...`: figure showing the quality of the PSF extraction
    
@@ -86,7 +86,7 @@ Some other important `extract_star.py` options:
    
 - `adr_fit...`: figure showing the quality of the ADR (i.e. target centroid as a function of wavelength)
    
-   <img src="examples/adr_fit_example.png" width="250">
+   <img src="examples/adr_fit_example.png" width="300">
 ***
 # pysedm in details:
 

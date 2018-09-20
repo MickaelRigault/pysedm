@@ -82,11 +82,11 @@ Some other important `extract_star.py` options:
    
 - `psfprofile...`: figure showing the quality of the PSF extraction
    
-   <img src="examples/psfprofile_example.png" width="400">
+   <img src="examples/psfprofile_example.png" width="600">
    
 - `adr_fit...`: figure showing the quality of the ADR (i.e. target centroid as a function of wavelength)
    
-   <img src="examples/adr_fit_example.png" width="400">
+   <img src="examples/adr_fit_example.png" width="250">
 ***
 # pysedm in details:
 

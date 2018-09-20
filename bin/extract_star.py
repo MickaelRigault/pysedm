@@ -464,8 +464,8 @@ if  __name__ == "__main__":
                                           final_slice_width = final_slice_width,
                                           lbda_step1=lbda_step1, psfmodel=args.psfmodel, normalized=args.normed)
                     # Hack to be removed:
-                    print("INFO: Temporary variance hacking to be removed ")
-                    spec._properties['variance'] = np.ones(len(spec.lbda)) * np.min([ np.nanmean( spec.variance ), np.nanmedian( spec.variance )]) / 2.
+                    #print("INFO: Temporary variance hacking to be removed ")
+                    spec._properties['variance'] = np.ones(len(spec.lbda)) * np.nanmean( spec.variance[spec.variance>0] )#, np.nanmedian( spec.variance )])
 
                     if final_slice_width != 1:
                         spec = spec.reshape(cube.lbda)

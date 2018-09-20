@@ -22,7 +22,10 @@ def get_object_ifu_pos(cube, parameters=SEDM_ASTROM_PARAM):
 
 
 def get_ccd_coords(cube):
-    """ """
+    """ target position in the rainbow camera. 
+    Remark that this area should not be visible in the rainbow camera as this area 
+    should be behind the mirror sending the light to the IFU
+    """
     from astropy import wcs
     from astropy.io.fits import getheader
     if "STD" in cube.header["OBJECT"]:
@@ -43,6 +46,11 @@ def get_ccd_coords(cube):
     gastromwcs =     wcs.WCS(header=getheader(gastrom_file[0]))
     return np.asarray(radec_.to_pixel(gastromwcs))
 
+
+# ======================= #
+#   Other tools           #
+# ======================= #
+
 def rainbow_coords_to_ifu(ccd_coords, parameters=SEDM_ASTROM_PARAM):
     """ """
     centroid_ccd = [parameters[4],parameters[5]]
@@ -50,16 +58,6 @@ def rainbow_coords_to_ifu(ccd_coords, parameters=SEDM_ASTROM_PARAM):
                           [parameters[2], parameters[3]] ])
     
     return np.dot(matrix, (ccd_coords-centroid_ccd).T).T
-
-
-
-
-
-# ======================= #
-#          
-# ======================= #
-
-
 
 def fit_cube_centroid(cube_, lbdamin=6000, lbdamax=7000):
     """ Use `fit_slice` function from psfcube to estimate the PSF centroid 

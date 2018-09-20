@@ -7,7 +7,11 @@ import warnings
 from propobject import BaseObject
 
 
+"""
+j-offset flexure tool. "J-offsets" (perpendicular to trace dispersion) lead to lower signal to noise (more background, less signal).
 
+j-offset is measured by maximizing the total flux within the randomly selected subsample of traces while shifting the traces up and down.
+"""
 
 ########################
 #                      #

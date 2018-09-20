@@ -39,11 +39,9 @@ def build_background(ccd,
         mpl.close("all")
 
 
-
 # ------------------ #
 #  Main Functions    #
 # ------------------ #
-
 def get_background(contvalues, size=SEDM_CCD_SIZE, smoothing=[0,5]):
     """ """
     back = Background()

@@ -6,7 +6,7 @@
 import numpy              as np
 import warnings
 
-from pyifu.spectroscopy   import Cube, Spectrum, get_spectrum
+from pyifu.spectroscopy   import Cube, Spectrum, get_spectrum, load_spectrum
 from .utils.tools         import kwargs_update, is_arraylike
 
 from .io import PROD_CUBEROOT
@@ -113,6 +113,29 @@ def domexy_to_tracesize(x_,y_,theta_):
     """ """
     delta_x = np.asarray([x_*SEDM_XRED_EXTENTION[0] + SEDM_XRED_EXTENTION[1], x_*SEDM_XBLUE_EXTENTION[0] + SEDM_XBLUE_EXTENTION[1]])
     return x_-delta_x,  y_-np.sin(theta_)*delta_x
+
+
+
+def load_sedmspec(filename):
+    """ Load SEDM .fits or .txt """
+    if filename.endswith(".txt"):
+        return get_sedmspec( open(filename).read().splitlines() )
+    
+    return load_spectrum(filename)
+        
+def get_sedmspec(ascii_data):
+    """ """
+    from pyifu import get_spectrum
+    from astropy.io import fits
+    header = fits.Header()
+    for d in ascii_data:
+        if not d.startswith("#"): continue
+        if "SNID" in d: continue
+        header.set(*d.replace("# ","").split(": "))
+        
+    spec_data = np.asarray([d.split() for d in ascii_data if not d.startswith("#")], dtype="float").T
+    return get_spectrum(*spec_data, header=header)
+
 
 # ------------------ #
 #  Builder           #
@@ -334,7 +357,18 @@ def build_calibrated_sedmcube(cubefile, date=None, calibration_ref=None, kindout
 
 # ------------------ #
 #  Main Functions    #
-# ------------------ #        
+# ------------------ #
+def load_sedmcube(filename, **kwargs):
+    """Load a Cube from the given filename 
+    
+    Returns
+    -------
+    Cube
+    """
+    # To be split between load and get
+    return get_sedmcube(filename, **kwargs)
+
+
 def get_sedmcube(filename, **kwargs):
     """ Load a Cube from the given filename 
     

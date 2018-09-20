@@ -5,6 +5,16 @@
 """ This modules handles the CCD based images """
 
 
+"""
+// Full usage of ccd functionalities requires: shapely, astrobject, pynverse (all pipable) //
+
+// ccd-x axis is refered to as 'i', y as "j".
+
+show: plot the ccd as imshow.
+show_traceindex: plot the ccd using `show()` and overplot the trace coutours.
+"""
+
+
 import warnings
 import numpy as np
 
@@ -476,7 +486,7 @@ class CCD( BaseCCD ):
         if set_it:
             self.set_background( self._background.background, force_it=True)
             
-    def extract_spectrum(self, traceindex, cubesolution, lbda=None, kind="cubic",
+    def extract_spectrum(self, traceindex, wavesolution, lbda=None, kind="cubic",
                              get_spectrum=True, pixel_shift=0.):
         """ Build the `traceindex` spectrum based on the given wavelength solution.
         The returned object could be an pyifu's Spectrum or three arrays, lbda, flux, variance.
@@ -496,7 +506,7 @@ class CCD( BaseCCD ):
         traceindex: [int]
             The index of the spectrum you want to extract
             
-        cubesolution: [CubeSolution]
+        wavesolution: [WaveSolution]
             Object containing the method to go from pixels to lbda
 
         lbda: [array] -optional-
@@ -528,12 +538,11 @@ class CCD( BaseCCD ):
         mask = pixs[(pixs>minpix)* (pixs<maxpix)][::-1]
         if lbda is not None:
             from scipy.interpolate     import interp1d
-            pxl_wanted = cubesolution.lbda_to_pixels(lbda, traceindex) + pixel_shift
+            pxl_wanted = wavesolution.lbda_to_pixels(lbda, traceindex) + pixel_shift
             flux = interp1d(pixs[mask], f[mask], kind=kind)(pxl_wanted)
             var  = interp1d(pixs[mask], v[mask], kind=kind)(pxl_wanted) if v is not None else v
         else:
-            
-            lbda = cubesolution.pixels_to_lbda(pixs[mask], traceindex)
+            lbda = wavesolution.pixels_to_lbda(pixs[mask], traceindex)
             flux = f[mask]
             var  = v[mask]
         

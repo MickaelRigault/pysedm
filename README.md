@@ -27,18 +27,38 @@ Basic installation detailed here enables you to:
 
 Here is are some examples to use `pysedm`. 
 
-### Open a Cube.
+## Open and display a Cube.
 
-Say you have a cubefile name `e3d_crr_date_id_ztfname.fits`
+Say you have a cubefile name `e3d_crr_date_fileid_ztfname.fits`
 
 ```python
 import pysedm
 # Load the cube
-cube = pysedm.get_sedmcube('e3d_crr_date_id_ztfname.fits')
+cube = pysedm.get_sedmcube('e3d_crr_date_fileid_ztfname.fits')
 # See the cube and enable to clic on the cube to visualize spaxels:
 cube.show(interactive=True)
 ```
 ![](examples/display_cube_example.gif)
+
+_**what is going on?** if you click on spaxels you see the spaxel spectra on the left. If you click once on "**control**" you will not replace the spectrum on the left but **see new spaxel's spectra with a new color** (colors match bewtween spaxel contours and spectra. Click once again on "control" to turns this off. 
+If you **drag your mouse on the IFU**, the display spectrum will be the average of the rectangle defined by the draging. Click on **"shift" to draw any polygon**. Click again on "shift" to turns it off. Click on **"option"and your dragging will define an aperture radius**. Click on **"escape" to clean everything switch back to original mode**_ 
+
+You can directly display the cube without opening ipython by doing:
+```bash
+display_cube.py e3d_crr_date_id_ztfname.fits
+```
+
+## Manual cube extraction.
+
+You want to manually extract a spectrum from a cube `e3d_crr_date_fileid_ztfname.fits` (`fileid` is HH_MM_SS)
+
+From your shell do (with date been YYYYMMDD):
+```bash
+extract_star.py DATE --auto FILE_ID --display --tag manual
+```
+![](examples/extract_star_example.gif)
+
+_**what is going on?** (1) double clicked to locate the expected centroid of the target (creating the  black cross) and (2) click and "shift" and draw a countour avoiding the host. The contours should be a ~5 spaxels large if possible. Finally (3) close the window to launch the PSF extraction.
 
 
 # Modules

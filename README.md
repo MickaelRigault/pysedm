@@ -115,6 +115,30 @@ Main Object:
    - `show()`: Display the flux calibration.
    - `writeto()`: save the fluxcalibration file, which could be loaded as a `FluxCalSpectrum`. See `load_fluxcal_spectrum`.
   
+  
+### io.py
+
+High level method to access data created by the pipeline.
+
+Main functionalities:
+- `get_night_files(date, kind)`: get the list of object of a given kind (spec, cube etc) for a given date. See documentation for details. *This is the main I/O function of pysedm*
+
+- `load_nightly_{tracematch,hexagonalgrid,wavesolution,flat}(date)`: Load the Cube-Calibration object associated to a given night. *This is what is used to create the cube*
+
+- `fetch_nearest_fluxcal(date, filename)`: for a given filename, this uses `get_night_files(date, spec.fluxcal)` to look for the nearest fluxcalibration file (nearest in time) for the given date. *This is how fluxcalibration files are fetched by default in the pipeline*
+
+
+### sedm.py
+
+_This module contains the specificities of the SEDM instrument_
+
+
+- `load_sedmspec(specfile)`: loads a .txt or .fits file created by the pipeline and returns a pyifu.Spectrum object.
+
+- `load_sedmcube(cubefile)`: loads a e3d_....fits file created by the pipeline and returns a pyifu.Cube object
+
+- `build_sedmcube(ccd, date)`: High level function that takes a `ScienceCCD` and loads the tracematch, wavesolution and hexagrid for the given date and extract the cube. *This is what is used in the pipeline to build the SEDM cubes*
+
 
 ### wavelength solution
 

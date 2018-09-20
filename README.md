@@ -7,7 +7,7 @@ Data Reduction Pipeline for the SEDmachine (no ready yet)
 
 ```bash
 git pull https://github.com/MickaelRigault/pysedm.git
-cd psfcube
+cd pysedm
 python setup.py install
 ```
 

@@ -23,6 +23,7 @@ Basic installation detailed here enables you to:
 - *load*, *visualize* and *use* pysedm product objects (spectra, cubes, but also calibration object)
 - *extract* spectra from cubes. 
 
+***
 # Running a manual spectral extraction
 
 Here is are some examples to use `pysedm`. 
@@ -54,19 +55,29 @@ You want to manually extract a spectrum from a cube `e3d_crr_date_fileid_ztfname
 
 From your shell do (with date been YYYYMMDD):
 ```bash
-extract_star.py DATE --auto FILE_ID --display --tag manual
+extract_star.py DATE --auto FILE_ID --display
 ```
 ![](examples/extract_star_example.gif)
 
 _**what is going on?** (1) double clicked to locate the expected centroid of the target (creating the  black cross) and (2) click and "shift" and draw a countour avoiding the host. The contours should be a ~5 spaxels large if possible. Finally (3) close the window to launch the PSF extraction. This will happen in your terminal_
 
-**Flux Calibration** if you want your extracted spectra to be flux calibrated, you need to have a `fluxcal` file in your DATE directory. You can also directly provide your favorite fluxcal file as an option to `extract_star.py`: `--fluxcalsource a_fluxcal_...fits`.
+**Flux Calibration** if you want your extracted spectra to be flux calibrated, you need to have a `fluxcal` file in your DATE directory. You can also directly provide your favorite fluxcal file as an option to `extract_star.py`: 
 
+```bash
+extract_star.py DATE --auto FILE_ID --display --tag manual --fluxcalsource your_favorite_fluxcal.fits
+```
 
-# Modules
+Some other important `extract_star.py` options:
+- "--tag": provide a string, this string will be in the name. Useful to avoid overwriting existing files, i.e. `--tag host`
+- "--observer": Your name, this will be stored in the header as "OBSERVER"
+- "--vmin", "--vmax": lower and upper values (in percent) of the MLA spaxel plot (`--vmax 80` to saturate the color at the 80% brightest spaxel signal)
 
-See details [here](pysedm)
+***
+# pysedm in details:
 
+See [here](pysedm)
+
+***
 # Dependencies
 
 The following dependencies are automatically installed (if needed only):

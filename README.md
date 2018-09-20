@@ -25,7 +25,21 @@ Basic installation detailed here enables you to:
 
 # Running a manual spectral extraction
 
-...doc ongoing...
+Here is are some examples to use `pysedm`. 
+
+### Open a Cube.
+
+Say you have a cubefile name `e3d_crr_date_id_ztfname.fits`
+
+```python
+import pysedm
+# Load the cube
+cube = pysedm.get_sedmcube('e3d_crr_date_id_ztfname.fits')
+# See the cube and enable to clic on the cube to visualize spaxels:
+cube.show(interactive=True)
+```
+![](examples/display_cube_example.gif)
+
 
 # Modules
 

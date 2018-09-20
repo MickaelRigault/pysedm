@@ -1,10 +1,13 @@
 # pysedm
 Data Reduction Pipeline for the SEDmachine (no ready yet)
 
-*This module is under development and is not yet ready to be used*
+_This module is under development and is not yet ready to be used_
+
+_works in python 2.7+ and 3.x, but the 2.7+ might not be supported in the future._
 
 # Installation
-
+**pip install pysedm**
+or 
 ```bash
 git pull https://github.com/MickaelRigault/pysedm.git
 cd pysedm
@@ -14,16 +17,14 @@ python setup.py install
 
 # Dependencies
 
-works in python 2.7+ and 3.x, but the 2.7+ might not be supported in the future. 
+Basic installation detailed here enables you to:
+- *load*, *visualize* and *use* pysedm product objects (spectra, cubes, but also calibration object like flux calibration tools)
+- *extract* spectra from cubes. 
 
-### Basics
-
+**Dependencies** automatically installed if needed:
 - numpy, scipy, matpotlib, astropy
 - propobject (pip install propobject) _for the structure of the classes_
 - pyifu (pip install pyifu or see https://github.com/MickaelRigault/pyifu) _cube and spectra object library_
-
-### If you want to reproduce the spectral extraction:
-
 - psfcube (pip install psfcube or see https://github.com/MickaelRigault/psfcube) 
   _psfcube depends on Minuit (fitter) and modefit (structure), which are automatically installed if needed_
 

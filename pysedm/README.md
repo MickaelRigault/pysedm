@@ -9,7 +9,7 @@ Main functionalities:
 - `get_ccd_coords(cube_)` target position in metaguider given its wcs solution.
 
 ***
-##`pysedm.background.py`
+## `pysedm.background.py`
 
 This module contains tools to build the ccd background image. 
 
@@ -17,7 +17,7 @@ _low level module_
 
 
 ***
-## CCD `pysedm.ccd.py`
+## `pysedm.ccd.py`
 
 _Full usage of ccd functionalities requires: shapely, astrobject, pynverse (all "pipable")_
 
@@ -82,7 +82,7 @@ Main Object:
    - `writeto()`: save the fluxcalibration file, which could be loaded as a `FluxCalSpectrum`. See `load_fluxcal_spectrum`.
   
 ***
-## io.py
+## `io.py`
 
 High level method to access data created by the pipeline.
 
@@ -94,7 +94,7 @@ Main functionalities:
 - `fetch_nearest_fluxcal(date, filename)`: for a given filename, this uses `get_night_files(date, spec.fluxcal)` to look for the nearest fluxcalibration file (nearest in time) for the given date. *This is how fluxcalibration files are fetched by default in the pipeline*
 
 ***
-## sedm.py
+## `sedm.py`
 
 _This module contains the specificities of the SEDM instrument_
 

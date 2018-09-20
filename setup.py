@@ -30,6 +30,11 @@ def check_dependencies():
         import pyifu
     except ImportError:
         install_requires.append('pyifu')
+
+    try:
+        import psfcube
+    except ImportError:
+        install_requires.append('psfcube')
         
     return install_requires
 

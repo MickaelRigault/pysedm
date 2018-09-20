@@ -58,7 +58,9 @@ extract_star.py DATE --auto FILE_ID --display --tag manual
 ```
 ![](examples/extract_star_example.gif)
 
-_**what is going on?** (1) double clicked to locate the expected centroid of the target (creating the  black cross) and (2) click and "shift" and draw a countour avoiding the host. The contours should be a ~5 spaxels large if possible. Finally (3) close the window to launch the PSF extraction.
+_**what is going on?** (1) double clicked to locate the expected centroid of the target (creating the  black cross) and (2) click and "shift" and draw a countour avoiding the host. The contours should be a ~5 spaxels large if possible. Finally (3) close the window to launch the PSF extraction. This will happen in your terminal_
+
+**Flux Calibration** if you want your extracted spectra to be flux calibrated, you need to have a `fluxcal` file in your DATE directory. You can also directly provide your favorite fluxcal file as an option to `extract_star.py`: `--fluxcalsource a_fluxcal_...fits`.
 
 
 # Modules

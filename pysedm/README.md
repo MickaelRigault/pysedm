@@ -1,13 +1,10 @@
 # Dependencies
 
-works in python 2.7+ and 3.x, but the 2.7+ might not be supported in the future. 
+_works in python 2.7+ and 3.x, but the 2.7+ might not be supported in the future._
 
 ## Basics
 
 Here is additional package you will need if you want to do more than just opening existing file or re-extracting spectra from cube. 
-
-- **If you want to reproduce the spectral extraction**:
-   - *psfcube* (`pip install psfcube` or see https://github.com/MickaelRigault/psfcube) _psfcube depends on Minuit (fitter) and modefit (structure), which are automatically installed if needed_
 
 - **If you need to reproduce the cube creation**:
    - *shapely* (`pip install shapely`) _for the polygon matching in CCD to Spectrum_  

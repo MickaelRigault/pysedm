@@ -90,7 +90,9 @@ Some other important `extract_star.py` options:
 ***
 # pysedm in details:
 
-See [here](pysedm)
+See library details [here](pysedm)
+  
+![](examples/pipeline.png)
 
 ***
 # Dependencies

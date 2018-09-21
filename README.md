@@ -20,7 +20,7 @@ python setup.py install
 
 
 Basic installation detailed here enables you to:
-- *load*, *visualize* and *use* pysedm product objects (spectra, cubes, but also calibration object)
+- *load*, *visualize* and *use* pysedm product objects (spectra, cubes, but also calibration objects)
 - *extract* spectra from cubes. 
 
 ***
@@ -59,7 +59,7 @@ extract_star.py DATE --auto FILE_ID --display
 ```
 ![](examples/extract_star_example.gif)
 
-_**what is going on?** (1) double clicked to locate the expected centroid of the target (creating the  black cross) and (2) click and "shift" and draw a countour avoiding the host. The contours should be a ~5 spaxels large if possible. Finally (3) close the window to launch the PSF extraction. This will happen in your terminal_
+_**what is going on?** (1) double click to locate the expected centroid of the target (creating the  black cross) and (2) click and "shift" and draw a countour avoiding the host. The contours should be a ~5 spaxels large if possible. Finally (3) close the window to launch the PSF extraction. This will happen in your terminal_
 
 **Flux Calibration** if you want your extracted spectra to be flux calibrated, you need to have a `fluxcal` file in your DATE directory. You can also directly provide your favorite fluxcal file as an option to `extract_star.py`: 
 

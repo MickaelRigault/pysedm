@@ -99,12 +99,18 @@ def asses_quality(spec, negative_threshold_percent=20):
     // bad
     - 3: Pointing Problem
     - 4: more than `negative_threshold_percent` of the flux is negative 
+    - 5: A science target with no WCS
     """
+    if "STD" not in spec.header.get("OBJECT") and spec.header.get("SRCPOS",None) =="auto":
+        return 5
+    
     if not spec.header.get("POSOK",True):
         return 3
+    
     flagnegative = spec.data<0
     if len(spec.data[flagnegative]) / len(spec.data) > negative_threshold_percent/100:
         return 4
+    
     return 0
 
 # ======================= #

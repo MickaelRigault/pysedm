@@ -584,6 +584,7 @@ if  __name__ == "__main__":
                     ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".png"), dpi=150)
                     
                     if psffit is not None:
+                        x,y = np.asarray(cube_to_fit.index_to_xy(cube_to_fit.indexes)).T
                         # SHOWING ADR
                         psffit.show_adr(savefile=spec.filename.replace("spec","adr_fit").replace(".fits",".pdf") )
                         psffit.show_adr(savefile=spec.filename.replace("spec","adr_fit").replace(".fits",".png") )

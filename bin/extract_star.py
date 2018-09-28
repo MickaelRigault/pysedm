@@ -374,7 +374,7 @@ if  __name__ == "__main__":
                     from matplotlib import patches
                     fig = mpl.figure(figsize=[3.5,3.5])
                     ax = fig.add_axes([0.15,0.15,0.75,0.75])
-                    _ = cube_._display_im_(ax, vmax=args.vmax, vmin=args.vmin)
+                    _ = cube_._display_im_(ax, vmax=args.vmax, vmin=args.vmin, lbdalim=[6000,9000])
                     ax.scatter(aper_xcentroid, aper_ycentroid, **MARKER_PROP[position_type])
 
                     aper_circle = patches.Circle([aper_xcentroid, aper_ycentroid],
@@ -582,7 +582,7 @@ if  __name__ == "__main__":
                     # Pure spaxel
                     fig = mpl.figure(figsize=[3.5,3.5])
                     ax = fig.add_axes([0.15,0.15,0.75,0.75])
-                    _ = cube_._display_im_(ax, vmax=args.vmax, vmin=args.vmin)
+                    _ = cube_._display_im_(ax, vmax=args.vmax, vmin=args.vmin, lbdalim=[6000,9000])
                     ax.plot(x,y, marker=".", ls="None", ms=1, color="k")
                     ax.scatter(xcentroid, ycentroid, **MARKER_PROP[position_type])
                     ax.set_xticks(np.arange(-20,20, 5))

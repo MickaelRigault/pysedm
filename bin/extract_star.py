@@ -15,6 +15,7 @@ MARKER_PROP = {"astrom": dict(marker="x", lw=2, s=80, color="C1", zorder=8),
 
 def position_source(cube, centroid=None, centroiderr=None, lbdaranges=[5000,7000]):
     """ How is the source position selected ? """
+    
     if centroiderr is None or centroiderr in ["None"]:
         centroid_err_given = False
         centroids_err = [3,3]
@@ -27,10 +28,10 @@ def position_source(cube, centroid=None, centroiderr=None, lbdaranges=[5000,7000
         xcentroid,ycentroid = get_object_ifu_pos( cube )
         if np.isnan(xcentroid*ycentroid):
             print("IFU target location based on CCD astrometry failed. centroid guessed based on brightness used instead")
-            sl = cube.get_slice(lbda_min=lbdaranges[0], lbda_max=lbdaranges[1], slice_object=True)
-            x,y = np.asarray(sl.index_to_xy(sl.indexes)).T # Slice x and y
-            argmaxes = np.argwhere(sl.data>np.percentile(sl.data, 99)).flatten() # brightest points
-            xcentroid,ycentroid  = np.nanmean(x[argmaxes]),np.nanmean(y[argmaxes]) # centroid
+
+            from pysedm.astrometry import estimate_default_position
+            xcentroid,ycentroid = estimate_default_position(cube, lbdaranges=lbdaranges)
+            
             if not centroid_err_given:
                 centroids_err = [5,5]
                 position_type="auto" 

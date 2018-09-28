@@ -567,7 +567,8 @@ if  __name__ == "__main__":
                     ax = fig.add_axes([0.15,0.15,0.75,0.75])
                     _ = cube_._display_im_(ax, vmax=args.vmax, vmin=args.vmin, lbdalim=[6000,9000])
                     if POSOK:
-                        ax.plot(x,y, marker=".", ls="None", ms=1, color="k")
+                        x,y = np.asarray(cube_to_fit.index_to_xy(cube_to_fit.indexes)).T
+                        ax.plot(x, y, marker=".", ls="None", ms=1, color="k")
                         ax.scatter(xcentroid, ycentroid, **MARKER_PROP[position_type])
                     else:
                         ax.text(0.5,0.95, "Target outside the MLA \n [%.1f, %.1f] (in spaxels)"%(xcentroid, ycentroid),
@@ -594,7 +595,6 @@ if  __name__ == "__main__":
                         
                         cube_.show(show=False)
                         ax = mpl.gca()
-                        x,y = np.asarray(cube_to_fit.index_to_xy(cube_to_fit.indexes)).T
                         ax.plot(x,y, marker=".", ls="None", ms=1, color="k")
                         ax.scatter(xcentroid, ycentroid, **MARKER_PROP[position_type])
                         ax.set_xticks(np.arange(-20,20, 5))

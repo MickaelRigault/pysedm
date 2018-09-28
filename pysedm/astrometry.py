@@ -12,12 +12,15 @@ from astropy import units, coordinates
 import pycalspec
 from psfcube import fitter
 from . import io
-from .sedm import SEDM_ASTROM_PARAM
+from .sedm import get_sedm_astrom_param
 # ======================= #
 #   GET LOCATIONS         #
 # ======================= #
-def get_object_ifu_pos(cube, parameters=SEDM_ASTROM_PARAM):
+def get_object_ifu_pos(cube, parameters=None):
     """ the expected cube x,y position of the target within the cube """
+    if parameters is None:
+        parameters = get_sedm_astrom_param( cube.header.get("OBSDATE",None) )
+        
     return rainbow_coords_to_ifu(get_ccd_coords(cube), parameters)
 
 
@@ -51,7 +54,7 @@ def get_ccd_coords(cube):
 #   Other tools           #
 # ======================= #
 
-def rainbow_coords_to_ifu(ccd_coords, parameters=SEDM_ASTROM_PARAM):
+def rainbow_coords_to_ifu(ccd_coords, parameters):
     """ """
     centroid_ccd = [parameters[4],parameters[5]]
     matrix = np.asarray([ [parameters[0], parameters[1]],

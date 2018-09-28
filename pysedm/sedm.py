@@ -68,7 +68,22 @@ IFU_SCALE_UNIT  = 0.75
 # ----- WCS
 SEDM_ASTROM_PARAM  = [ 7.28968990e-01,  6.89009309e-02, -6.57804812e-03, -7.94252856e-01,
                            1.02682050e+03 , 1.01659890e+03]
+SEDM_ASTROM_PARAM_since_20180928 = [ 7.28968990e-01,  6.89009309e-02, -6.57804812e-03, -7.94252856e-01,
+                           1.02002050e+03 , 1.01409890e+03]
 
+
+def get_sedm_astrom_param(cube_date=None):
+    """ """
+    if cube_date is None:
+        return SEDM_ASTROM_PARAM
+    
+    from astropy.time import Time
+    # Old Rainbow CCD
+    if Time(cube_date) < Time("2018-09-27"):
+        return SEDM_ASTROM_PARAM
+    else:
+        print("NEW ASTROM")
+        return SEDM_ASTROM_PARAM_since_20180928
 
 # --- Palomar Atmosphere
 # Palomar Extinction Data from Hayes & Latham 1975
@@ -355,6 +370,57 @@ def build_calibrated_sedmcube(cubefile, date=None, calibration_ref=None, kindout
     # - Save it
     cube.writeto(cubefile.replace("%s"%PROD_CUBEROOT,"%s_%s"%(PROD_CUBEROOT,kindout)))
 
+
+
+
+
+
+def get_sedm_flatcube(domecube, s=0.8, loc=4300):
+    """ Froma e3d dome cube, This returns a flatfielder cube """
+    from scipy import stats
+    from scipy.optimize import fmin
+    from pyifu import get_slice, get_cube
+    # Functions
+    def fit_domeshape(spec):
+        norm = spec.data.max()*3000
+        flagout =  (spec.lbda<6500)# * (spec.lbda<7000)
+        flagin = ~flagout
+        def chi2(p):
+            ampl, scale= p
+            return np.sum(np.abs( spec.data[flagin]/norm - ampl*  stats.exponnorm.pdf(spec.lbda, s, 
+                                                                        loc=loc, scale=scale)[::-1][flagin] ))
+        return fmin(chi2, [1, 950], disp=False), norm
+    
+    def display_domeshape(spec, ampl, scale, loc_=loc, s_=s):
+        """ """
+        ax = spec.show()["ax"]
+        ax.plot(spec.lbda, ampl*stats.exponnorm.pdf(spec.lbda,s_, loc=loc_, scale=scale)[::-1], color="C1")
+    
+    # Higher Level
+    def fit_ampl(spec, show=False):
+        r, norm = fit_domeshape(spec)
+        r[0] *= norm
+        if show:
+            display_domeshape(spec, r[0],r[1])
+        return r
+
+    # Functions
+    domeindexes = {domecube.indexes[i]:fit_ampl(domecube.get_spectrum(i), False) for i in np.arange(len( domecube.indexes)) }
+    prop = dict(spaxel_vertices= domecube.spaxel_vertices, indexes=domecube.indexes)
+
+    ampslice   = get_slice([domeindexes[i][0] for i in domecube.indexes], domecube.index_to_xy(domecube.indexes), **prop)
+    scaleslice = get_slice([domeindexes[i][1] for i in domecube.indexes], domecube.index_to_xy(domecube.indexes), **prop)
+
+    datacube = [stats.exponnorm.pdf(domecube.lbda, s, loc=loc, scale=s)[::-1]*ampl 
+             for ampl,s in zip(ampslice.data, scaleslice.data)]
+
+    flatcube = get_cube(np.asarray(datacube).T,
+                            spaxel_mapping= domecube.spaxel_mapping,
+                            spaxel_vertices=domecube.spaxel_vertices,
+                            lbda=domecube.lbda)
+    
+    flatcube.scale_by(np.mean(flatcube.data, axis=1))
+    return flatcube
 # ------------------ #
 #  Main Functions    #
 # ------------------ #

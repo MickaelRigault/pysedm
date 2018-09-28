@@ -452,7 +452,7 @@ if  __name__ == "__main__":
                     psf_ell     = "nan"
                     psf_pa      = "nan"
                     psf_airmass = "nan"
-                    psf_chi2    = "nan"
+                    psf_chi2    = "nan"                    
                 else:
                     # Aperture area ?
                     point_polygon = geometry.Point(xcentroid, ycentroid).buffer( float(args.buffer) )
@@ -484,6 +484,7 @@ if  __name__ == "__main__":
                     psf_pa      = psffit.adrfitter.fitvalues["parangle"]
                     psf_airmass = psffit.adrfitter.fitvalues["airmass"]
                     psf_chi2    = psffit.adrfitter.fitvalues["chi2"]/psffit.adrfitter.dof
+                    
                 # --------------
                 # header info passed
                 # --------------
@@ -559,38 +560,49 @@ if  __name__ == "__main__":
                                           mode="auto"+add_tag,spec_info=spec_info, fluxcal=flux_calibrated,
                                           cubefitted=cube_to_fit, spec=spec)
                 # Figure
-                if not args.nofig and psffit is not None:
-                    # SHOWING ADR
-                    psffit.show_adr(savefile=spec.filename.replace("spec","adr_fit").replace(".fits",".pdf") )
-                    psffit.show_adr(savefile=spec.filename.replace("spec","adr_fit").replace(".fits",".png") )
-                    # SHOWING PSFPROFILE (metaslice)
-                    psffit.slices[2]["slpsf"].show(savefile=spec.filename.replace("spec","psfprofile").replace(".fits",".pdf"))
-                    psffit.slices[2]["slpsf"].show(savefile=spec.filename.replace("spec","psfprofile").replace(".fits",".png"))
-
-                    # SHOWING SPAXEL (IFU)
+                if not args.nofig:
                     import matplotlib.pyplot as mpl
-                    cube_.show(show=False)
-                    ax = mpl.gca()
-                    x,y = np.asarray(cube_to_fit.index_to_xy(cube_to_fit.indexes)).T
-                    ax.plot(x,y, marker=".", ls="None", ms=1, color="k")
-                    ax.scatter(xcentroid, ycentroid, **MARKER_PROP[position_type])
-                    ax.set_xticks(np.arange(-20,20, 5))
-                    ax.set_yticks(np.arange(-20,20, 5))
-                    ax.grid(color='0.6', linestyle='-', linewidth=0.5, alpha=0.5)
-                    
-                    ax.figure.savefig(spec.filename.replace("spec","spaxels_source").replace(".fits",".pdf"))
                     # Pure spaxel
                     fig = mpl.figure(figsize=[3.5,3.5])
                     ax = fig.add_axes([0.15,0.15,0.75,0.75])
                     _ = cube_._display_im_(ax, vmax=args.vmax, vmin=args.vmin, lbdalim=[6000,9000])
-                    ax.plot(x,y, marker=".", ls="None", ms=1, color="k")
-                    ax.scatter(xcentroid, ycentroid, **MARKER_PROP[position_type])
+                    if POSOK:
+                        ax.plot(x,y, marker=".", ls="None", ms=1, color="k")
+                        ax.scatter(xcentroid, ycentroid, **MARKER_PROP[position_type])
+                    else:
+                        ax.text(0.5,0.95, "Target outside the MLA \n [%.1f, %.1f] (in spaxels)"%(xcentroid, ycentroid),
+                                    fontsize="large", color="k",backgroundcolor=mpl.cm.binary(0.1,0.4),
+                                    transform=ax.transAxes, va="top", ha="center")
+                        
                     ax.set_xticks(np.arange(-20,20, 5))
                     ax.set_yticks(np.arange(-20,20, 5))
+
                     ax.grid(color='0.6', linestyle='-', linewidth=0.5, alpha=0.5)
                     
                     ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".pdf"))
                     ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".png"), dpi=150)
+                    
+                    if psffit is not None:
+                        # SHOWING ADR
+                        psffit.show_adr(savefile=spec.filename.replace("spec","adr_fit").replace(".fits",".pdf") )
+                        psffit.show_adr(savefile=spec.filename.replace("spec","adr_fit").replace(".fits",".png") )
+                        # SHOWING PSFPROFILE (metaslice)
+                        psffit.slices[2]["slpsf"].show(savefile=spec.filename.replace("spec","psfprofile").replace(".fits",".pdf"))
+                        psffit.slices[2]["slpsf"].show(savefile=spec.filename.replace("spec","psfprofile").replace(".fits",".png"))
+                        
+                        # SHOWING SPAXEL (IFU)
+                        
+                        cube_.show(show=False)
+                        ax = mpl.gca()
+                        x,y = np.asarray(cube_to_fit.index_to_xy(cube_to_fit.indexes)).T
+                        ax.plot(x,y, marker=".", ls="None", ms=1, color="k")
+                        ax.scatter(xcentroid, ycentroid, **MARKER_PROP[position_type])
+                        ax.set_xticks(np.arange(-20,20, 5))
+                        ax.set_yticks(np.arange(-20,20, 5))
+                        ax.grid(color='0.6', linestyle='-', linewidth=0.5, alpha=0.5)
+                    
+                        ax.figure.savefig(spec.filename.replace("spec","spaxels_source").replace(".fits",".pdf"))
+                    
                     
                     # Special Standard
                     if cube.header['IMGTYPE'].lower() in ['standard'] and flux_calibrated:

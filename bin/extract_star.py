@@ -142,22 +142,27 @@ def flux_calibrate(spec, fluxcalfile=None, nofluxcal=False):
         # Do I have a flux calibration file ?
         if fluxcalfile is None:
             print("ERROR: No fluxcal for night %s and no alternative fluxcalsource provided. Uncalibrated spectra saved."%date)
-            spec.header["FLUXCAL"] = ("False","has the spectra been flux calibrated")
             spec.header["CALSRC"] = (None, "Flux calibrator filename")
             flux_calibrated=False
         else:
             from pysedm.fluxcalibration import load_fluxcal_spectrum
             fluxcal = load_fluxcal_spectrum( fluxcalfile ) 
             spec.scale_by( fluxcal.get_inversed_sensitivity(spec.header["AIRMASS"]) )
-            spec.header["FLUXCAL"] = ("True","has the spectra been flux calibrated")
             spec.header["CALSRC"] = (fluxcal.filename.split("/")[-1], "Flux calibrator filename")
             flux_calibrated=True
             
     else:
-        spec.header["FLUXCAL"] = ("False","has the spectra been flux calibrated")
+        spec.header["FLUXCAL"] = (False,"has the spectra been flux calibrated")
         spec.header["CALSRC"] = (None, "Flux calibrator filename")
         flux_calibrated=False
         
+    # Flux Calibration
+    if flux_calibrated:
+        spec.header["FLUXCAL"] = (True,"has the spectra been flux calibrated")
+        spec.header["BUNITS"]  = ("erg/s/A/cm2","Flux Units")
+    else:
+        spec.header["FLUXCAL"] = (False,"has the spectra been flux calibrated")
+        spec.header["BUNITS"]  = (spec.header.get('BUNITS',""),"Flux Units")
     return spec, flux_calibrated
 #################################
 #
@@ -184,8 +189,8 @@ if  __name__ == "__main__":
                         help='cube filepath')
 
     # // AUTOMATIC EXTRACTION
-    parser.add_argument('--observer',  type=str, default="SEDM-robot",
-                        help='What is your name? This will be added in the header [default: SEDM-robot]')
+    parser.add_argument('--reducer',  type=str, default=io.SEDM_REDUCER,
+                        help='What is your name? This will be added in the header [default: $SEDM_REDUCER]')
 
     #  which extraction
     parser.add_argument('--aperture',  type=str, default=None,
@@ -331,7 +336,6 @@ if  __name__ == "__main__":
                 spec.header.set('PYSEDMV', pysedm.__version__, "Version of pysedm used")
                 spec.header.set('PYSEDMPI', "M. Rigault and D. Neill", "authors of the pysedm pipeline")
                 spec.header.set('EXTRACT', "manual" if args.display else "auto", "Was the Extraction manual or automatic")
-                spec.header.set('OBSERVER', args.observer, "How has extracted the spectrum (if manual). pysedm-team is default")
                 
                 spec.header.set('XPOS', xcentroid, "x centroid position at reference wavelength (in spaxels)")
                 spec.header.set('YPOS', ycentroid, "y centroid position at reference wavelength (in spaxels)")
@@ -339,7 +343,7 @@ if  __name__ == "__main__":
                 spec.header.set('SRCPOS', position_type, "How was the centroid selected ?")
 
                 spec.header.set("QUALITY", asses_quality(spec), "spectrum extraction quality flag [3,4 means band ; 0=default] ")
-                spec.header.set("REDUCER", io.SEDM_REDUCER, "Name of the pysedm pipeline reducer [default: auto]")
+                spec.header.set("REDUCER", args.reducer, "Name of the pysedm pipeline reducer [default: auto]")
                 
                 # Aperture shape
                 #fwhm_arcsec = psffit.slices[2]["slpsf"].model.fwhm * IFU_SCALE_UNIT * 2
@@ -405,8 +409,7 @@ if  __name__ == "__main__":
         final_slice_width = int(args.lstep)
         # - Step 1 parameters
         lbdaranges, bins = np.asarray(args.autorange.split(","), dtype="float"), int(args.autobins+1)
-        STEP_LBDA_RANGE = np.linspace(lbdaranges[0],lbdaranges[1], bins+1)
-        lbda_step1      = np.asarray([STEP_LBDA_RANGE[:-1], STEP_LBDA_RANGE[1:]]).T
+        lbda_step1       = script.lbda_and_bin_to_lbda_step1(lbdaranges, bins)
         
         for target in args.auto.split(","):
             filecubes = io.get_night_files(date, "cube.*", target=target.replace(".fits",""))
@@ -465,11 +468,11 @@ if  __name__ == "__main__":
                     # --------------
                     print("INFO: Starting MetaSlice fit")
                     spec, cubemodel, psfmodel, bkgdmodel, psffit, slpsf  = \
-                      script.extract_star(cube_to_fit,
+                      script.extract_star(cube_to_fit, lbda_step1,
                                           centroids=[xcentroid, ycentroid], centroids_err=centroids_err,
                                           spaxel_unit = IFU_SCALE_UNIT,
                                           final_slice_width = final_slice_width,
-                                          lbda_step1=lbda_step1, psfmodel=args.psfmodel, normalized=args.normed)
+                                          psfmodel=args.psfmodel, normalized=args.normed)
                     # Hack to be removed:
                     #print("INFO: Temporary variance hacking to be removed ")
                     spec._properties['variance'] = np.ones(len(spec.lbda)) * np.nanmean( spec.variance[spec.variance>0] )#, np.nanmedian( spec.variance )])
@@ -501,7 +504,6 @@ if  __name__ == "__main__":
                 spec.header.set('PSFPI', "M. Rigault", "authors of the psfcube")
                 spec.header.set('PSFMODEL', args.psfmodel, "PSF model used in psfcube")
                 spec.header.set('EXTRACT', "manual" if args.display else "auto", "Was the Extraction manual or automatic")
-                spec.header.set('OBSERVER', args.observer, "How has extracted the spectrum (if manual). SEDM-robot is default")
                 
                 spec.header.set('XPOS', xcentroid, "x centroid position at reference wavelength (in spaxels)")
                 spec.header.set('YPOS', ycentroid, "y centroid position at reference wavelength (in spaxels)")
@@ -524,7 +526,7 @@ if  __name__ == "__main__":
                     spec.header.set('PSFADRC2', "nan", "ADR chi2/dof")
 
                 spec.header.set("QUALITY", asses_quality(spec), "spectrum extraction quality flag [3,4 means band ; 0=default] ")
-                spec.header.set("REDUCER", io.SEDM_REDUCER, "Name of the pysedm pipeline reducer [default: auto]")
+                spec.header.set("REDUCER", args.reducer, "Name of the pysedm pipeline reducer [default: auto]")
                 
                 # Basic quality check ?
 

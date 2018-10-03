@@ -159,10 +159,10 @@ def flux_calibrate(spec, fluxcalfile=None, nofluxcal=False):
     # Flux Calibration
     if flux_calibrated:
         spec.header["FLUXCAL"] = (True,"has the spectra been flux calibrated")
-        spec.header["BUNITS"]  = ("erg/s/A/cm2","Flux Units")
+        spec.header["BUNIT"]  = ("erg/s/A/cm2","Flux Units")
     else:
         spec.header["FLUXCAL"] = (False,"has the spectra been flux calibrated")
-        spec.header["BUNITS"]  = (spec.header.get('BUNITS',""),"Flux Units")
+        spec.header["BUNIT"]  = (spec.header.get('BUNIT',""),"Flux Units")
     return spec, flux_calibrated
 #################################
 #

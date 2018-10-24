@@ -39,6 +39,7 @@ def get_ccd_coords(cube):
             radec_ = coordinates.SkyCoord(*pycalspec.std_radec(cube.header["OBJECT"].split("STD-")[-1]),
                                       unit=(units.hourangle, units.deg))
         except ValueError:
+            print("WARNING: Standard not found in reference list")
             radec_ = coordinates.SkyCoord(cube.header["OBJRA"], cube.header["OBJDEC"],
                                   unit=(units.hourangle, units.deg))
     else:

@@ -54,7 +54,12 @@ def get_ccd_coords(cube):
         return np.asarray([np.NaN, np.NaN])
     
     gastromwcs =     wcs.WCS(header=getheader(gastrom_file[0]))
-    return np.asarray(radec_.to_pixel(gastromwcs))
+    try:
+        coords = np.asarray(radec_.to_pixel(gastromwcs))
+    except wcs.wcs.NoConvergence:
+        warnings.warn("Could not converge on coordinates")
+        coords = np.asarray([np.NaN, np.NaN])
+    return coords
 
 
 def fit_conversion_matrix(cubes_to_fit, guess=None):

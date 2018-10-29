@@ -130,7 +130,7 @@ def get_ifu_guider_images(ifufile):
         try:
             ff = fits.open(rb_dir+f)
         except OSError:
-            print("WARNING - corrupt fits file: %s")
+            print("WARNING - corrupt fits file: %s" % f)
             continue
         if "JD" in ff[0].header:
             if jd_ini <= ff[0].header["JD"] <= jd_end:

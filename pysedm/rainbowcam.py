@@ -127,7 +127,7 @@ def get_ifu_guider_images(ifufile):
     flist = os.listdir(rb_dir)
     rb_list = []
     for f in flist:
-        ff = fits.open(f)
+        ff = fits.open(rb_dir+f)
         if "JD" in ff[0].header:
             if jd_ini <= ff[0].header["JD"] <= jd_end:
                 rb_list.append(rb_dir+f)

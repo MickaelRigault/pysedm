@@ -110,22 +110,31 @@ def get_rainbow_datapath(DATE):
     """ returns the path of the rainbow camera data """
     return RAINBOW_DATA_SOURCE+DATE+"/"
 
+
 def get_ifu_guider_images(ifufile):
     """ """    
     ifu_header = fits.getheader(ifufile)
     
     fileid = io.filename_to_id(ifufile)
     # - starting
-    jd_ini = time.Time("%s %s"%(io.header_to_date(ifu_header, sep="-"),
-                                    fileid.replace("_",":"))).jd
+    jd_ini = time.Time("%s %s" % (io.header_to_date(ifu_header, sep="-"),
+                                  fileid.replace("_", ":"))).jd
     # - end
-    jd_end = jd_ini +  ifu_header['EXPTIME'] / (24.*3600)
+    jd_end = jd_ini + ifu_header['EXPTIME'] / (24.*3600)
     # - Where are the guider data  ?
-    rb_dir = get_rainbow_datapath( io.header_to_date(ifu_header) )
+    rb_dir = get_rainbow_datapath(io.header_to_date(ifu_header))
     # - Return them
-    return [rb_dir+f for f in os.listdir(rb_dir)
-                if f.startswith("rc") and f.endswith(".fits")
-                and jd_ini<=fits.getval(rb_dir+f, "JD")<=jd_end]
+    flist = os.listdir(rb_dir)
+    rb_list = []
+    for f in flist:
+        ff = fits.open(f)
+        if "JD" in ff[0].header:
+            if jd_ini <= ff[0].header["JD"] <= jd_end:
+                rb_list.append(rb_dir+f)
+        else:
+            print("WARNING - no JD keyword in %s" % f)
+    return rb_list
+
 
 def stack_images(rainbow_files, method="median", scale="median"):
     """ return a 2D image corresponding of the stack of the given data """

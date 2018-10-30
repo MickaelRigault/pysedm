@@ -92,12 +92,6 @@ if  __name__ == "__main__":
     
     parser.add_argument('--flatlbda',  type=str, default="7000,9000",
                         help='The wavelength range for the flat field. Format: min,max [in Angstrom] ')
-    
-    # ----------------- #
-    #  Statistics       #
-    # ----------------- #
-    parser.add_argument('--stats', action="store_true", default=False,
-                        help='Calculate dome trace statistics')
 
     # ----------------- #
     #  Short Cuts       #
@@ -208,8 +202,7 @@ if  __name__ == "__main__":
                         lbda_max=lbda_max,
                         ref=args.flatref, build_ref=True,
                         savefig=~args.nofig)
-
-    if args.stats:
+        # Now calc stats
         from pysedm import ccd
         from pysedm.io import get_datapath
         import numpy as np

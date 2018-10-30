@@ -94,6 +94,12 @@ if  __name__ == "__main__":
                         help='The wavelength range for the flat field. Format: min,max [in Angstrom] ')
     
     # ----------------- #
+    #  Statistics       #
+    # ----------------- #
+    parser.add_argument('--stats', action="store_true", default=False,
+                        help='Calculate dome trace statistics')
+
+    # ----------------- #
     #  Short Cuts       #
     # ----------------- #
     
@@ -203,4 +209,23 @@ if  __name__ == "__main__":
                         ref=args.flatref, build_ref=True,
                         savefig=~args.nofig)
 
-    
+    if args.stats:
+        from pysedm import ccd
+        from pysedm.io import get_datapath
+        import numpy as np
+        dome = ccd.get_dome("dome.fits", background=0, load_sep=True)
+        a, b = dome.sepobjects.get(["a", "b"]).T
+        savefile = get_datapath(date) + "%s_dome_stats.txt" % date
+        stat_f = open(savefile, "w")
+        stat_f.write("NSpax: %d\n" % len(b))
+        stat_f.write("MinWid: %.3f\n" % min(b))
+        stat_f.write("MaxWid: %.3f\n" % max(b))
+        stat_f.write("MedWid: %.3f\n" % np.nanmedian(b)[0])
+        stat_f.write("AvgWid: %.3f\n" % np.nanmean(b)[0])
+        stat_f.write("MinLen: %.3f\n" % min(a))
+        stat_f.write("MaxLen: %.3f\n" % max(a))
+        stat_f.write("MedLen: %.3f\n" % np.nanmedian(a)[0])
+        stat_f.write("AvgLen: %.3f\n" % np.nanmean(a)[0])
+        stat_f.close()
+        print("nspax, min, avg, med, max Wid: %d, %.3f, %.3f, %.3f, %.3f" %
+              (len(b), min(b), np.nanmean(b)[0], np.nanmedian(b)[0], max(b)))

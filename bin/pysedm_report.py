@@ -206,7 +206,9 @@ if  __name__ == "__main__":
         # Loads all the spectra 
         specfiles = pysedm.io.get_night_files(date, "spec.basic", args.contains)
         print(specfiles)
-        for specfile in specfiles:        
+        for specfile in specfiles:
+            if 'failed' in specfile:
+                continue
             img_report = build_image_report(specfile)
             report_filename = specfile.replace("spec_","pysedm_report_").replace(".fits",".png")
             img_report.save(report_filename, dpi=(1000,1000))

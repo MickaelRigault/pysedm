@@ -28,8 +28,12 @@ def show_fluxcalibrated_standard(stdspectrum, savefile=None):
     from . import io
     ### Data
     objectname = stdspectrum.header['OBJECT'].replace("STD-","")
-    # 
-    specref = pycalspec.std_spectrum(objectname).filter(5).reshape(stdspectrum.lbda,"linear")
+    #
+    try:
+        specref = pycalspec.std_spectrum(objectname).filter(5).reshape(stdspectrum.lbda,"linear")
+    except IOError:
+        print("WARNING: ref flux not found so no flux scale plot possible")
+        return None
     specres = get_spectrum(stdspectrum.lbda, specref.data / stdspectrum.data )
     scale_ratio = specres.data.mean()
     specres.scale_by(scale_ratio)

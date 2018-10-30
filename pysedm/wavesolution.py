@@ -725,6 +725,38 @@ class WaveSolution( BaseObject ):
                                        ax=ax, vmin=vmin, vmax=vmax,
                                        clabel=clabel, savefile=savefile, show=show,
                                        **kwargs)
+
+    # ---------- #
+    # STATISTICS #
+    # ---------- #
+    def calc_dispersion_stats(self, savefile=None):
+        """ Calculate disperson solution statistics """
+
+        traceindexes = list(self._solution.keys())
+
+        rms = [self._solution[i].get_wavesolution_rms(kind="rms")
+               for i in traceindexes]
+        mad = [self._solution[i].get_wavesolution_rms(kind="nmad")
+               for i in traceindexes]
+        wrms = [self._solution[i].get_wavesolution_rms(kind="wrms")
+                for i in traceindexes]
+        if savefile:
+            stat_f = open(savefile, "w")
+            stat_f.write("NSpax: %d\n" % len(rms))
+            stat_f.write("MinRMS: %.3f\n" % min(rms))
+            stat_f.write("AvgRMS: %.3f\n" % np.nanmean(rms))
+            stat_f.write("MaxRMS: %.3f\n" % max(rms))
+            stat_f.write("MinMAD: %.3f\n" % min(mad))
+            stat_f.write("AvgMAD: %.3f\n" % np.nanmean(mad))
+            stat_f.write("MaxMAD: %.3f\n" % max(mad))
+            stat_f.write("MinWRMS: %.3f\n" % min(wrms))
+            stat_f.write("AvgWRMS: %.3f\n" % np.nanmean(wrms))
+            stat_f.write("MaxWRMS: %.3f\n" % max(wrms))
+            stat_f.close()
+        print("nspax, min, avg, max RMS: %d, %.3f, %.3f, %.3f" %
+              (len(rms),  min(rms), np.nanmean(rms), max(rms)))
+        return len(rms), min(rms), np.nanmean(rms), max(rms)
+
     # ================== #
     #  Properties        #
     # ================== #

@@ -35,8 +35,13 @@ def get_ccd_coords(cube):
     from astropy.io.fits import getheader
     if "STD" in cube.header["OBJECT"]:
         import pycalspec
-        radec_ = coordinates.SkyCoord(*pycalspec.std_radec(cube.header["OBJECT"].split("STD-")[-1]), 
+        try:
+            radec_ = coordinates.SkyCoord(*pycalspec.std_radec(cube.header["OBJECT"].split("STD-")[-1]),
                                       unit=(units.hourangle, units.deg))
+        except ValueError:
+            print("WARNING: Standard not found in reference list")
+            radec_ = coordinates.SkyCoord(cube.header["OBJRA"], cube.header["OBJDEC"],
+                                  unit=(units.hourangle, units.deg))
     else:
         radec_ = coordinates.SkyCoord(cube.header["OBJRA"], cube.header["OBJDEC"], 
                                   unit=(units.hourangle, units.deg))
@@ -49,7 +54,12 @@ def get_ccd_coords(cube):
         return np.asarray([np.NaN, np.NaN])
     
     gastromwcs =     wcs.WCS(header=getheader(gastrom_file[0]))
-    return np.asarray(radec_.to_pixel(gastromwcs))
+    try:
+        coords = np.asarray(radec_.to_pixel(gastromwcs))
+    except wcs.wcs.NoConvergence:
+        warnings.warn("Could not converge on coordinates")
+        coords = np.asarray([np.NaN, np.NaN])
+    return coords
 
 
 def fit_conversion_matrix(cubes_to_fit, guess=None):

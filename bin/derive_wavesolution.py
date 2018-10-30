@@ -68,10 +68,12 @@ if  __name__ == "__main__":
                             savefile= pysedm.io.get_datapath(date)+"%s_wavesolution_dispersionmap.pdf"%date)
             wsol.show_dispersion_map(hgrid, vmax="98", vmin="2", outlier_highlight=5,
                             savefile= pysedm.io.get_datapath(date)+"%s_wavesolution_dispersionmap.png"%date)
-            
+
+        wsol.calc_dispersion_stats(savefile=pysedm.io.get_datapath(date) +
+                                   "%s_wavesolution_stats.txt" % date)
         import sys
         sys.exit(0)
-    
+
     nsplit = int(args.nsub)
     
     # - TraceMatch Indexes

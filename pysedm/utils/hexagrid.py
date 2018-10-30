@@ -36,7 +36,7 @@ class HexagoneProjection( BaseObject ):
     based on given reference positions 
     """
     PROPERTIES         = ["xy","qdistance","hexgrid", "neighbors"]
-    SIDE_PROPERTIES    = ["ref_idx","index_ids"]
+    SIDE_PROPERTIES    = ["ref_idx","index_ids", "rot_degree"]
     DERIVED_PROPERTIES = ["hexafilled","grid_theta",
                               "tree","multipoint","rotmatrix",
                               "ids_index"]
@@ -96,7 +96,7 @@ class HexagoneProjection( BaseObject ):
             self.set_qdistance(data["qdistance"])
 
 
-    def show(self, ax=None, **kwargs):
+    def show(self, ax=None, switch_axis=False, colored_by=None, **kwargs):
         """ """
         from ..sedm import SEDMSPAXELS
         import matplotlib.pyplot as mpl
@@ -108,8 +108,13 @@ class HexagoneProjection( BaseObject ):
             fig = ax.figure
 
         indexes = list(self.ids_index.keys())
-        colors = mpl.cm.viridis(np.random.uniform(size=len(indexes)))
-        ps = [patches.Polygon(SEDMSPAXELS + self.index_to_xy(self.ids_to_index(id_)),
+        if colored_by is None:
+            colors = mpl.cm.viridis(np.random.uniform(size=len(indexes)))
+        else:
+            vmin, vmax = np.percentile(colored_by, [0,100])
+            colors = mpl.cm.viridis( (colored_by-vmin)/(vmax-vmin) )
+            
+        ps = [patches.Polygon(SEDMSPAXELS + self.index_to_xy(self.ids_to_index(id_), switch_axis=switch_axis),
                            facecolor=colors[i], alpha=0.8) for i,id_  in enumerate(indexes)]
 
         ip = [ax.add_patch(p_) for p_ in ps]
@@ -233,7 +238,7 @@ class HexagoneProjection( BaseObject ):
         """ get the (Q,R) hexagonal coordinates of the given index"""
         return self.hexgrid[index]
 
-    def index_to_xy(self, index, invert_rotation=True, rot_degree=0, switch_axis=False):
+    def index_to_xy(self, index, invert_rotation=True, switch_axis=False):
         """ """
         qr = np.asarray(self.index_to_qr(index)).T
 
@@ -244,9 +249,9 @@ class HexagoneProjection( BaseObject ):
                                   for qr_ in qr]).T
             
         return self.qr_to_xy(q,r, invert_rotation=invert_rotation,
-                            rot_degree=rot_degree, switch_axis=switch_axis)
+                            switch_axis=switch_axis)
     
-    def qr_to_xy(self, q, r, invert_rotation=True, rot_degree=0, switch_axis=False):
+    def qr_to_xy(self, q, r, invert_rotation=True,  switch_axis=False):
         """ Convert (q,r) hexagonal grid coordinates into (x,y) system 
         Returns
         -------
@@ -260,8 +265,8 @@ class HexagoneProjection( BaseObject ):
         if switch_axis:
             x,y = y,x
             
-        if rot_degree != 0:
-            _rot = rot_degree  * np.pi / 180
+        if self.rot_degree is not None and self.rot_degree != 0:
+            _rot = self.rot_degree  * np.pi / 180
             rotmat = np.asarray([[ np.cos(_rot), -np.sin(_rot)],[ np.sin(_rot), np.cos(_rot)]])
             x,y = np.dot(rotmat, np.asarray([x,y]))
             
@@ -295,6 +300,9 @@ class HexagoneProjection( BaseObject ):
 
         self._derived_properties["grid_theta"] = theta
             
+    def set_rot_degree(self, rot_degree):
+        """ Rotation with respect to the north, in degree"""
+        self._side_properties["rot_degree"] = rot_degree
         
     def populate(self, idx, neighbor0, neighbor1, ref):
         """ Based on the given neighbors and the reference index,
@@ -443,6 +451,13 @@ class HexagoneProjection( BaseObject ):
             
         return self._derived_properties["ids_index"]
 
+
+    # ----------
+    # Side
+    @property
+    def rot_degree(self):
+        """ """
+        return self._side_properties["rot_degree"]
     # ----------
     # Derived
     @property

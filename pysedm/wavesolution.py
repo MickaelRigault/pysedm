@@ -455,7 +455,7 @@ class Flexure( BaseObject ):
         return nfit.fitvalues
     
     def fit_cube_lines(self, sodium_reference=SODIUM_SKYLINE_LBDA,
-                                 nspaxels=50, averaging=20, show=False):
+                                 nspaxels=40, averaging=15, show=False):
         """ """
         index_to_fit = np.asarray(self.cube.get_faintest_spaxels(nspaxels*averaging))
         np.random.shuffle(index_to_fit)
@@ -1537,10 +1537,10 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
 
         if stampsloc == "right":
             heigth, bottom = 0.82, 0.12
-            space = 0.11
+            space = 0.13
             axwave   = fig.add_axes([0.1,bottom,0.58,heigth])
             axstamps = [fig.add_axes([0.7,bottom+((heigth+space/(self.nspectra-1))/self.nspectra)*i,
-                                      0.2, (heigth-space)/self.nspectra])
+                                      0.25, (heigth-space)/self.nspectra])
                             for i in range(self.nspectra)]
                 
             self._show_linefit_(show=False, savefile=None, ax=axstamps, remove_xticks=False,

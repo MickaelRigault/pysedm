@@ -22,7 +22,7 @@ SEDM_CCD_SIZE = [2048, 2048]
 DOME_TRACEBOUNDS = [70,230]
 TRACE_DISPERSION = 1.2*2 # PSF (sigma assuming gaussian) of the traces on the CCD.
 
-SEDM_INVERT = False #  Shalle the x and y axis extracted in the hexagrid be inverted ?
+SEDM_INVERT = False #  Shall the x and y axis extracted in the hexagrid be inverted ?
 SEDM_ROT    = 103
 SEDM_MLA_RADIUS = 25
 
@@ -551,7 +551,7 @@ def display_on_hexagrid(value, traceindexes,
         axim  = fig.add_subplot(111)
     else:
         fig = ax.figure
-
+        axim = ax
     
     # - which colors
     if vmin is None:
@@ -566,9 +566,10 @@ def display_on_hexagrid(value, traceindexes,
     colors = mpl.cm.viridis((value-vmin)/(vmax-vmin))
     # - where
     if xy is None:
+        hexagrid.set_rot_degree(SEDM_ROT)
         x,y = np.asarray(hexagrid.index_to_xy(hexagrid.ids_to_index(traceindexes),
                                             invert_rotation=False,
-                                            rot_degree=SEDM_ROT, switch_axis=SEDM_INVERT))
+                                            switch_axis=SEDM_INVERT))
     else:
         x,y = xy
 

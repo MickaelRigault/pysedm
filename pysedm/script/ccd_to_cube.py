@@ -92,8 +92,9 @@ def build_hexagonalgrid(date, xybounds=None, theta=None):
     smap  = io.load_nightly_tracematch(date)
     # ----------------
     # - Spaxel Selection
-    if xybounds is None: xybounds=INDEX_CCD_CONTOURS
-    idxall = smap.get_traces_within_polygon(INDEX_CCD_CONTOURS)
+    if xybounds is None:
+        xybounds=INDEX_CCD_CONTOURS
+    idxall = smap.get_traces_within_polygon(xybounds)
 
     hgrid = smap.extract_hexgrid(idxall, theta=theta)
 

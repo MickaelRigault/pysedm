@@ -755,7 +755,8 @@ class TraceMatch( BaseObject ):
 
         theta: [angle in radian]
             rotation of the IFU with respect to north
-
+            
+        
         Returns
         -------
         HexagoneProjection (from pysedm.utils.hexagrid)
@@ -767,7 +768,9 @@ class TraceMatch( BaseObject ):
 
         # - position used to define 1 location of 1 spectral_trace
         xydata  = np.asarray([np.nanmean(self.trace_vertices[idx_], axis=0) for idx_ in trace_indexes])
+        
         return get_hexprojection(xydata, ids=trace_indexes, theta=theta)
+
     
     # ===================== #
     #   Properties          #

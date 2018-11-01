@@ -45,18 +45,21 @@ def build_meta_ifu_guider(ifufile, outdir=None, solve_wcs=True, verbose=False):
     Void (creates a guider_`ifufile`)
     """
     savefile = build_stacked_guider(ifufile, outdir)
-    if verbose:
-        print(" guider image built for %s"%ifufile)
-        print(savefile)
-    if solve_wcs:
+    if savefile:
         if verbose:
-            print(" running astrometry on %s"%savefile)
-        run_do_astrom(savefile)
-        if not os.path.isfile( savefile.replace( ".fits", "_astrom.fits" ) ):
-            print("do_astrom has failed. Let's rerun it")
+            print(" guider image built for %s"%ifufile)
+            print(savefile)
+        if solve_wcs:
+            if verbose:
+                print(" running astrometry on %s"%savefile)
             run_do_astrom(savefile)
-        else:
-            print("do_astrom succeeded.")
+            if not os.path.isfile( savefile.replace( ".fits", "_astrom.fits" ) ):
+                print("do_astrom has failed. Let's rerun it")
+                run_do_astrom(savefile)
+            else:
+                print("do_astrom succeeded.")
+    else:
+        print("ERROR - unable to build guider image")
             
 # ================== #
 #   Function         #
@@ -81,7 +84,11 @@ def build_stacked_guider(ifufile, outdir=None, overwrite=True):
 
     """
     guiders = get_ifu_guider_images( ifufile )
-    stacked_image = stack_images( guiders )
+    stacked_image, nstack = stack_images( guiders )
+    # did we get any?
+    if nstack < 1:
+        print("ERROR - no guider images found")
+        return None
     # - building the .fits
     date = io.header_to_date( fits.getheader(ifufile) )
     filein = ifufile.split("/")[-1]
@@ -90,6 +97,9 @@ def build_stacked_guider(ifufile, outdir=None, overwrite=True):
         
     savefile = outdir+"/guider_%s"%filein
     hdulist = fits.HDUList([fits.PrimaryHDU(stacked_image, fits.getheader(guiders[0]))])
+    hdulist[0].header['NSTACK'] = nstack
+    hdulist[0].header['STACKMTH'] = 'median'
+    hdulist[0].header['SCALEMTH'] = 'median'
     hdulist.writeto(savefile, overwrite=overwrite)
     return savefile
 
@@ -132,7 +142,15 @@ def get_ifu_guider_images(ifufile):
         except OSError:
             print("WARNING - corrupt fits file: %s" % f)
             continue
+        if "CAM_NAME" in ff[0].header:
+            # Skip IFU images
+            if "IFU" in ff[0].header['CAM_NAME']:
+                continue
+        else:
+            print("WARNING - no CAM_NAME keyword in %s" % f)
+            continue
         if "JD" in ff[0].header:
+            # Images used to guide ifufile
             if jd_ini <= ff[0].header["JD"] <= jd_end:
                 rb_list.append(rb_dir+f)
         else:
@@ -158,6 +176,6 @@ def stack_images(rainbow_files, method="median", scale="median"):
             scaling = np.median(data_)
         datas.append(data_/scaling)
 
-    return np.median(datas, axis=0)
+    return np.median(datas, axis=0), len(datas)
 
 

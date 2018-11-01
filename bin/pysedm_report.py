@@ -176,13 +176,15 @@ if  __name__ == "__main__":
 
     parser.add_argument('--slack',  action="store_true", default=False,
                         help='Submit the report to slack')
+    parser.add_argument('--justpush', action="store_true", default=False,
+                        help='Just push to slack')
 
     # ================ #
     # END of Option    #
     # ================ #
     args = parser.parse_args()
 
-    if args.slack:
+    if args.slack or args.justpush:
         try:
             from pysedmpush import slack
         except ImportError:
@@ -209,12 +211,13 @@ if  __name__ == "__main__":
         for specfile in specfiles:
             if 'failed' in specfile:
                 continue
-            img_report = build_image_report(specfile)
             report_filename = specfile.replace("spec_","pysedm_report_").replace(".fits",".png")
-            img_report.save(report_filename, dpi=(1000,1000))
+            if not args.justpush:
+                img_report = build_image_report(specfile)
+                img_report.save(report_filename, dpi=(1000,1000))
 
             # Slack push report
-            if args.slack:
+            if args.slack or args.justpush:
                 if not os.path.isfile( report_filename ):
                     warnings.warn("No file-image created by the pysedm_report.build_image_report(). Nothing to push on slack")
                 else:
@@ -222,7 +225,7 @@ if  __name__ == "__main__":
                     header  = fits.getheader(specfile)
                     file_id = pysedm.io.filename_to_id(specfile)
                     # Title & caption
-                    title = "pysedm-report: %s | %s (%s)"%(header["OBJECT"], file_id, date)
+                    title = "pysedm-report: %s | Qual %d | %s (%s)"%(header["OBJECT"], header["QUALITY"], file_id, date)
                     caption = ""
                     # Push
                     slack.push_image(report_filename, caption=caption, title=title,

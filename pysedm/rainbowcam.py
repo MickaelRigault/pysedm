@@ -105,11 +105,27 @@ def build_stacked_guider(ifufile, outdir=None, overwrite=True):
 
     
 def run_do_astrom(guider_filename_fullpath):
-    """ 
+    """ Run the do_astrom script in /scr2/sedmdrp/bin
     """
     import subprocess
-    print(["/scr2/sedmdrp/bin/do_astrom",guider_filename_fullpath])
-    subprocess.call(["/scr2/sedmdrp/bin/do_astrom",guider_filename_fullpath])
+    cmd = ["/scr2/sedmdrp/bin/do_astrom", guider_filename_fullpath]
+    print(" ".join(cmd))
+    subprocess.call(cmd)
+    # Test results
+    astrom_output = guider_filename_fullpath.replace(".fits", "_astrom.fits")
+    if not os.path.exists(astrom_output):
+        print("ERROR - astrometry failed, trying a median subtraction")
+        from scipy import ndimage
+        ff = fits.open(guider_filename_fullpath, mode='update')
+        image = ff[0].data * 1.0    # Ensure we are float
+        fsize = 15
+        print("making median filter...")
+        medfilt = ndimage.median_filter(image, fsize, mode='constant')
+        ff[0].data = image - medfilt
+        ff[0].header['MEDSUB'] = True, ' Median subtracted: %d px' % fsize
+        ff.close()
+        print("Done.  Re-doing do_astrom")
+        subprocess.call(cmd)
     
     
 # ================== #

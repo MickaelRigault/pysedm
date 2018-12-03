@@ -524,9 +524,13 @@ class Flexure( BaseObject ):
         ax.text(0.5,0.05,"corresponds to a typical ccd 'i'-shift of %.2f pixels"%(self.get_i_flexure()),
                     va="bottom",ha="center", transform=ax.transAxes, color="k",
                     bbox={'facecolor':'w', 'alpha':0.8,'edgecolor':'0.5', "boxstyle":"round"}, fontsize="small")
-        
-        ax.set_title("obs: %s | airmass: %.2f"%(self.cube.filename.split("/")[-1],self.cube.header["AIRMASS"]),
-                fontsize="x-small", color="0.5")
+
+        try:
+            ax.set_title("obs: %s | airmass: %.2f"%(self.cube.filename.split("/")[-1],self.cube.header["AIRMASS"]),
+                    fontsize="x-small", color="0.5")
+        except KeyError:
+            ax.set_title("obs: %s | airmass: ?" % self.cube.filename.split("/")[-1],
+                         fontsize="x-small", color="0.5")
 
         ax.set_ylim(0, ax.get_ylim()[-1]*1.5 )
         if savefile is not None:

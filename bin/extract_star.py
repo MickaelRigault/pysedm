@@ -147,7 +147,7 @@ def flux_calibrate(spec, fluxcalfile=None, nofluxcal=False):
         else:
             from pysedm.fluxcalibration import load_fluxcal_spectrum
             fluxcal = load_fluxcal_spectrum( fluxcalfile ) 
-            spec.scale_by( fluxcal.get_inversed_sensitivity(spec.header["AIRMASS"]) )
+            spec.scale_by( fluxcal.get_inversed_sensitivity(spec.header.get("AIRMASS", 1.1) ))
             spec.header["CALSRC"] = (fluxcal.filename.split("/")[-1], "Flux calibrator filename")
             flux_calibrated=True
             

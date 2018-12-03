@@ -289,8 +289,8 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
     if atmcorrected:
         atmspec = get_palomar_extinction()
         if 'AIRMASS' not in cube.header:
-            extinction = atmspec.get_atm_extinction(cube.lbda, 1.0)
-            print("WARNING: AIRMASS keyword missing from header, assuming 1.0")
+            extinction = atmspec.get_atm_extinction(cube.lbda, 1.1)
+            print("WARNING: AIRMASS keyword missing from header, assuming 1.1")
         else:
             extinction = atmspec.get_atm_extinction(cube.lbda, cube.header['AIRMASS'])
         # scale_by devided by
@@ -738,7 +738,7 @@ class SEDMCube( Cube ):
                                        lbdaref=lbdaref,
                                        temperature=self.header["IN_AIR"], 
                                        relathumidity=self.header["IN_HUM"], 
-                                       airmass=self.header['AIRMASS'], 
+                                       airmass=self.header.get('AIRMASS', 1.1),
                                        parangle=self.header['TEL_PA']),
                                 **kwargs)
         return super(SEDMCube, self).load_adr(**adr_prop)

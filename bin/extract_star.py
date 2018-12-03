@@ -164,6 +164,7 @@ def flux_calibrate(spec, fluxcalfile=None, nofluxcal=False):
         spec.header["FLUXCAL"] = (False,"has the spectra been flux calibrated")
         spec.header["BUNIT"]  = (spec.header.get('BUNIT',""),"Flux Units")
     return spec, flux_calibrated
+
 #################################
 #
 #   MAIN 

@@ -365,7 +365,8 @@ class FluxCalibrator( BaseObject ):
     # --------- #
     #  PLOTTER  #
     # --------- #
-    def show(self, savefile=None, show=True, ratiocolor="k", fluxcalcolor="C2", **kwargs):
+    def show(self, savefile=None, show=True, ratiocolor="k", fluxcalcolor="C2",
+                 show_vertbands=True, **kwargs):
         """ """
         import matplotlib.pyplot as mpl
         from pyifu import get_spectrum

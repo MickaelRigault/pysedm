@@ -288,7 +288,11 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
     # - Amtphore correction
     if atmcorrected:
         atmspec = get_palomar_extinction()
-        extinction = atmspec.get_atm_extinction(cube.lbda, cube.header['AIRMASS'])
+        if 'AIRMASS' not in cube.header:
+            extinction = atmspec.get_atm_extinction(cube.lbda, 1.0)
+            print("WARNING: AIRMASS keyword missing from header, assuming 1.0")
+        else:
+            extinction = atmspec.get_atm_extinction(cube.lbda, cube.header['AIRMASS'])
         # scale_by devided by
         cube.scale_by(1./extinction)
         cube.header['ATMCORR']  = (True, "Has the Atmosphere extinction been corrected?")

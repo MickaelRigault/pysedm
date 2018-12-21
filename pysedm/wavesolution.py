@@ -371,7 +371,7 @@ class Flexure( BaseObject ):
                             spaxel_vertices=self.cube.spaxel_vertices, 
                            indexes=self.mapper.traceindexes)
     @property
-    def _in_safemode(self):
+    def _in_backupmode(self):
         """ """
         return hasattr(self, "_safemode_backup") and self._safemode_backup
     
@@ -502,7 +502,7 @@ class Flexure( BaseObject ):
         i_flexure = self.get_i_flexure(safemode_backup=safemode_backup)
         
         # - Data
-        mus, mus_err           = self.get_cube_line_wavelength(True, which="sodium", safemode=self._in_safemode)
+        mus, mus_err           = self.get_cube_line_wavelength(True, which="sodium", safemode=self._in_backupmode)
         print(mus)
         tell_mus, tell_mus_err = self.get_cube_line_wavelength(True, which="telluric")
         delta_mus = np.concatenate([mus-sodium_reference, tell_mus-telluric_reference])
@@ -545,7 +545,7 @@ class Flexure( BaseObject ):
         ax.text(0.5,0.05,"corresponds to a typical ccd 'i'-shift of %.2f pixels"%(i_flexure),
                     va="bottom",ha="center", transform=ax.transAxes, color="k",
                     bbox={'facecolor':'w', 'alpha':0.8,'edgecolor':'0.5', "boxstyle":"round"}, fontsize="small")
-        if self._in_safemode:
+        if self._in_backupmode:
             ax.text(0.5,0.5,"WARNING BACKUP MODE USED",
                         va="bottom",ha="center", transform=ax.transAxes, color=mpl.cm.Reds(0.8,0.6),
                         bbox={'facecolor':'w', 'alpha':0.8,'edgecolor':'0.5', "boxstyle":"round"}, fontsize="small")

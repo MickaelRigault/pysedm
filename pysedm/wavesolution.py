@@ -316,14 +316,14 @@ class Flexure( BaseObject ):
     # --------- #
     def get_i_shift(self, sodium_reference=SODIUM_SKYLINE_LBDA,
                          telluric_reference=TELLURIC_REF_LBDA,
-                        as_slice=True):
+                        as_slice=True, safemode_backup=True, safemode=False):
         """ assuming the flexure is purely a i [x-ccd coord] shift, 
         how much would explaint the difference with respect to the sodium_reference
         
         i_shift such as `observed_position - reference_position`
         Returns
         """
-        mu_eff, mu_efferr = self.get_cube_line_wavelength(array=False, which="sodium")
+        mu_eff, mu_efferr = self.get_cube_line_wavelength(array=False, which="sodium", safemode=safemode)
         mu_t_eff, mu_t_efferr = self.get_cube_line_wavelength(array=False, which="telluric")
 
         # Sodium
@@ -353,7 +353,15 @@ class Flexure( BaseObject ):
         elif delta_i_na is not None:
             delta_i     = np.average([delta_i_na], weights=[1/mu_efferr**2], axis=0)
         else:
-            raise AttributeError("I cannot build the Flexure correction. Not a single method (telluric or Na) worked !")
+            if not safemode_backup:
+                raise AttributeError("I cannot build the Flexure correction. Not a single method (telluric or Na) worked !")
+            
+            warnings.warn("WARNING, using safemode backup in wavelength flexure correction")
+            self._safemode_backup=True
+            return self.get_i_shift( sodium_reference=sodium_reference,
+                                         telluric_reference=telluric_reference,
+                                         as_slice=as_slice, safemode_backup=False, safemode=True)
+
         
         if not as_slice:
             return {i:d for i,d in zip(self.mapper.traceindexes, delta_i)}
@@ -362,8 +370,12 @@ class Flexure( BaseObject ):
         return get_slice(delta_i, self.mapper.traceindex_to_xy(self.mapper.traceindexes), 
                             spaxel_vertices=self.cube.spaxel_vertices, 
                            indexes=self.mapper.traceindexes)
+    @property
+    def _in_safemode(self):
+        """ """
+        return hasattr(self, "_safemode_backup") and self._safemode_backup
     
-    def get_cube_line_wavelength(self, array=False, which="sodium"):
+    def get_cube_line_wavelength(self, array=False, which="sodium", safemode=False):
         """ get the cube sodium line position.
         If array=True: the fitted sodium lines and there errors are returns
         otherwise, a robust esitmation of the mean sodium (and error) line is returned
@@ -382,6 +394,9 @@ class Flexure( BaseObject ):
                                                       for v in self.fitvalues_sodiumlines]).T
         
         flagin = (mus==mus) * (muserr>1e-3) * (sigmerr>1e-4) * (sigm < 49)
+
+        if safemode and not np.any(flagin):
+            flagin = (mus==mus) #* (muserr>1) # * (sigmerr>1e-4) * (sigm < 70)
                                                 
         if array:
             return mus[flagin], muserr[flagin]
@@ -392,8 +407,9 @@ class Flexure( BaseObject ):
             nmad    = mad_std(mus[mus==mus])
             flagin = (np.abs(mus-median) <= nmad*2.) * flagin
             return np.nanmean(mus[flagin]), np.std(mus[flagin])/np.sqrt(len(mus[flagin])-1)
+        
         return np.NaN, np.NaN
-    
+        
     
     # --------- #
     #  FITTER   #
@@ -469,20 +485,25 @@ class Flexure( BaseObject ):
     # --------- #
     #  PLOTTER  #
     # --------- #
-    def get_i_flexure(self):
+    def get_i_flexure(self, safemode_backup=True):
         """ """
-        return np.mean( list(self.get_i_shift(as_slice=False).values()) )
+        
+        return np.mean( list(self.get_i_shift(as_slice=False, safemode_backup=safemode_backup).values()) )
         
     def show(self, savefile=None, show=True,
                  sodium_reference=SODIUM_SKYLINE_LBDA,
-                 telluric_reference=TELLURIC_REF_LBDA):
+                 telluric_reference=TELLURIC_REF_LBDA, safemode_backup=True):
         """" """
         import matplotlib.pyplot as mpl
         fig = mpl.figure(figsize=[5,3])
         ax  = fig.add_axes([0.15,0.2,0.75,0.7])
 
+        #Get i flexure, test for safemode
+        i_flexure = self.get_i_flexure(safemode_backup=safemode_backup)
+        
         # - Data
-        mus, mus_err           = self.get_cube_line_wavelength(True, which="sodium")
+        mus, mus_err           = self.get_cube_line_wavelength(True, which="sodium", safemode=self._in_safemode)
+        print(mus)
         tell_mus, tell_mus_err = self.get_cube_line_wavelength(True, which="telluric")
         delta_mus = np.concatenate([mus-sodium_reference, tell_mus-telluric_reference])
         # Centroid
@@ -521,10 +542,14 @@ class Flexure( BaseObject ):
         ax.text(0.98,0.98,"%d spectra made by \n averaging over %d spaxels"%(len(self._indexes),len(self._indexes[0])),
                     va="top",ha="right", transform=ax.transAxes, color="0.5", fontsize="x-small")
         
-        ax.text(0.5,0.05,"corresponds to a typical ccd 'i'-shift of %.2f pixels"%(self.get_i_flexure()),
+        ax.text(0.5,0.05,"corresponds to a typical ccd 'i'-shift of %.2f pixels"%(i_flexure),
                     va="bottom",ha="center", transform=ax.transAxes, color="k",
                     bbox={'facecolor':'w', 'alpha':0.8,'edgecolor':'0.5', "boxstyle":"round"}, fontsize="small")
-
+        if self._in_safemode:
+            ax.text(0.5,0.5,"WARNING BACKUP MODE USED",
+                        va="bottom",ha="center", transform=ax.transAxes, color=mpl.cm.Reds(0.8,0.6),
+                        bbox={'facecolor':'w', 'alpha':0.8,'edgecolor':'0.5', "boxstyle":"round"}, fontsize="small")
+        
         try:
             ax.set_title("obs: %s | airmass: %.2f"%(self.cube.filename.split("/")[-1],self.cube.header["AIRMASS"]),
                     fontsize="x-small", color="0.5")

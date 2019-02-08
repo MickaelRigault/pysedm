@@ -20,7 +20,7 @@ def flat_cubes(date, lbda_min=7000, lbda_max=9000, ref="dome"):
         raise ValueError("No cube reference for target %s in night %s"%(ref,date))
     
     refcube  = get_sedmcube(reffile[0])
-    flatfied = refcube.get_slice(lbda_min, lbda_max, usemean=True)
+    flatfied = refcube.get_slice(lbda_min=lbda_min, lbda_max=lbda_max, usemean=True)
     print(flatfied.mean())
     # ----------------- #
     # Build flat cubes  #

@@ -142,10 +142,6 @@ if  __name__ == "__main__":
         fileindex = "quickbuild"
     else:
         fileindex = ""
-
-    if args.noflexure:
-        print("***** TEMPORARY | WARNING: FORCING --noflexure to False ****** ")
-        args.noflexure = False
         
     if args.build is not None and len(args.build) >0:
         for target in args.build.split(","):

@@ -87,7 +87,7 @@ REFWAVELENGTH = 7000
 # For Information:
 #    Sodium skyline fitted by SNIFS is at 5892.346 Angstrom
 SODIUM_SKYLINE_LBDA = 5892.3
-TELLURIC_REF_LBDA   = 7624.5 # 
+TELLURIC_REF_LBDA   = 7630 #  7624.5
 _REFORIGIN = 69
 
 LINES= {"Hg": # IN VACUUM
@@ -503,7 +503,6 @@ class Flexure( BaseObject ):
         
         # - Data
         mus, mus_err           = self.get_cube_line_wavelength(True, which="sodium", safemode=self._in_backupmode)
-        print(mus)
         tell_mus, tell_mus_err = self.get_cube_line_wavelength(True, which="telluric")
         delta_mus = np.concatenate([mus-sodium_reference, tell_mus-telluric_reference])
         # Centroid

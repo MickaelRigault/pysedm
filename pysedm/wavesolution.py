@@ -87,7 +87,7 @@ REFWAVELENGTH = 7000
 # For Information:
 #    Sodium skyline fitted by SNIFS is at 5892.346 Angstrom
 SODIUM_SKYLINE_LBDA = 5892.3
-TELLURIC_REF_LBDA   = 7630 #  7624.5
+TELLURIC_REF_LBDA   = 7624.5 #  7624.5
 _REFORIGIN = 69
 
 LINES= {"Hg": # IN VACUUM

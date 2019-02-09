@@ -10,7 +10,7 @@ AVOIDANCE_AREA = {"telluric":[[7450,7750],[6850,7050]],
                  "absorption":[[6400,6650],[4810,4910],
                                 [4300,4350],[4030,4130],[3900,3980]]}
 
-POLYDEGREE = 20
+POLYDEGREE = 40
 def get_fluxcalibrator(stdspectrum, polydegree=POLYDEGREE, fullout=False, filter=None):
     """ fit a smooth polynome through the ratio between observed standard and their expected flux (calspec) """
     fl = FluxCalibrator()
@@ -274,7 +274,7 @@ class FluxCalibrator( BaseObject ):
     # -------- #
     # GETTER   #
     # -------- #
-    def fit_inverse_sensitivity(self, polydegree=POLYDEGREE, filter=None, masked_area=None,**kwargs):
+    def fit_inverse_sensitivity(self, polydegree=POLYDEGREE, filter=4, masked_area=None,**kwargs):
         """ **kwargs goes to polyfit.fit(**kwargs)
         
         Parameters
@@ -295,22 +295,48 @@ class FluxCalibrator( BaseObject ):
             maskin = self.get_avoidance_mask("absorption")
         else:
             maskin = None
+            
         datacal = self.spectrum.data/self.calspec_spectrum.data
         norm = datacal.mean()
         datacal/=norm
         
         errcal = datacal * (np.sqrt(self.spectrum.variance)/self.spectrum.data)# + np.sqrt(self.calspec_spectrum.variance)/self.calspec_spectrum.data)
         
-        self.tpoly = TelluricPolynomeFit(self.spectrum.lbda, datacal, errcal, polydegree, load_telluric_line(), maskin=maskin)
+        
         
         if filter is not None:
             kwargs["filter_guess"] = filter
             kwargs["filter_fixed"] = True
-            
-        self.tpoly.fit(airmass_guess= self.spectrum.header["AIRMASS"], airmass_fixed= True, airmass_boundaries=[self.spectrum.header["AIRMASS"], self.spectrum.header["AIRMASS"]*1.1],
-                        **kwargs)
-        self.tpoly.norm = norm
+        else:
+            kwargs["filter_guess"] = 18
+
         
+        end_airmass = float(self.spectrum.header["ENDAIR"]) if "ENDAIR" in self.spectrum.header else self.spectrum.header["AIRMASS"]
+        start_airmass = float(self.spectrum.header["AIRMASS"])
+        airmass = np.mean([start_airmass, end_airmass])
+        #
+        # 2 Step proceedure.
+        #
+        # - Step 1 fit for the telluric region
+        flux_range = (self.spectrum.lbda>6000) & (self.spectrum.lbda<8200)
+        POLY_TELL  = 5
+        tpoly = TelluricPolynomeFit(self.spectrum.lbda[flux_range], datacal[flux_range],
+                                        errcal[flux_range],
+                                        POLY_TELL, load_telluric_line(), maskin=None)
+        tpoly.fit(airmass_guess= airmass, airmass_fixed= True, airmass_boundaries=np.sort([start_airmass, end_airmass])*[1, 1.05],
+                      filter_guess=15, filter_fixed=False,
+                      coefh2o_guess=0, coefh2o_fixed=True,rho_h2o_guess=1, rho_h2o_fixed=True )
+        
+        # use this to fix telluric info in for the second run
+        kwarg_fit = {**{k+"_guess":tpoly.fitvalues[k] for k in tpoly.model.TELL_FREEPARAMETERS},
+                         **{k+"_fixed":True for k in tpoly.model.TELL_FREEPARAMETERS}}
+        
+        print("step 1 Done")
+        print("step 2 Starting")
+        self.tpoly = TelluricPolynomeFit(self.spectrum.lbda, datacal, errcal, polydegree, load_telluric_line(), maskin=maskin)
+        self.tpoly.fit(**kwarg_fit)
+        self.tpoly.norm = norm
+        print("step 2 Done")
         #
         header = self.spectrum.header.copy()
     

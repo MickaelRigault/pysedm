@@ -322,6 +322,7 @@ class TelluricPolyModel( PolyModel ):
             self._properties["maskin"] = None
         else:
             self._properties["maskin"] = np.asarray(maskin, dtype="bool")
+            
     def setup(self, parameters):
         """ read and parse the parameters """
         # good strategy to have 2 names to easily super() the continuum in get_model

@@ -471,10 +471,14 @@ class Flexure( BaseObject ):
         return nfit.fitvalues
     
     def fit_cube_lines(self, sodium_reference=SODIUM_SKYLINE_LBDA,
-                                 nspaxels=40, averaging=15, show=False):
+                            nspaxels=30, averaging=35, show=False, use_faintest=False):
         """ """
-        index_to_fit = np.asarray(self.cube.get_faintest_spaxels(nspaxels*averaging))
-        np.random.shuffle(index_to_fit)
+        if use_faintest:
+            index_to_fit = np.asarray(self.cube.get_faintest_spaxels(nspaxels*averaging))
+            np.random.shuffle(index_to_fit)
+        else:
+            index_to_fit= np.random.choice(np.arange(len(self.cube.indexes)), int(nspaxels*averaging), replace=False)
+
         self._indexes = index_to_fit.reshape(nspaxels,averaging)
         self._derived_properties["fitvalues_sodiumlines"] = []
         for index_ in self._indexes:
@@ -488,7 +492,7 @@ class Flexure( BaseObject ):
     def get_i_flexure(self, safemode_backup=True):
         """ """
         
-        return np.mean( list(self.get_i_shift(as_slice=False, safemode_backup=safemode_backup).values()) )
+        return np.median( list(self.get_i_shift(as_slice=False, safemode_backup=safemode_backup).values()) )
         
     def show(self, savefile=None, show=True,
                  sodium_reference=SODIUM_SKYLINE_LBDA,

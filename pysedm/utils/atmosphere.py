@@ -336,14 +336,14 @@ class TelluricPolyModel( PolyModel ):
                                                                                 len(self.TELL_FREEPARAMETERS)))
         self._properties["tellparameters"] = tellparameters
         
-    def get_telluric_model(self, tellparam=None):
+    def get_telluric_model(self, tellparam=None, lbda=None):
         """ """
         if tellparam is not None:
             self.set_tellparameters(tellparam)
             
         # Last tellparameter is the amplitude
         return self.tellparameters[-1]*self.tellspectrum.get_telluric_throughput(**{k:v for k,v in 
-                                zip(self.TELL_FREEPARAMETERS[:-1], self.tellparameters[:-1])}).reshape(self.xsource,"linear").data
+                                zip(self.TELL_FREEPARAMETERS[:-1], self.tellparameters[:-1])}).reshape(self.xsource if lbda is None else lbda,"linear").data
 
     def get_model(self, param=None):
         """ return the model for the given data.

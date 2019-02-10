@@ -68,10 +68,13 @@ IFU_SCALE_UNIT  = 0.75
 # ----- WCS
 SEDM_ASTROM_PARAM  = [ 7.28968990e-01,  6.89009309e-02, -6.57804812e-03, -7.94252856e-01,
                            1.02682050e+03 , 1.01659890e+03]
+    
 SEDM_ASTROM_PARAM_since_20180928 = [ 6.63023938e-01,  6.57283519e-02, -1.97868377e-02, -7.71650238e-01,
                                          1.01768812e+03,  1.01237730e+03]
 
-
+SEDM_ASTROM_PARAM_since_20190201 = [ 6.20197410e-01,  1.02551606e-01,  3.84158750e-02, -8.63030378e-01,
+                                         1.03498483e+03,  1.01326973e+03]
+    
 def get_sedm_astrom_param(cube_date=None):
     """ """
     if cube_date is None:
@@ -81,8 +84,10 @@ def get_sedm_astrom_param(cube_date=None):
     # Old Rainbow CCD
     if Time(cube_date) < Time("2018-09-27"):
         return SEDM_ASTROM_PARAM
-    else:
+    elif Time(cube_date) < Time("2019-01-30"):
         return SEDM_ASTROM_PARAM_since_20180928
+    else:
+        return SEDM_ASTROM_PARAM_since_20190201
 
 # --- Palomar Atmosphere
 # Palomar Extinction Data from Hayes & Latham 1975

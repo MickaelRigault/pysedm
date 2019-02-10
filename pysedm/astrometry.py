@@ -68,8 +68,7 @@ def fit_conversion_matrix(cubes_to_fit, guess=None):
     from scipy.optimize import fmin
     
     if guess is None:
-        from pysedm import SEDM_ASTROM_PARAM
-        GUESS = np.asarray(SEDM_ASTROM_PARAM)+np.asarray([0,0,0,0,-2,-2])
+        guess = get_sedm_astrom_param(cube_to_fit)
     else:
         guess= np.asarray(guess)
 

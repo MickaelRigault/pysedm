@@ -18,6 +18,8 @@ except ImportError:
 # - External Modules
 from propobject              import BaseObject
 from pyifu.spectroscopy      import Spectrum
+import pyifu
+import modefit
 
 # - Internal Modules
 from .ccd import CCD
@@ -86,8 +88,9 @@ REFWAVELENGTH = 7000
 
 # For Information:
 #    Sodium skyline fitted by SNIFS is at 5892.346 Angstrom
-SODIUM_SKYLINE_LBDA = 5892.3
-TELLURIC_REF_LBDA   = 7624.5 #  7624.5
+SODIUM_SKYLINE_LBDA = 5900#5896
+TELLURIC_REF_LBDA   = 7630 #  7624.5
+
 _REFORIGIN = 69
 
 LINES= {"Hg": # IN VACUUM
@@ -289,8 +292,10 @@ def _fit_wavesolution_notebook_(lamps, indexes, multiprocess=True):
 ###########################
 class Flexure( BaseObject ):
     """ """
-    PROPERTIES = ["cube","mapper"]
-    DERIVED_PROPERTIES = ["fitvalues_sodiumlines"]
+    PROPERTIES = ["cube", "mapper", "reference"]
+    SIDE_PROPERTIES = ["spec_sodium", "spec_sodium_indexes",
+                        "spec_telluric"]
+    DERIVED_PROPERTIES = ["fit_telluric", "fit_sodium"]
 
     def __init__(self, cube, mapper=None):
         """ """
@@ -299,6 +304,191 @@ class Flexure( BaseObject ):
     # ================== #
     #   Method           #
     # ================== #
+    # -------- #
+    #  SHOW    #
+    # -------- #
+    def show(self, savefile=None, show=True):
+        """ """
+        
+        fig = mpl.figure(figsize=[5,3])
+        axna  = fig.add_axes([0.15,0.2,0.75,0.31])
+        axte  = fig.add_axes([0.15,0.60,0.75,0.31])
+
+        refcolor = "C1"
+        # Telluric
+        _ = [f_.show(color="C0", alpha=0.2, ecolor="C0", modelcolor="0.8",ax=axte, show=False) for f_ in self.fit_telluric]
+        _ = [axte.axvline(f_.fitvalues["mu0"], color="C0", alpha=0.2, zorder=7) for f_ in self.fit_telluric]
+        axte.axvline(TELLURIC_REF_LBDA, color=refcolor, zorder=8)
+
+        _ = [f_.show(color="C0", alpha=0.2, ecolor="C0", modelcolor="0.8",ax=axna, show=False) for f_ in self.fit_sodium]
+        _ = [axna.axvline(f_.fitvalues["mu0"], color="C0", alpha=0.2, zorder=7) for f_ in self.fit_sodium]
+        axna.axvline(SODIUM_SKYLINE_LBDA, color=refcolor, zorder=8)
+
+        for ax_ in [axte, axna]:
+            ax_.spines['top'].set_visible(False)
+            ax_.spines['right'].set_visible(False)
+            ax_.spines['left'].set_visible(False)
+            ax_.tick_params(labelsize="small")
+            ax_.tick_params(axis="y",color="0.5", labelcolor="0.5", labelsize="x-small")
+
+        axna.set_xlabel(r"Wavelength [$\AA$]", fontsize="medium")
+        axte.set_ylabel(r"Flux [a.u]", fontsize="small", color="0.5")
+        axna.set_ylabel(r"Flux [a.u]", fontsize="small", color="0.5")
+        
+        #
+        # Info
+        #
+        prop_box = {'facecolor':'w', 'alpha':0.7, "edgecolor":"None"}
+        for ax_,which_ in zip([axna,axte], ["sodium", "telluric"]):
+            mu,muerr = self.get_line_position(which_)
+            ax_.text(0,0.98, r"$\Delta \lambda=%.1f \pm %.1f\,\AA$"%(mu-self.reference[which_],muerr),
+                 transform=ax_.transAxes, va="top", ha="left", fontsize="small", color="0.5",
+                        bbox=prop_box)
+            ax_.text(1,0, r"%s $%.1f\,\AA$"%(which_,self.reference[which_]),
+                         transform=ax_.transAxes, fontsize="small", va="bottom", ha="right",
+                         bbox=prop_box)
+            
+        # Generic information
+        fig.text(0.5,0.98,"corresponds to a typical ccd 'i'-shift of %.2f pixels"%(self.get_i_flexure()),
+                            va="top",ha="center", color="k",
+                            bbox={'facecolor':'w', 'alpha':0.9,'edgecolor':'0.5', "boxstyle":"square"}, fontsize="small")
+        if savefile is not None:
+            fig.savefig(savefile)
+        elif show:
+            fig.show()
+            
+    # -------- #
+    #  GETTER  #
+    # -------- #
+    def get_line_position(self, which="sodium", as_array=False, method="mean"):
+        """ 
+        The error is based on median statistics as long as there are more than 10 spectrum to measure the dispersion
+        """
+        from astropy.stats import mad_std
+        mu, muerr = np.asarray([[t_.fitvalues["mu0"],t_.fitvalues["mu0.err"]] for t_ in eval("self.fit_%s"%which)]).T
+        if as_array:
+            return mu, muerr
+        if method in ["wmean", "weightedmean"]:
+            mean_ = np.average(mu, weights=1/muerr**2)
+        elif method in ["mean", "nanmean", "median", "nanmedian"]:
+            mean_ = eval("np.%s(mu)"%method)
+        else:  
+            raise ValueError("Unknown averaging method %"%method)
+        
+        err = mad_std(mu)/np.sqrt(len(mu)-1) if len(mu)>10 else np.std(mu)/np.sqrt(len(mu)-1)
+        return mean_, err
+        
+    def get_i_flexure(self, use=["sodium", "telluric"], **kwargs):
+        """ """
+        return np.median( self.get_i_shift(use=use, **kwargs).data)
+
+    def _get_delta_i_(self, which="sodium", method="mean", as_slice=True):
+        """ """
+        mu_nad_eff, mu_nad_eff_err = self.get_line_position(which, method=method)
+        ijs_nad_eff = self.mapper.get_lbda_ij(mu_nad_eff)
+        ijs_nad_ref = self.mapper.get_lbda_ij(self.reference[which])
+        data_ = [ijs_nad_eff[traceindex][0]-ijs_nad_ref[traceindex][0]
+                    for traceindex in self.cube.indexes]
+        
+        if not as_slice:
+            return {traceindex:d_ for traceindex,d_ in zip(self.cube.indexes, data_)}
+        
+        return pyifu.get_slice(data_, self.cube.index_to_xy(self.cube.indexes), 
+                                spaxel_vertices=self.cube.spaxel_vertices, 
+                                indexes=self.cube.indexes)
+
+        
+    def get_i_shift(self, as_slice=True,
+                        use=["sodium", "telluric"],
+                        sodium_weight=2, method="mean"):
+        """
+        sodium_weight: [float] -optional-
+            How much more weight to you wqnt to give to sodium in comparison to telluric
+            = This is only used only if use=['sodium', 'telluric'] =
+        """
+        # LINE TO USE
+        use = np.atleast_1d(use)
+        if len(use) == 1:
+            delta_i = self._get_delta_i_(which=use[0], method=method, as_slice=True)
+            #delta_i.scale_by(-1) # To correct for it, remove it.
+            return delta_i.data if as_slice else {i:d for i,d in zip(delta_i.indexes, delta_i.data)}
+
+        elif list(use) not in [["sodium","telluric"],["telluric","sodium"]]:
+            raise ValueError("use should either be 'sodium' or 'telluric' or both ['sodium', 'telluric']")
+
+        sl_na   = self._get_delta_i_("sodium")
+        sl_te   = self._get_delta_i_("telluric")
+        data_   = np.average([sl_na.data,sl_te.data], weights=[sodium_weight, 1], axis=0) * -1
+        sl      = pyifu.get_slice(data_, self.cube.index_to_xy(self.cube.indexes), 
+                                spaxel_vertices=self.cube.spaxel_vertices, 
+                                indexes=self.cube.indexes)
+
+        #sl.scale_by(-1) # To correct for it, remove it.
+        if not as_slice:
+            return {i:d for i,d in zip(self.cube.indexes, sl.data)}
+
+        return sl
+            
+            
+    # -------- #
+    #  LOADER  #
+    # -------- #
+    def load_sodium_spec(self, nspaxels=20, averaging=40, use_faintest=True):
+        """ """
+        if use_faintest:
+            index_to_fit = np.asarray(self.cube.get_faintest_spaxels(nspaxels*averaging))
+            np.random.shuffle(index_to_fit)
+        else:
+            index_to_fit= np.random.choice(np.arange(len(self.cube.indexes)), int(nspaxels*averaging), replace=False)
+
+        indexes = index_to_fit.reshape(nspaxels,averaging)
+        self._side_properties["spec_sodium_indexes"] = index_to_fit
+        self._side_properties["spec_sodium"] = [self.cube.get_spectrum(index_,"data")
+                                                   for index_ in indexes]
+        
+    def load_telluric_spec(self, nspaxels=5, averaging=50, nskyspaxels=100):
+        """ """
+        index_to_fit = np.asarray(self.cube.get_brightest_spaxels(nspaxels*averaging))
+        np.random.shuffle(index_to_fit)
+        indexes = index_to_fit.reshape(nspaxels,averaging)
+        skyspec = self.cube.get_spectrum(self.cube.get_faintest_spaxels(nskyspaxels))
+        spec_b = [self.cube.get_spectrum(index_,"data") for index_ in indexes]
+        self._side_properties["spec_telluric"] = \
+            [pyifu.get_spectrum(skyspec.lbda, spec_b_.data-skyspec.data, variance=spec_b_.variance)
+                                        for spec_b_ in spec_b]
+        
+    def load_telluric_fit(self, wavebuffer=400):
+        """ """
+        if self.spec_telluric is None:
+            self.load_telluric_spec()
+        
+        flaglocal = (self.cube.lbda > TELLURIC_REF_LBDA-wavebuffer) & (self.cube.lbda < TELLURIC_REF_LBDA+wavebuffer)
+        fit_tell = []
+        for spec_ in self.spec_telluric:
+            fg = modefit.get_normpolyfit(spec_.lbda[flaglocal], spec_.data[flaglocal], spec_.data[flaglocal]/30, 2, 1)
+            fg.fit(sig0_guess=30, sig0_boundaries=[2,None],
+                       mu0_guess= self.reference["telluric"],
+                       mu0_boundaries= [self.reference["telluric"]-30, self.reference["telluric"]+30])
+            fit_tell.append(fg)
+            
+        self._derived_properties["fit_telluric"] = fit_tell
+    
+    def load_sodium_fit(self, wavebuffer=300):
+        """ """
+        if self.spec_sodium is None:
+            self.load_sodium_spec()
+        
+        flaglocal = (self.cube.lbda > SODIUM_SKYLINE_LBDA-wavebuffer) & (self.cube.lbda < SODIUM_SKYLINE_LBDA+wavebuffer)
+        fit_nad = []
+        for spec_ in self.spec_sodium:
+            fg = modefit.get_normpolyfit(spec_.lbda[flaglocal], spec_.data[flaglocal], spec_.data[flaglocal]/30, 2, 1)
+            fg.fit(sig0_guess=10, sig0_boundaries=[2,None],
+                       mu0_guess= self.reference["sodium"],
+                       mu0_boundaries= [self.reference["sodium"]-50, self.reference["sodium"]+50])
+            fit_nad.append(fg)
+            
+        self._derived_properties["fit_sodium"] = fit_nad
+        
     # --------- #
     #  SETTER   #
     # --------- #
@@ -310,262 +500,14 @@ class Flexure( BaseObject ):
         """ attach to this intance a mapper object containing the 
         ccd to cube coordinates conversions """
         self._properties["mapper"] = mapper_
-        
-    # --------- #
-    #  GETTER   #
-    # --------- #
-    def get_i_shift(self, sodium_reference=SODIUM_SKYLINE_LBDA,
-                         telluric_reference=TELLURIC_REF_LBDA,
-                        as_slice=True, safemode_backup=True, safemode=False):
-        """ assuming the flexure is purely a i [x-ccd coord] shift, 
-        how much would explaint the difference with respect to the sodium_reference
-        
-        i_shift such as `observed_position - reference_position`
-        Returns
-        """
-        mu_eff, mu_efferr = self.get_cube_line_wavelength(array=False, which="sodium", safemode=safemode)
-        mu_t_eff, mu_t_efferr = self.get_cube_line_wavelength(array=False, which="telluric")
 
-        # Sodium
-        if mu_efferr==mu_efferr:
-            ijs_eff    = self.mapper.get_lbda_ij(mu_eff)
-            ijs_reff   = self.mapper.get_lbda_ij(sodium_reference)
-            delta_i_na  = [ijs_reff[traceindex][0]-ijs_eff[traceindex][0]
-                        for traceindex in self.mapper.traceindexes]
-        else:
-            delta_i_na = None
-            
-            
-        # Telluric
-        if mu_t_efferr==mu_t_efferr:
-            ijs_eff_t  = self.mapper.get_lbda_ij(mu_t_eff)
-            ijs_reff_t = self.mapper.get_lbda_ij(telluric_reference)
-            delta_i_t   = [ijs_reff_t[traceindex][0]-ijs_eff_t[traceindex][0]
-                        for traceindex in self.mapper.traceindexes]
-        else:
-            delta_i_t = None
-
-        # Get the shift
-        if delta_i_na is not None and delta_i_t is not None:
-            delta_i     = np.average([delta_i_na, delta_i_t], weights=[1/mu_efferr**2,1/mu_t_efferr**2], axis=0)
-        elif delta_i_t is not None:
-            delta_i     = np.average([delta_i_t], weights=[1/mu_t_efferr**2], axis=0)
-        elif delta_i_na is not None:
-            delta_i     = np.average([delta_i_na], weights=[1/mu_efferr**2], axis=0)
-        else:
-            if not safemode_backup:
-                raise AttributeError("I cannot build the Flexure correction. Not a single method (telluric or Na) worked !")
-            
-            warnings.warn("WARNING, using safemode backup in wavelength flexure correction")
-            self._safemode_backup=True
-            return self.get_i_shift( sodium_reference=sodium_reference,
-                                         telluric_reference=telluric_reference,
-                                         as_slice=as_slice, safemode_backup=False, safemode=True)
-
-        
-        if not as_slice:
-            return {i:d for i,d in zip(self.mapper.traceindexes, delta_i)}
-
-        from pyifu import get_slice
-        return get_slice(delta_i, self.mapper.traceindex_to_xy(self.mapper.traceindexes), 
-                            spaxel_vertices=self.cube.spaxel_vertices, 
-                           indexes=self.mapper.traceindexes)
-    @property
-    def _in_backupmode(self):
+    def set_reference(self, sodium=None, telluric=None):
         """ """
-        return hasattr(self, "_safemode_backup") and self._safemode_backup
-    
-    def get_cube_line_wavelength(self, array=False, which="sodium", safemode=False):
-        """ get the cube sodium line position.
-        If array=True: the fitted sodium lines and there errors are returns
-        otherwise, a robust esitmation of the mean sodium (and error) line is returned
-
-        Robustness: cases more than 2 nMAD times away from the median are excluded.
-        """
-        from astropy.stats import mad_std
-        if which in ["sodium"]:
-            id_ = "0"
-        elif which in ["telluric"]:
-            id_ = "1"
-        else:
-            raise ValueError("which can only be 'sodium' or 'telluric', %s given"%which)
-        
-        mus, muserr, sigm, sigmerr = np.asarray([[v["mu%s"%id_],v["mu%s.err"%id_],v["sig%s"%id_], v["sig%s.err"%id_]]
-                                                      for v in self.fitvalues_sodiumlines]).T
-        
-        flagin = (mus==mus) * (muserr>1e-3) * (sigmerr>1e-4) * (sigm < 49)
-
-        if safemode and not np.any(flagin):
-            flagin = (mus==mus) #* (muserr>1) # * (sigmerr>1e-4) * (sigm < 70)
-                                                
-        if array:
-            return mus[flagin], muserr[flagin]
-        
-        # - robust calc:
-        if np.any(flagin):
-            median  = np.nanmedian(mus)
-            nmad    = mad_std(mus[mus==mus])
-            flagin = (np.abs(mus-median) <= nmad*2.) * flagin
-            return np.nanmean(mus[flagin]), np.std(mus[flagin])/np.sqrt(len(mus[flagin])-1)
-        
-        return np.NaN, np.NaN
-        
-    
-    # --------- #
-    #  FITTER   #
-    # --------- #        
-    def fit_lines(self, spectrum, 
-                    sodium_reference=SODIUM_SKYLINE_LBDA, telluric_reference=TELLURIC_REF_LBDA,
-                    lbda_buffer=400, show=False):
-        """ fit the sodium line on the given spectrum and returns the fitvalue dictionary.
-        = This method using modefit.get_normpolyfit() to fit the emission line=
-
-        Remark: See the `fit_cube_lines()` method for the entire cube fit.
-
-        Parameters
-        ----------
-        spectrum: [pyifu.Spectrum]
-            wavelength calibrated spectrum containing the sodium emmision line 
+        if sodium is not None:
+            self.reference["sodium"] = sodium
             
-        sodium_reference: [float] -optional-
-            wavelength of the sodium sky line. 
-
-        lbda_buffer: [float] -optional-
-            how many wavelength above and below the sodium_reference will be used for the fit.
-        
-        show: [bool] -optional-
-            Do you want to display the fit result?
-
-        Returns
-        -------
-        dict (fitvalues)
-        """
-        from modefit import get_normpolyfit
-        flagout  = (spectrum.lbda<SODIUM_SKYLINE_LBDA-lbda_buffer)# + (spectrum.lbda>telluric_reference+lbda_buffer)
-        if spectrum.has_variance():
-            flagout += np.isnan(spectrum.data*spectrum.variance)
-        else:
-            flagout += np.isnan(spectrum.data)
-            
-        norm    = np.nanmean(spectrum.data[~flagout])
-        nfit    = get_normpolyfit(spectrum.lbda[~flagout], spectrum.data[~flagout]/norm, 
-                                    spectrum.variance[~flagout]/norm**2*2 if spectrum.has_variance() else None, 
-                                degree=5, ngauss=2)
-        
-        nfit.fit(**{# Sodium 
-                    "ampl0_guess": 100,
-                    "ampl0_boundaries": [1,1000],
-                    "mu0_guess":  sodium_reference,"mu0_boundaries":  [sodium_reference-100.,sodium_reference+100],
-                    "sig0_guess": 30,"sig0_boundaries": [15,60],
-                    # Telluric
-                    "ampl1_guess": -100,
-                    "ampl1_boundaries": [-1000,-1],
-                    "mu1_guess":  telluric_reference,"mu1_boundaries":  [telluric_reference-100.,telluric_reference+100],
-                    "sig1_guess": 40,"sig1_boundaries": [20,70], # larger since composition of
-                    # Continuum                    
-                    "a0_guess": 1, "a1_guess": 0})
-        
-        if show:
-            nfit.show()
-            
-        return nfit.fitvalues
-    
-    def fit_cube_lines(self, sodium_reference=SODIUM_SKYLINE_LBDA,
-                            nspaxels=30, averaging=35, show=False, use_faintest=False):
-        """ """
-        if use_faintest:
-            index_to_fit = np.asarray(self.cube.get_faintest_spaxels(nspaxels*averaging))
-            np.random.shuffle(index_to_fit)
-        else:
-            index_to_fit= np.random.choice(np.arange(len(self.cube.indexes)), int(nspaxels*averaging), replace=False)
-
-        self._indexes = index_to_fit.reshape(nspaxels,averaging)
-        self._derived_properties["fitvalues_sodiumlines"] = []
-        for index_ in self._indexes:
-            fv = self.fit_lines(self.cube.get_spectrum(index_,"data"),
-                                          sodium_reference=sodium_reference, show=show)
-            self.fitvalues_sodiumlines.append(fv)
-            
-    # --------- #
-    #  PLOTTER  #
-    # --------- #
-    def get_i_flexure(self, safemode_backup=True):
-        """ """
-        
-        return np.median( list(self.get_i_shift(as_slice=False, safemode_backup=safemode_backup).values()) )
-        
-    def show(self, savefile=None, show=True,
-                 sodium_reference=SODIUM_SKYLINE_LBDA,
-                 telluric_reference=TELLURIC_REF_LBDA, safemode_backup=True):
-        """" """
-        import matplotlib.pyplot as mpl
-        fig = mpl.figure(figsize=[5,3])
-        ax  = fig.add_axes([0.15,0.2,0.75,0.7])
-
-        #Get i flexure, test for safemode
-        i_flexure = self.get_i_flexure(safemode_backup=safemode_backup)
-        
-        # - Data
-        mus, mus_err           = self.get_cube_line_wavelength(True, which="sodium", safemode=self._in_backupmode)
-        tell_mus, tell_mus_err = self.get_cube_line_wavelength(True, which="telluric")
-        delta_mus = np.concatenate([mus-sodium_reference, tell_mus-telluric_reference])
-        # Centroid
-        meanmus, meanmus_err   = self.get_cube_line_wavelength(False)
-        meanmus_t, meanmus_t_err   = self.get_cube_line_wavelength(False, which="telluric")
-        
-        meanmus   -= sodium_reference
-        meanmus_t -= telluric_reference
-
-        
-        histprop = dict(bins=15, range=[np.floor(np.percentile(delta_mus, 5)),
-                                        np.ceil(np.percentile(delta_mus, 95))],
-                            histtype="step", normed=False)
-        ax.hist(delta_mus[delta_mus==delta_mus],fill=False, **histprop)
-        ax.hist(mus[mus==mus] -sodium_reference,fill=True, 
-                facecolor=mpl.cm.Blues(0.6,0.4), lw=0, **histprop)
-            
-        ax.set_xlabel(r"Fitted sky line shift [$\AA$]", fontsize="medium")
-        
-        ax.axvline( 0 , ls="-", color="C1", label="Expectation (Na: %.1f ; Tell: %.1f)"%(sodium_reference,
-                                                                                         telluric_reference))
-        # Sodium
-        if meanmus_err == meanmus_err:
-            ax.axvline( meanmus, ls="--", color="C2")
-            ax.axvspan( meanmus-meanmus_err,meanmus+meanmus_err, color="C2", alpha=0.5,
-                            label=r"Sodium shift $(%.1f \pm %.1f)$"%(meanmus,meanmus_err))
-        # Telluriv
-        if meanmus_t_err==meanmus_t_err:
-            ax.axvline( meanmus_t, ls="--", color="C3")
-            ax.axvspan( meanmus_t-meanmus_t_err,meanmus_t+meanmus_t_err, color="C3", alpha=0.5,
-                            label=r"Telluric shift $(%.1f \pm %.1f)$"%(meanmus_t,meanmus_t_err))
-            
-            
-        ax.legend(loc="upper left",fontsize="x-small")
-        
-        ax.text(0.98,0.98,"%d spectra made by \n averaging over %d spaxels"%(len(self._indexes),len(self._indexes[0])),
-                    va="top",ha="right", transform=ax.transAxes, color="0.5", fontsize="x-small")
-        
-        ax.text(0.5,0.05,"corresponds to a typical ccd 'i'-shift of %.2f pixels"%(i_flexure),
-                    va="bottom",ha="center", transform=ax.transAxes, color="k",
-                    bbox={'facecolor':'w', 'alpha':0.8,'edgecolor':'0.5', "boxstyle":"round"}, fontsize="small")
-        if self._in_backupmode:
-            ax.text(0.5,0.5,"WARNING BACKUP MODE USED",
-                        va="bottom",ha="center", transform=ax.transAxes, color=mpl.cm.Reds(0.8,0.6),
-                        bbox={'facecolor':'w', 'alpha':0.8,'edgecolor':'0.5', "boxstyle":"round"}, fontsize="small")
-        
-        try:
-            ax.set_title("obs: %s | airmass: %.2f"%(self.cube.filename.split("/")[-1],self.cube.header["AIRMASS"]),
-                    fontsize="x-small", color="0.5")
-        except KeyError:
-            ax.set_title("obs: %s | airmass: ?" % self.cube.filename.split("/")[-1],
-                         fontsize="x-small", color="0.5")
-
-        ax.set_ylim(0, ax.get_ylim()[-1]*1.5 )
-        if savefile is not None:
-            fig.savefig(savefile)
-        if show:
-            fig.show()
-
+        if telluric is not None:
+            self.reference["telluric"] = telluric
 
     # ================== #
     #   Properties       #
@@ -580,14 +522,46 @@ class Flexure( BaseObject ):
         """ object containing the ccd to 3d cube conversion tools """
         return self._properties["mapper"]
 
-    # -- derived
     @property
-    def fitvalues_sodiumlines(self):
+    def reference(self):
+        """ object containing the ccd to 3d cube conversion tools """
+        if self._properties["reference"] is None:
+            self._properties["reference"] = {"sodium":SODIUM_SKYLINE_LBDA,
+                                             "telluric":TELLURIC_REF_LBDA}
+        return self._properties["reference"]
+    
+    #
+    # Derived_property
+    #
+    @property
+    def spec_sodium(self):
         """ """
-        if self._derived_properties["fitvalues_sodiumlines"] is None:
-            raise AttributeError("fitvalues_sodiumlines has not yet be derived. See the `fit_cube_lines()` method")
-        return self._derived_properties["fitvalues_sodiumlines"]
-
+        return self._side_properties["spec_sodium"]
+    
+    @property
+    def spec_telluric(self):
+        """ """
+        return self._side_properties["spec_telluric"]
+    
+    @property
+    def fit_sodium(self):
+        """ """
+        if self._derived_properties["fit_sodium"] is None:
+            self.load_sodium_fit()
+        return self._derived_properties["fit_sodium"]
+    
+    @property
+    def fit_telluric(self):
+        """ """
+        if self._derived_properties["fit_telluric"] is None:
+            self.load_telluric_fit()
+        return self._derived_properties["fit_telluric"]
+    
+    @property
+    def _sodium_indexes(self):
+        """ """
+        return self._side_properties["spec_sodium_indexes"]
+    
 ###########################
 #                         #
 #  WaveSolution           #

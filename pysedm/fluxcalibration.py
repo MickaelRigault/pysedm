@@ -4,6 +4,7 @@
 import numpy as np
 from propobject import BaseObject
 from pyifu.spectroscopy import Spectrum, get_spectrum
+from .sedm import get_sedm_version
 """ Library to estimate the flux response based on standard star spectra """
 
 AVOIDANCE_AREA = {"telluric":[[7450,7750],[6850,7050]],
@@ -317,9 +318,13 @@ class FluxCalibrator( BaseObject ):
         end_airmass = float(self.spectrum.header["ENDAIR"]) if "ENDAIR" in self.spectrum.header else self.spectrum.header["AIRMASS"]
         start_airmass = float(self.spectrum.header["AIRMASS"])
         airmass = np.mean([start_airmass, end_airmass])
-        #
-        # 3 Step proceedure.
-        #
+        ##
+        # Older proceedure
+        ##
+        ##
+        # New proceedure
+        ##
+        # A: 3 Step proceedure.
         # - Step 1 fit for the telluric region
         tell_range = (self.spectrum.lbda>6000) & (self.spectrum.lbda<8500)
         POLY_TELL  = 5
@@ -337,39 +342,51 @@ class FluxCalibrator( BaseObject ):
         
         print("step 1 Done")
         # - Step 2 fit The blue region
-        print("step 2 Starting")
-        blue_range = (self.spectrum.lbda<8600)
-        POLY_TELL_BLUE = 20
-        self.tpoly_blue = TelluricPolynomeFit(self.spectrum.lbda[blue_range],
+        if get_sedm_version(self.spectrum.header.get("OBSDATE",None)):
+            print("SEDM version <3 (pre-Feb 2019): running the old flux calibration proceedure")
+            POLY_TELL_BLUE = 20
+            self.tpoly_blue = TelluricPolynomeFit(self.spectrum.lbda,
+                                                  datacal,
+                                                  errcal,
+                                                  POLY_TELL_BLUE, load_telluric_line(), maskin=maskin)
+            self.tpoly_blue.fit(**kwarg_fit)
+            self.tpoly_blue.norm = norm
+            response_continuum = self.tpoly_blue.model._get_continuum_()
+            POLY_TELL = "%d"%POLY_TELL_BLUE
+        else:
+            print("step 2 Starting")
+            blue_range = (self.spectrum.lbda<8600)
+            POLY_TELL_BLUE = 20
+            self.tpoly_blue = TelluricPolynomeFit(self.spectrum.lbda[blue_range],
                                                   datacal[blue_range],
                                                   errcal[blue_range],
                                                   POLY_TELL_BLUE, load_telluric_line(), maskin=maskin)
-        self.tpoly_blue.fit(**kwarg_fit)
-        self.tpoly_blue.norm = norm
-        print("step 2 Done")
-        #
-        # - Step 3 fit The red region
-        print("step 3 Starting")
-        red_range = (self.spectrum.lbda>8400)
-        POLY_TELL_RED = 15
-        telluric = self.tpoly_blue.model.get_telluric_model(lbda=self.spectrum.lbda)
+            self.tpoly_blue.fit(**kwarg_fit)
+            self.tpoly_blue.norm = norm
+            print("step 2 Done")
+            #
+            # - Step 3 fit The red region
+            print("step 3 Starting")
+            red_range = (self.spectrum.lbda>8400)
+            POLY_TELL_RED = 15
+            telluric = self.tpoly_blue.model.get_telluric_model(lbda=self.spectrum.lbda)
         
-        self.poly_red = get_polyfit(self.spectrum.lbda[red_range], 
+            self.poly_red = get_polyfit(self.spectrum.lbda[red_range], 
                                         (datacal-telluric)[red_range], 
                                         errcal[red_range], POLY_TELL_RED, legendre=True)
-        self.poly_red.fit()
-        print("step 3 Done")
-        #
-        # Finally Merge the two continuums
-        #
-        cont_blue = np.ones(len(self.spectrum.lbda))*np.NaN
-        cont_blue[blue_range] = self.tpoly_blue.model._get_continuum_()
+            self.poly_red.fit()
+            print("step 3 Done")
+            #
+            # Finally Merge the two continuums
+            #
+            cont_blue = np.ones(len(self.spectrum.lbda))*np.NaN
+            cont_blue[blue_range] = self.tpoly_blue.model._get_continuum_()
         
-        cont_red  = np.ones(len(self.spectrum.lbda))*np.NaN
-        cont_red[red_range] = self.poly_red.model.get_model()
+            cont_red  = np.ones(len(self.spectrum.lbda))*np.NaN
+            cont_red[red_range] = self.poly_red.model.get_model()
         
-        response_continuum = np.nanmean([cont_blue, cont_red], axis=0)
-        
+            response_continuum = np.nanmean([cont_blue, cont_red], axis=0)
+            POLY_TELL = "%d,%d"%(POLY_TELL_BLUE,POLY_TELL_RED)
         #
         # END
         #
@@ -381,8 +398,8 @@ class FluxCalibrator( BaseObject ):
         for tellk in self.tpoly_blue.model.TELL_FREEPARAMETERS:
             if tellk in ["airmass"]: continue
             header.set(_paramkey_to_headerkey_(tellk), self.tpoly_blue.fitvalues[tellk], "Telluric Parameter")
-
-        header.set("CONTDEG", "%d,%d"%(POLY_TELL_BLUE,POLY_TELL_RED), "degree of the continuum polynome (legendre)")
+            
+        header.set("CONTDEG", POLY_TELL,  "degree of the continuum polynome (legendre)")
         self._derived_properties["fluxcalspectrum"] = get_fluxcal_spectrum(self.spectrum.lbda, response_continuum*self.tpoly_blue.norm, header=header)
         
         return self.fluxcalspectrum

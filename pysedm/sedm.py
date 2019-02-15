@@ -80,14 +80,24 @@ def get_sedm_astrom_param(cube_date=None):
     if cube_date is None:
         return SEDM_ASTROM_PARAM
     
-    from astropy.time import Time
+
+    _sedm_version_ = get_sedm_version(cube_date)
     # Old Rainbow CCD
-    if Time(cube_date) < Time("2018-09-27"):
+    if _sedm_version_ == "v1":
         return SEDM_ASTROM_PARAM
-    elif Time(cube_date) < Time("2019-01-30"):
+    elif _sedm_version_ == "v2":
         return SEDM_ASTROM_PARAM_since_20180928
     else:
         return SEDM_ASTROM_PARAM_since_20190201
+
+def get_sedm_version(cube_date):
+    """ """
+    from astropy.time import Time 
+    if Time(cube_date) < Time("2018-09-27"):
+        return "v1"
+    if Time(cube_date) < Time("2019-01-30"):
+        return "v2"
+    return "v3"
 
 # --- Palomar Atmosphere
 # Palomar Extinction Data from Hayes & Latham 1975
@@ -315,14 +325,17 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
         mapper.derive_spaxel_mapping( list(wavesolution.wavesolutions.keys()) )
         
         flexure = Flexure(cube, mapper=mapper)
-        flexure.fit_cube_lines()
+        flexure.load_telluric_fit()
+        flexure.load_sodium_fit()
+        
         if savefig:
             cube._side_properties["filename"] = fileout
             savefile= fileout.replace(PROD_CUBEROOT,"flex_sodiumline_"+PROD_CUBEROOT).replace(".fits",".pdf")
             flexure.show(savefile=savefile,show=False)
             flexure.show(savefile=savefile.replace(".pdf",".png"),show=False)
-            
-        i_shift = flexure.get_i_flexure()
+
+        FLEXURE_REF  = ["sodium", "telluric"]
+        i_shift = flexure.get_i_flexure(FLEXURE_REF)
         
         print("Getting the flexure corrected cube. ")
         cube = build_sedmcube(ccd, date, lbda=lbda, flatfield=flatfield,
@@ -335,13 +348,16 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
                                   flexure_corrected=False,
                                   pixel_shift= i_shift,
                                   return_cube=True)
+        
         cube.header['IFLXCORR']  = (True, "Has the Flexure been corrected?")
-        cube.header['CCDIFLX'] = (i_shift, "Number of i (ccd-x) pixel shifted")
-        cube.header['IFLXBKUP'] = (flexure._in_backupmode, "Was i_shift derived from backup mode ?")
+        cube.header['IFLXREF']   = (",".join(np.atleast_1d(FLEXURE_REF)), "Which line has been used to correct flexure?")
+        cube.header['CCDIFLX']   = (i_shift, "Number of i (ccd-x) pixel shifted")
+        cube.header['IFLXBKUP']  = ("deprecated", "Was i_shift derived from backup mode ?")
     else:
         cube.header['IFLXCORR']  = (False, "Has the Flexure been corrected?")
+        cube.header['IFLXREF']   = (None,  "Which line has been used to correct flexure?")
         cube.header['CCDIFLX']   = (0, "Number of i (ccd-x) pixel shifted")
-        cube.header['IFLXBKUP']  = (False, "Was i_shift derived from backup mode ?")
+        cube.header['IFLXBKUP']  = ("deprecated", "Was i_shift derived from backup mode ?")
     # - Return it.
     if return_cube:
         return cube

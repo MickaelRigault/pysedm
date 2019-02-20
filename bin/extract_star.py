@@ -617,7 +617,7 @@ if  __name__ == "__main__":
                 # -----------------
                 #  Is that a STD  ?
                 # -----------------
-                if args.std and cube.header['IMGTYPE'].lower() in ['standard']:
+                if args.std and cube.header['IMGTYPE'].lower() in ['standard'] and 'AIRMASS' in cube.header:
                     # Based on the flux non calibrated spectsra
                     spec_raw.header['OBJECT'] = cube.header['OBJECT']
                     for k,v in cube.header.items():

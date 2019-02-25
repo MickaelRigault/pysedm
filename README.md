@@ -5,6 +5,11 @@ Data Reduction Pipeline for the SEDmachine (no ready yet)
 
 _works in python 2.7+ and 3.x, but the 2.7+ might not be supported in the future._
 
+## Reference
+
+If you are using a SEDM spectrum obtained since July 2018 (incl.) please cite [the pysedm paper](http://adsabs.harvard.edu/abs/2019arXiv190208526R) 
+
+
 # Installation
 
 ```bash

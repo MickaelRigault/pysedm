@@ -95,7 +95,13 @@ def estimate_default_position(cube, lbdaranges=[5000,7000]):
     """ """
     sl = cube.get_slice(lbda_min=lbdaranges[0], lbda_max=lbdaranges[1], slice_object=True)
     x,y = np.asarray(sl.index_to_xy(sl.indexes)).T # Slice x and y
-    argmaxes = np.argwhere(sl.data>np.percentile(sl.data, 99.5)).flatten() # brightest points
+    lim_perc = 99.5
+    bright_lim = np.nanpercentile(sl.data, lim_perc)
+    while np.isnan(bright_lim):
+        lim_perc -= 5.
+        bright_lim = np.nanpercentile(sl.data, lim_perc)
+    print("Getting spaxels brighter than %f" % bright_lim)
+    argmaxes = np.argwhere(sl.data>bright_lim).flatten() # brightest points
     return np.nanmedian(x[argmaxes]),np.nanmedian(y[argmaxes]) # centroid
 
 def rainbow_coords_to_ifu(ccd_coords, parameters):

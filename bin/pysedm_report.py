@@ -113,6 +113,7 @@ def build_image_report(specfile):
     # title
     title = "%s"%object_name
     title+= " | exptime: %.1f s"%header["EXPTIME"]
+    title+= " | Qual: %d" % header["QUALITY"]
     title+= " | file ID: %s "%spec_id
 
 

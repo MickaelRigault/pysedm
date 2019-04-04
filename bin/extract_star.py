@@ -311,15 +311,18 @@ if  __name__ == "__main__":
                     iplot = cube_.show(interactive=True, launch=False)
                     iplot.axim.scatter( xcentroid, ycentroid, **MARKER_PROP[position_type] )
                     iplot.launch(vmin=args.vmin, vmax=args.vmax, notebook=False)
+                    [aper_xcentroid, aper_ycentroid], [radius,
+                                                       bkgd_radius] = build_aperture_param(
+                        iplot._stored_picked_poly, args.ap_bkgdscale)
                 else:
-                    print("WARNING: aperture spectroscopy currently works solely with --display on")
-                    print("WARNING: aperture extraction ignored for: %s "%filecube)
-                    continue
-
+                    aper_xcentroid = xcentroid
+                    aper_ycentroid = ycentroid
+                    radius = args.buffer
+                    bkgd_radius = radius * args.ap_bkgdscale
 
                 # Actual aperture extraction
                 print("INFO: Aperture extraction ongoing...")
-                [aper_xcentroid, aper_ycentroid], [radius, bkgd_radius] = build_aperture_param(iplot._stored_picked_poly, args.ap_bkgdscale)
+
                 position_type = "aperture"
                 cube_.load_adr()
                 spec = cube_.get_aperture_spec(aper_xcentroid, aper_ycentroid, radius, bkgd_annulus=[1, bkgd_radius/radius],
@@ -328,9 +331,9 @@ if  __name__ == "__main__":
                 # header info passed 
                 # --------------
                 spec._side_properties["filename"] = cube_.filename
-                for k,v in cube_.header.items():
+                for k, v in cube_.header.items():
                     if k not in spec.header:
-                        spec.header.set(k,v)
+                        spec.header.set(k, v)
 
                 spec.header.set('POSOK', True, "Is the Target centroid inside the MLA?")
                 
@@ -352,6 +355,7 @@ if  __name__ == "__main__":
                 # fwhm & A/B ratio
                 spec.header.set('PSFELL', -99, "Ellipticity of the PSF | Not defined in Aperture mode")
 
+                spec.header.set('CRPIX1', 1, "")    # correct CRPIX1 from e3d
                 
                 spec_raw = spec.copy()
                 # --------------
@@ -434,7 +438,7 @@ if  __name__ == "__main__":
                         print("You picked the position : ", iplot.picked_position )
                         print(" updating the centroid accordingly ")
                         xcentroid, ycentroid = iplot.picked_position
-                        centroids_err = [2. ,2. ]
+                        centroids_err = [2., 2.]
                         position_type = "manual"
                 else:
                     cube = cube_
@@ -528,6 +532,8 @@ if  __name__ == "__main__":
 
                 spec.header.set("QUALITY", asses_quality(spec), "spectrum extraction quality flag [3,4 means band ; 0=default] ")
                 spec.header.set("REDUCER", args.reducer, "Name of the pysedm pipeline reducer [default: auto]")
+
+                spec.header.set('CRPIX1', 1, "")    # correct CRPIX1 from e3d
                 
                 # Basic quality check ?
 

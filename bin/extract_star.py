@@ -351,6 +351,7 @@ if  __name__ == "__main__":
                 
                 # Aperture shape
                 #fwhm_arcsec = psffit.slices[2]["slpsf"].model.fwhm * IFU_SCALE_UNIT * 2
+                spec.header.set('APRAD', radius, "spaxel radius of extraction aperture")
                 spec.header.set('PSFFWHM', -99, "Not defined in Aperture Mode")
                 # fwhm & A/B ratio
                 spec.header.set('PSFELL', -99, "Ellipticity of the PSF | Not defined in Aperture mode")

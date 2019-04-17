@@ -360,7 +360,7 @@ class Flexure( BaseObject ):
     # -------- #
     #  GETTER  #
     # -------- #
-    def get_line_position(self, which="sodium", as_array=False, method="mean"):
+    def get_line_position(self, which="sodium", as_array=False, method="nanmean"):
         """ 
         The error is based on median statistics as long as there are more than 10 spectrum to measure the dispersion
         """
@@ -380,7 +380,7 @@ class Flexure( BaseObject ):
         
     def get_i_flexure(self, use=["sodium", "telluric"], **kwargs):
         """ """
-        return np.median( self.get_i_shift(use=use, **kwargs).data)
+        return np.nanmedian( self.get_i_shift(use=use, **kwargs).data)
 
     def _get_delta_i_(self, which="sodium", method="mean", as_slice=True):
         """ """

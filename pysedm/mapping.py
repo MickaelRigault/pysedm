@@ -77,8 +77,8 @@ class Mapper( BaseObject ):
         """
         if traceindexes is None:
             traceindexes = self.traceindexes
-            
-        return {traceindex:self.lbda_to_ij(lbda, traceindex) for traceindex in traceindexes}
+
+        return {traceindex:self.lbda_to_ij(lbda, traceindex) for traceindex in self.traceindexes}
     
     def get_ij(self, x, y, lbda):
         """ 
@@ -146,8 +146,10 @@ class Mapper( BaseObject ):
         if i is None: return np.asarray([None,None])
 
         i_eff = (CCD_SHAPE[1]-1)-i if inverted else i # -1 because starts at 0
-        
-        return i_eff, np.mean(self.tracematch.trace_polygons[traceindex].intersection(LineString([[i_eff,0],[i_eff, maxlines]])), axis=0)[1]
+        try:
+            return i_eff, np.mean(self.tracematch.trace_polygons[traceindex].intersection(LineString([[i_eff,0],[i_eff, maxlines]])), axis=0)[1]
+        except:
+            return i_eff, np.NaN
 
     # .................... #
     #  i,j <-> traceindex  #

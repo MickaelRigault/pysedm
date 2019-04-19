@@ -25,9 +25,13 @@ def get_object_ifu_pos(cube, parameters=None):
     if parameters is None:
         parameters = get_sedm_astrom_param( cube_date )
         
-    if Time(cube_date) > Time("2019-02-20"):
+    if Time(cube_date) > Time("2019-02-20") and Time(cube_date) < Time("2019-04-19"):
         print("TEMPORARY PATCH FOR SHIFTED IFU POS")
         return rainbow_coords_to_ifu(get_ccd_coords(cube), parameters) + np.asarray([11,1])
+    if Time(cube_date) > Time("2019-04-19"):
+        print("TEMPORARY PATCH FOR SHIFTED IFU POS")
+        return rainbow_coords_to_ifu(get_ccd_coords(cube),
+                                     parameters) + np.asarray([-1, 8])
     return rainbow_coords_to_ifu(get_ccd_coords(cube), parameters)
 
 

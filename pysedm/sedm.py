@@ -301,7 +301,7 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
 
     # - Flat Field the cube
     if flatfielded:
-        cube.scale_by(flatfield.data)
+        cube.scale_by(flatfield.data, onraw=False)
         cube.header['FLAT3D'] = (True, "Is the Cube FlatFielded")
         cube.header['FLATSRC'] = (flatfield.filename.split('/')[-1], "Object use to FlatField the cube")
     else:
@@ -316,7 +316,7 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
         else:
             extinction = atmspec.get_atm_extinction(cube.lbda, cube.header['AIRMASS'])
         # scale_by devided by
-        cube.scale_by(1./extinction)
+        cube.scale_by(1./extinction, onraw=False)
         cube.header['ATMCORR']  = (True, "Has the Atmosphere extinction been corrected?")
         cube.header['ATMSRC']   = (atmspec._source if hasattr(atmspec,"_source") else "unknown", "Reference of the atmosphere extinction")
         cube.header['ATMSCALE'] = (np.nanmean(extinction), "Mean atm correction over the entire wavelength range")

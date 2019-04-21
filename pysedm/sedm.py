@@ -75,8 +75,8 @@ SEDM_ASTROM_PARAM_since_20180928 = [ 6.63023938e-01,  6.57283519e-02, -1.9786837
 SEDM_ASTROM_PARAM_since_20190201 = [ 6.20197410e-01,  1.02551606e-01,  3.84158750e-02, -8.63030378e-01,
                                          1.03498483e+03,  1.01326973e+03]
 
-SEDM_ASTROM_PARAM_since_20190417 = [ 6.60117539e-01,  1.90076806e-02, -5.86653828e-03, -5.99786189e-01,
-                                         1.02190229e+03,  1.02202838e+03]
+SEDM_ASTROM_PARAM_since_20190417 = [ 6.58552885e-01,  7.80509481e-03, -1.09152928e-02, -6.14046844e-01,
+                                         1.02174924e+03,  1.02233328e+03]
     
 def get_sedm_astrom_param(cube_date=None):
     """ """
@@ -94,6 +94,7 @@ def get_sedm_astrom_param(cube_date=None):
         return SEDM_ASTROM_PARAM_since_20190201
     else:
         return SEDM_ASTROM_PARAM_since_20190417
+    
 def get_sedm_version(cube_date):
     """ """
     from astropy.time import Time 

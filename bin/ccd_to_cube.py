@@ -90,7 +90,7 @@ if  __name__ == "__main__":
     parser.add_argument('--flatref',  type=str, default="dome",
                         help='Build the flat fielding for the night ')
     
-    parser.add_argument('--flatlbda',  type=str, default="7000,9000",
+    parser.add_argument('--flatlbda',  type=str, default="5000,8500",
                         help='The wavelength range for the flat field. Format: min,max [in Angstrom] ')
 
     # ----------------- #

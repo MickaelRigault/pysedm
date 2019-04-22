@@ -74,6 +74,9 @@ SEDM_ASTROM_PARAM_since_20180928 = [ 6.63023938e-01,  6.57283519e-02, -1.9786837
 
 SEDM_ASTROM_PARAM_since_20190201 = [ 6.20197410e-01,  1.02551606e-01,  3.84158750e-02, -8.63030378e-01,
                                          1.03498483e+03,  1.01326973e+03]
+
+SEDM_ASTROM_PARAM_since_20190417 = [ 6.58552885e-01,  7.80509481e-03, -1.09152928e-02, -6.14046844e-01,
+                                         1.02174924e+03,  1.02233328e+03]
     
 def get_sedm_astrom_param(cube_date=None):
     """ """
@@ -87,9 +90,11 @@ def get_sedm_astrom_param(cube_date=None):
         return SEDM_ASTROM_PARAM
     elif _sedm_version_ == "v2":
         return SEDM_ASTROM_PARAM_since_20180928
-    else:
+    elif  _sedm_version_ == "v3":
         return SEDM_ASTROM_PARAM_since_20190201
-
+    else:
+        return SEDM_ASTROM_PARAM_since_20190417
+    
 def get_sedm_version(cube_date):
     """ """
     from astropy.time import Time 
@@ -97,7 +102,10 @@ def get_sedm_version(cube_date):
         return "v1"
     if Time(cube_date) < Time("2019-01-30"):
         return "v2"
-    return "v3"
+    if Time(cube_date) < Time("2019-04-17"):
+        return "v3"
+    
+    return "v4"
 
 # --- Palomar Atmosphere
 # Palomar Extinction Data from Hayes & Latham 1975
@@ -294,7 +302,7 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
 
     # - Flat Field the cube
     if flatfielded:
-        cube.scale_by(flatfield.data)
+        cube.scale_by(flatfield.data, onraw=False)
         cube.header['FLAT3D'] = (True, "Is the Cube FlatFielded")
         cube.header['FLATSRC'] = (flatfield.filename.split('/')[-1], "Object use to FlatField the cube")
     else:
@@ -309,7 +317,7 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
         else:
             extinction = atmspec.get_atm_extinction(cube.lbda, cube.header['AIRMASS'])
         # scale_by devided by
-        cube.scale_by(1./extinction)
+        cube.scale_by(1./extinction, onraw=False)
         cube.header['ATMCORR']  = (True, "Has the Atmosphere extinction been corrected?")
         cube.header['ATMSRC']   = (atmspec._source if hasattr(atmspec,"_source") else "unknown", "Reference of the atmosphere extinction")
         cube.header['ATMSCALE'] = (np.nanmean(extinction), "Mean atm correction over the entire wavelength range")

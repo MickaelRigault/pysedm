@@ -45,7 +45,7 @@ def get_ccd_coords(cube):
     if "STD" in cube.header["OBJECT"]:
         import pycalspec
         try:
-            radec_ = coordinates.SkyCoord(*pycalspec.std_radec(cube.header["OBJECT"].split("STD-")[-1]),
+            radec_ = coordinates.SkyCoord(*pycalspec.std_radec(cube.header["OBJECT"].split("STD-")[-1].split()[0]),
                                       unit=(units.hourangle, units.deg))
         except ValueError:
             print("WARNING: Standard not found in reference list")

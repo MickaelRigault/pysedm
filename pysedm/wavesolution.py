@@ -400,7 +400,7 @@ class Flexure( BaseObject ):
         
     def get_i_shift(self, as_slice=True,
                         use=["sodium", "telluric"],
-                        sodium_weight=2, method="mean"):
+                        sodium_weight=5, method="mean"):
         """
         sodium_weight: [float] -optional-
             How much more weight to you wqnt to give to sodium in comparison to telluric

@@ -28,7 +28,7 @@ def show_fluxcalibrated_standard(stdspectrum, savefile=None):
     from astropy import units
     from . import io
     ### Data
-    objectname = stdspectrum.header['OBJECT'].replace("STD-","")
+    objectname = stdspectrum.header['OBJECT'].replace("STD-","").split()[0]
     #
     try:
         specref = pycalspec.std_spectrum(objectname).filter(5).reshape(stdspectrum.lbda,"linear")
@@ -492,7 +492,7 @@ class FluxCalibrator( BaseObject ):
     @property
     def objectname(self):
         """ """
-        return self.spectrum.header['OBJECT'].replace("STD-","")
+        return self.spectrum.header['OBJECT'].replace("STD-","").split()[0]
 
     # - CalSpec
     @property

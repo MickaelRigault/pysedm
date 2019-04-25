@@ -450,7 +450,10 @@ if  __name__ == "__main__":
                 # ----------------- #
                 print("Automatic extraction of target %s, file: %s"%(target, filecube))
                 cube_ = get_sedmcube(filecube)
-                [xcentroid, ycentroid], centroids_err, position_type = position_source(cube_, centroid = args.centroid, centroiderr= args.centroiderr)
+                [xcentroid, ycentroid], centroids_err, position_type = \
+                    position_source(cube_, centroid=args.centroid,
+                                    centroiderr=args.centroiderr,
+                                    maxpos=args.maxpos)
                 if args.display:
                     iplot = cube_.show(interactive=True, launch=False)
                     iplot.axim.scatter( xcentroid, ycentroid, **MARKER_PROP[position_type] )

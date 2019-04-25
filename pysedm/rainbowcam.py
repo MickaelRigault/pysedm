@@ -111,7 +111,7 @@ def run_do_astrom(guider_filename_fullpath):
     print(" ".join(cmd))
     subprocess.call(cmd)
     # Test results
-    astrom_output = guider_filename_fullpath.replace(".fits", "_astrom.fits")
+    astrom_output = guider_filename_fullpath.replace(".fits", "_astrom.fits").replace(".gz", "")
     if not os.path.exists(astrom_output):
         print("ERROR - astrometry failed, trying a median subtraction")
         from scipy import ndimage

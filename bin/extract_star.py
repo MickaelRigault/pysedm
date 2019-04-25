@@ -13,39 +13,56 @@ MARKER_PROP = {"astrom": dict(marker="x", lw=2, s=80, color="C1", zorder=8),
                    }
 
 
-def position_source(cube, centroid=None, centroiderr=None, lbdaranges=[5000,7000]):
+def position_source(cube, centroid=None, centroiderr=None,
+                    lbdaranges=[5000,7000], maxpos=False):
     """ How is the source position selected ? """
     
     if centroiderr is None or centroiderr in ["None"]:
         centroid_err_given = False
-        centroids_err = [3,3]
+        centroids_err = [3, 3]
     else:
         centroid_err_given = True
         centroids_err = np.asarray(centroiderr, dtype="float")
-        
-    if centroid is None or centroid in ["None"]:
-        from pysedm.astrometry  import get_object_ifu_pos
-        xcentroid,ycentroid = get_object_ifu_pos( cube )
+
+    position_type = "unknown"
+    # Use maximum spaxels to derive position
+    if maxpos:
+        print("Centroid guessed based on brightness")
+        from pysedm.astrometry import estimate_default_position
+        xcentroid, ycentroid = estimate_default_position(
+                                                cube, lbdaranges=lbdaranges)
+        centroids_err = [5, 5]
+        position_type="auto"
+    # Try to use astrometry of guider images for position
+    elif centroid is None or centroid in ["None"]:
+        from pysedm.astrometry import get_object_ifu_pos
+        xcentroid, ycentroid = get_object_ifu_pos(cube)
+        # If this fails, use maximum spaxels to derive position
         if np.isnan(xcentroid*ycentroid):
-            print("IFU target location based on CCD astrometry failed. centroid guessed based on brightness used instead")
+            print("IFU target location based on CCD astrometry failed. "
+                  "centroid guessed based on brightness used instead")
 
             from pysedm.astrometry import estimate_default_position
-            xcentroid,ycentroid = estimate_default_position(cube, lbdaranges=lbdaranges)
+            xcentroid, ycentroid = estimate_default_position(
+                                                cube, lbdaranges=lbdaranges)
             
             if not centroid_err_given:
-                centroids_err = [5,5]
+                centroids_err = [5, 5]
                 position_type="auto" 
         else:
-            print("IFU position based on CCD wcs solution used : ",xcentroid,ycentroid)
-            position_type="astrom" 
+            print("IFU position based on CCD wcs solution used : ",
+                  xcentroid, ycentroid)
+            position_type="astrom"
+    # Use input centroid values for position
     else:
         xcentroid, ycentroid = np.asarray(centroid, dtype="float")
-        print("centroid used", centroid)
         position_type="manual"
+
+    print("Position type %s: %.2f, %.2f" %
+          (position_type, xcentroid, ycentroid))
 
     return [xcentroid, ycentroid], centroids_err, position_type
 
-# Aperture Spectroscopy
 
 def build_aperture_param(stored_picked_poly, default_bkgd_scale=1.4):
     """ Build an aperture spectroscopy parameters
@@ -229,6 +246,8 @@ if  __name__ == "__main__":
     parser.add_argument('--centroiderr',  type=str, default="None",nargs=2,
                         help='What error do you expect on your given centroid.'+
                             '\nIf not provided, it will be 3 3 for general cases and 5 5 for maximum brightnes backup plan')
+    parser.add_argument('--maxpos', action="store_true", default=False,
+                        help='Set to use brightest spaxel for position')
     
     parser.add_argument('--lstep',  type=int, default=1,
                         help='Slice width in lbda step: default is 1, use 2 for fainter source and maybe 3 for really faint target')
@@ -306,7 +325,10 @@ if  __name__ == "__main__":
                 # ----------------- #
                 print("Automatic extraction of target %s, file: %s"%(target, filecube))
                 cube_ = get_sedmcube(filecube)
-                [xcentroid, ycentroid], centroids_err, position_type = position_source(cube_, centroid = args.centroid, centroiderr= args.centroiderr)
+                [xcentroid, ycentroid], centroids_err, position_type = \
+                    position_source(cube_, centroid=args.centroid,
+                                    centroiderr=args.centroiderr,
+                                    maxpos=args.maxpos)
                 if args.display:
                     iplot = cube_.show(interactive=True, launch=False)
                     iplot.axim.scatter( xcentroid, ycentroid, **MARKER_PROP[position_type] )

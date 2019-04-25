@@ -97,6 +97,10 @@ def get_sedm_astrom_param(cube_date=None):
     
 def get_sedm_version(cube_date):
     """ """
+
+    if cube_date is None:
+        return "v1"
+
     from astropy.time import Time 
     if Time(cube_date) < Time("2018-09-27"):
         return "v1"

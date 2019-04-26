@@ -111,7 +111,7 @@ def run_do_astrom(guider_filename_fullpath):
     print(" ".join(cmd))
     subprocess.call(cmd)
     # Test results
-    astrom_output = guider_filename_fullpath.replace(".fits", "_astrom.fits")
+    astrom_output = guider_filename_fullpath.replace(".fits", "_astrom.fits").replace(".gz", "")
     if not os.path.exists(astrom_output):
         print("ERROR - astrometry failed, trying a median subtraction")
         from scipy import ndimage
@@ -153,7 +153,7 @@ def get_ifu_guider_images(ifufile):
     rb_list = []
     for f in flist:
         # Use only *.fit* files
-        if 'fit' not in f.split('.')[-1]:
+        if 'fit' not in f.split('/')[-1]:
             continue
         try:
             ff = fits.open(rb_dir+f)

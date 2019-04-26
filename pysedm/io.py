@@ -161,7 +161,11 @@ def fetch_nearest_fluxcal(date, file, kind="spec.fluxcal"):
         return filefluxcal[0]
 
     import numpy as np
-    target_mjd_obs  = getval(file,"MJD_OBS")
+    try:
+        target_mjd_obs  = getval(file,"MJD_OBS")
+    except KeyError:
+        warnings.warn("No MJD_OBS keyword found, returning most recent file")
+        return filefluxcal[-1]
     fluxcal_mjd_obs = [getval(f,"MJD_OBS") for f in filefluxcal]
 
     return filefluxcal[ np.argmin( np.abs( target_mjd_obs - np.asarray(fluxcal_mjd_obs) ) ) ]

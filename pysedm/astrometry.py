@@ -20,14 +20,17 @@ from .sedm import get_sedm_astrom_param
 # ======================= #
 def get_object_ifu_pos(cube, parameters=None):
     """ the expected cube x,y position of the target within the cube """
-    from astropy.time import Time 
-    cube_date = cube.header.get("OBSDATE",None)
+    from astropy.time import Time
+    if 'OBSDATE' in cube.header:
+        cube_date = cube.header.get("OBSDATE", None)
+    else:
+        cube_date = '2001-01-01'
     if parameters is None:
-        parameters = get_sedm_astrom_param( cube_date )
+        parameters = get_sedm_astrom_param(cube_date)
         
     if Time(cube_date) > Time("2019-02-20") and Time(cube_date) < Time("2019-04-17"):
         print("TEMPORARY PATCH FOR SHIFTED IFU POS")
-        return rainbow_coords_to_ifu(get_ccd_coords(cube), parameters) + np.asarray([11,1])
+        return rainbow_coords_to_ifu(get_ccd_coords(cube), parameters) + np.asarray([11, 1])
     elif Time(cube_date) > Time("2019-04-22"):
         print("TEMPORARY PATCH 2 FOR SHIFTED IFU POS")
         return rainbow_coords_to_ifu(get_ccd_coords(cube),

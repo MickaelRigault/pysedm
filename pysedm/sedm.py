@@ -684,8 +684,10 @@ class SEDMCube( Cube ):
         
         # - Setting the background
         
-        spec  = ApertureSpectrum(self.lbda, apert.T[0]/apert.T[2], variance=apert.T[1]/apert.T[2]**2 if self.has_variance() else None,
-                                    apweight=apert.T[2], header=None)
+        spec  = ApertureSpectrum(self.lbda, apert.T[0]/apert.T[2],
+                                variance=apert.T[1]/apert.T[2]**2 if self.has_variance() else None,
+                                apweight=apert.T[2], header=None)
+        
         if bkgd_annulus is not None:
             apert_bkgd = np.asarray(apert_bkgd)
             bspec = ApertureSpectrum(self.lbda, apert_bkgd.T[0]/apert_bkgd.T[2], variance=apert_bkgd.T[1]/apert_bkgd.T[2]**2 if self.has_variance() else None,

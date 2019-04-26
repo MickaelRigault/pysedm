@@ -153,7 +153,7 @@ def get_ifu_guider_images(ifufile):
     rb_list = []
     for f in flist:
         # Use only *.fit* files
-        if 'fit' not in f.split('.')[-1]:
+        if 'fit' not in f.split('/')[-1]:
             continue
         try:
             ff = fits.open(rb_dir+f)

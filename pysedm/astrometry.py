@@ -52,11 +52,22 @@ def get_ccd_coords(cube):
                                       unit=(units.hourangle, units.deg))
         except ValueError:
             print("WARNING: Standard not found in reference list")
+            try:
+                radec_ = coordinates.SkyCoord(cube.header["OBJRA"],
+                                              cube.header["OBJDEC"],
+                                              unit=(units.hourangle, units.deg))
+            except KeyError:
+                radec_ = coordinates.SkyCoord(cube.header["OBRA"],
+                                              cube.header["OBDEC"],
+                                              unit=(units.hourangle, units.deg))
+    else:
+        try:
             radec_ = coordinates.SkyCoord(cube.header["OBJRA"], cube.header["OBJDEC"],
                                   unit=(units.hourangle, units.deg))
-    else:
-        radec_ = coordinates.SkyCoord(cube.header["OBJRA"], cube.header["OBJDEC"], 
-                                  unit=(units.hourangle, units.deg))
+        except KeyError:
+            radec_ = coordinates.SkyCoord(cube.header["OBRA"],
+                                          cube.header["OBDEC"],
+                                          unit=(units.hourangle, units.deg))
 
     date = io.header_to_date(cube.header)
     

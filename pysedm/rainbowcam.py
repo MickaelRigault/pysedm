@@ -165,8 +165,8 @@ def get_ifu_guider_images(ifufile):
             if "IFU" in ff[0].header['CAM_NAME']:
                 continue
         else:
-            print("WARNING - no CAM_NAME keyword in %s" % f)
-            continue
+            if 'ifu' in f.split('/')[-1]:
+                continue
         if "JD" in ff[0].header:
             # Images used to guide ifufile
             if jd_ini <= ff[0].header["JD"] <= jd_end:

@@ -1,5 +1,5 @@
 # pysedm
-Data Reduction Pipeline for the SEDmachine (no ready yet)
+Data Reduction Pipeline for the SEDmachine. Please have a look at [the pysedm paper](http://adsabs.harvard.edu/abs/2019arXiv190208526R).
 
 [![PyPI](https://img.shields.io/pypi/v/pysedm.svg?style=flat-square)](https://pypi.python.org/pypi/pysedm)
 

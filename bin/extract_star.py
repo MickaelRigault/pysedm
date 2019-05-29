@@ -655,19 +655,38 @@ if  __name__ == "__main__":
                         spec_raw.header['OBJECT'] = cube.header['OBJECT']
                         for k,v in cube.header.items():
                             if k not in spec_raw.header:
-                                spec_raw.header.set(k,v)
+                                spec_raw.header.set(k, v)
 
-                        speccal, fl = fluxcalibration.get_fluxcalibrator(spec_raw, fullout=True)
+                        try:
+                            speccal, fl = fluxcalibration.get_fluxcalibrator(
+                                spec_raw, fullout=True)
+                            speccal.header["SOURCE"] = (
+                                spec.filename.split("/")[-1],
+                                "This object has been derived from this file")
+                            speccal.header["PYSEDMT"] = (
+                                "Flux Calibration Spectrum",
+                                "Object to use to flux calibrate")
+                            filename_inv = spec.filename.replace(
+                                io.PROD_SPECROOT,
+                                io.PROD_SENSITIVITYROOT).replace("notfluxcal",
+                                                                 "")
+                            speccal._side_properties['filename'] = filename_inv
+                            speccal.writeto(filename_inv)
+                            if not args.nofig:
+                                fl.show(
+                                    savefile=speccal.filename.replace(".fits",
+                                                                      ".pdf"),
+                                    show=False)
+                                fl.show(
+                                    savefile=speccal.filename.replace(".fits",
+                                                                      ".png"),
+                                    show=False)
+                        except OSError:
+                            print("WARNING: no reference spectrum for target, "
+                                  "skipping flux calibration")
 
 
-                        speccal.header["SOURCE"] = (spec.filename.split("/")[-1], "This object has been derived from this file")
-                        speccal.header["PYSEDMT"] = ("Flux Calibration Spectrum", "Object to use to flux calibrate")
-                        filename_inv = spec.filename.replace(io.PROD_SPECROOT,io.PROD_SENSITIVITYROOT).replace("notfluxcal","")
-                        speccal._side_properties['filename'] = filename_inv
-                        speccal.writeto(filename_inv)
-                        if not args.nofig:
-                            fl.show(savefile=speccal.filename.replace(".fits",".pdf"), show=False)
-                            fl.show(savefile=speccal.filename.replace(".fits",".png"), show=False)
+
                     else:
                         print("WARNING: Standard spectrum of low quality, "
                               "skipping fluxcal generation")

@@ -78,7 +78,7 @@ def build_image_report(specfile):
     # Output Spectra
     all_spectra_files = pysedm.io.get_night_files(date, "re:spec", filesourcename, extention=".png")
     extention = "%s.png"%object_name.split("+")[-1] if "+" in object_name else "%s.png"%object_name
-    pysedm_spec_file  = pysedm.io.get_night_files(date, "re:spec", spec_id, extention=extention)
+    pysedm_spec_file  = pysedm.io.get_night_files(date, "re:spec", filesourcename, extention=extention)
     if not STD:
         typed_spectra     = [f for f in all_spectra_files if not f.endswith(extention)]
         used_spec_file = pysedm_spec_file if len(typed_spectra) ==0 else typed_spectra

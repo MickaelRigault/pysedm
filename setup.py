@@ -15,10 +15,10 @@ VERSION = '0.22.2'
 
 try:
     from setuptools import setup, find_packages
-    _has_setuptools = False
+    _has_setuptools = True
 except ImportError:
     from distutils.core import setup
-    _has_setuptools = True
+    _has_setuptools = False
 
 def check_dependencies():
     install_requires = []
@@ -45,7 +45,7 @@ if __name__ == "__main__":
     if _has_setuptools:
         packages = find_packages()
         print(packages)
-    else:
+    else`:
         # This should be updated if new submodules are added
         packages = ['pysedm',
                     "pysedm.script",

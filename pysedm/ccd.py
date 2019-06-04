@@ -558,7 +558,7 @@ class CCD( BaseCCD ):
     # --------------- #
     def extract_cube(self, wavesolution, lbda,
                          hexagrid=None, traceindexes=None, show_progress=False,
-                         pixel_shift=0.):
+                         pixel_shift=0., rotation=None):
         """ Create a cube from the ccd.
 
         ------------------------------------
@@ -609,7 +609,8 @@ class CCD( BaseCCD ):
         SEDMCube (child of pyifu's Cube)
         """
         from .sedm import SEDMSPAXELS, SEDMCube, SEDM_INVERT, SEDM_ROT
-
+        if rotation is None:
+            rotation = SEDM_ROT
         # - index check
         if traceindexes is None:
             traceindexes = np.sort(list(wavesolution.wavesolutions.keys()))
@@ -658,14 +659,14 @@ class CCD( BaseCCD ):
             #from multiprocessing import Pool as ThreadPool
             #pool = ThreadPool(4)
             #pool.map(_build_ith_flux_, used_indexes)
-            _ = [_build_ith_flux_[i] for i in used_indexes]
+            _ = [_build_ith_flux_(i) for i in used_indexes]
 
         cubeflux = np.asarray([cubeflux_[i] for i in used_indexes])
         cubevar  = np.asarray([cubevar_[i]   for i in used_indexes]) if cubevar_ is not None else None
 
         # - Fill the Cube
         #  SEDM DEPENDENT
-        hexagrid.set_rot_degree(SEDM_ROT)
+        hexagrid.set_rot_degree(rotation)
         spaxels_position = np.asarray(hexagrid.index_to_xy( hexagrid.ids_to_index(used_indexes),
                                         invert_rotation=False,
                                         switch_axis=SEDM_INVERT)).T

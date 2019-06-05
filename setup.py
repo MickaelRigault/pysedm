@@ -45,7 +45,7 @@ if __name__ == "__main__":
     if _has_setuptools:
         packages = find_packages()
         print(packages)
-    else`:
+    else:
         # This should be updated if new submodules are added
         packages = ['pysedm',
                     "pysedm.script",

@@ -207,6 +207,9 @@ if  __name__ == "__main__":
                         help='cube filepath')
 
     # // AUTOMATIC EXTRACTION
+    parser.add_argument('--inputcube',   action="store_true", default=False,
+                        help='Is the input a cube ?')
+    
     parser.add_argument('--reducer',  type=str, default=io.SEDM_REDUCER,
                         help='What is your name? This will be added in the header [default: $SEDM_REDUCER]')
 
@@ -292,7 +295,8 @@ if  __name__ == "__main__":
     # --------- #
     #  Date     #
     # --------- #
-    date = args.infile
+    if not args.inputcube:
+        date = args.infile
 
     
     # ================= #
@@ -315,7 +319,7 @@ if  __name__ == "__main__":
             raise NotImplementedError("--std option cannot be used (yet) with --aperture. Use --auto")
         
         for target in args.aperture.split(","):
-            filecubes = io.get_night_files(date, "cube.*", target=target.replace(".fits",""))
+            filecubes = io.get_night_files(date, "cube.*", target=target.replace(".fits","")) if not args.inputcube else [target]
             print("cube file from which the spectra will be extracted [aperture]: "+ ", ".join(filecubes))
             
             # - loop over the file cube
@@ -441,7 +445,7 @@ if  __name__ == "__main__":
         lbda_step1       = script.lbda_and_bin_to_lbda_step1(lbdaranges, bins)
         
         for target in args.auto.split(","):
-            filecubes = io.get_night_files(date, "cube.*", target=target.replace(".fits",""))
+            filecubes = io.get_night_files(date, "cube.*", target=target.replace(".fits","")) if not args.inputcube else [target]
             print("cube file from which the spectra will be extracted [auto]: "+ ", ".join(filecubes))
             
             # - loop over the file cube
@@ -593,8 +597,8 @@ if  __name__ == "__main__":
                 spec_info = "_lstep%s"%final_slice_width + add_info_spec
                 # MAIN IO
                 io._saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=cubemodel,
-                                          mode="auto"+add_tag,spec_info=spec_info, fluxcal=flux_calibrated,
-                                          cubefitted=cube_to_fit, spec=spec)
+                                      mode="auto"+add_tag,spec_info=spec_info, fluxcal=flux_calibrated,
+                                      cubefitted=cube_to_fit, spec=spec)
                 # Figure
                 if not args.nofig:
                     import matplotlib.pyplot as mpl

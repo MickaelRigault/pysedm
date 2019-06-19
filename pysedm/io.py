@@ -369,8 +369,8 @@ def load_telluric_line(filter=None):
 #
 #########################
 def _saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=None,
-                           cubefitted=None,spec=None, bkgd=None, extraction_type="Force 3DPSF extraction: Spectral Model",
-                           mode="auto", spec_info="", fluxcal=True, nofig=False):
+                      cubefitted=None,spec=None, bkgd=None, extraction_type="Force 3DPSF extraction: Spectral Model",
+                       mode="auto", spec_info="", fluxcal=True, nofig=False):
      # Cube Model
     if cubemodel is not None:
         cubemodel.set_header(cube.header)

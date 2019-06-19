@@ -347,7 +347,8 @@ if  __name__ == "__main__":
 
                 position_type = "aperture"
                 cube_.load_adr()
-                spec = cube_.get_aperture_spec(aper_xcentroid, aper_ycentroid, radius, bkgd_annulus=[1, bkgd_radius/radius],
+                spec = cube_.get_aperture_spec(aper_xcentroid, aper_ycentroid, radius,
+                                                   bkgd_annulus=[1, bkgd_radius/radius],
                                                     adr=cube_.adr)
                 # --------------
                 # header info passed 

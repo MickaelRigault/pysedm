@@ -200,10 +200,10 @@ if  __name__ == "__main__":
     #   Options         #
     # ================= #
     parser = argparse.ArgumentParser(
-        description=""" run the interactive plotting of a given cube
-            """, formatter_class=argparse.RawTextHelpFormatter)
+        description=""" run the interactive plotting of a given cube""",
+        formatter_class=argparse.RawTextHelpFormatter)
 
-    parser.add_argument('infile', type=str, default=None,
+    parser.add_argument('infile', type=str, default="None",
                         help='cube filepath')
 
     # // AUTOMATIC EXTRACTION

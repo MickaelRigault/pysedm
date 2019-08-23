@@ -12,6 +12,7 @@ AVOIDANCE_AREA = {"telluric":[[7450,7750],[6850,7050]],
                                 [4300,4350],[4030,4130],[3900,3980]]}
 
 POLYDEGREE = 40
+
 def get_fluxcalibrator(stdspectrum, polydegree=POLYDEGREE, fullout=False, filter=None):
     """ fit a smooth polynome through the ratio between observed standard and their expected flux (calspec) """
     fl = FluxCalibrator()

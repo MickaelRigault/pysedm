@@ -6,6 +6,9 @@
 import numpy              as np
 import warnings
 
+# Propobject
+from propobject           import BaseObject
+# pyifu
 from pyifu.spectroscopy   import Cube, Spectrum, get_spectrum, load_spectrum
 from .utils.tools         import kwargs_update, is_arraylike
 
@@ -155,8 +158,6 @@ def domexy_to_tracesize(x_,y_,theta_):
     delta_x = np.asarray([x_*SEDM_XRED_EXTENTION[0] + SEDM_XRED_EXTENTION[1], x_*SEDM_XBLUE_EXTENTION[0] + SEDM_XBLUE_EXTENTION[1]])
     return x_-delta_x,  y_-np.sin(theta_)*delta_x
 
-
-
 def load_sedmspec(filename):
     """ Load SEDM .fits or .txt """
     if filename.endswith(".txt"):
@@ -177,6 +178,39 @@ def get_sedmspec(ascii_data):
     spec_data = np.asarray([d.split() for d in ascii_data if not d.startswith("#")], dtype="float").T
     return get_spectrum(*spec_data, header=header)
 
+def is_coord_in_mla(spaxel_coords):
+    """ """
+    return geometry.Point(0,0).buffer(SEDM_MLA_RADIUS).contains(geometry.Point(*spaxel_coords))
+
+
+# ----------------------- #
+#  SEDM SPECTRUM QUALITY  #
+# ----------------------- #
+def asses_quality(spec, negative_threshold_percent=20):
+    """ 
+    // default
+    - 0 = default
+
+    // good 
+    - 1: to be defined
+    - 2: to be defined
+
+    // bad
+    - 3: Pointing Problem
+    - 4: more than `negative_threshold_percent` of the flux is negative 
+    - 5: A science target with no WCS
+    """
+    if "STD" not in spec.header.get("OBJECT") and spec.header.get("SRCPOS",None) =="auto":
+        return 5
+    
+    if not spec.header.get("POSOK",True):
+        return 3
+    
+    flagnegative = spec.data<0
+    if len(spec.data[flagnegative]) / len(spec.data) > negative_threshold_percent/100:
+        return 4
+    
+    return 0
 
 # ------------------ #
 #  Builder           #
@@ -407,11 +441,6 @@ def build_calibrated_sedmcube(cubefile, date=None, calibration_ref=None, kindout
     # - Save it
     cube.writeto(cubefile.replace("%s"%PROD_CUBEROOT,"%s_%s"%(PROD_CUBEROOT,kindout)))
 
-
-
-
-
-
 def get_sedm_flatcube(domecube, s=0.8, loc=4300):
     """ Froma e3d dome cube, This returns a flatfielder cube """
     from scipy import stats
@@ -536,6 +565,46 @@ def kpy_to_e3d(filename, lbda, savefile=None):
         
     return cube
 
+def flux_calibrate_sedm(spec, fluxcalfile=None, nofluxcal=False):
+    """ """
+    if fluxcalfile in ["None"]:
+        fluxcalfile = None
+
+    if not nofluxcal:
+        # Which Flux calibration file ?
+        if fluxcalfile is None:
+            from . import io
+            print("INFO: default nearest fluxcal file used")
+            date = io.header_to_date(spec.header)
+            fluxcalfile = io.fetch_nearest_fluxcal(date, spec.filename)
+        else:
+            print("INFO: given fluxcal used.")
+
+        # Do I have a flux calibration file ?
+        if fluxcalfile is None:
+            print("ERROR: No fluxcal for night %s and no alternative fluxcalsource provided. Uncalibrated spectra saved."%date)
+            spec.header["CALSRC"] = (None, "Flux calibrator filename")
+            flux_calibrated=False
+        else:
+            from .fluxcalibration import load_fluxcal_spectrum
+            fluxcal = load_fluxcal_spectrum( fluxcalfile ) 
+            spec.scale_by( fluxcal.get_inversed_sensitivity(spec.header.get("AIRMASS", 1.1) ))
+            spec.header["CALSRC"] = (fluxcal.filename.split("/")[-1], "Flux calibrator filename")
+            flux_calibrated=True
+            
+    else:
+        spec.header["FLUXCAL"] = (False,"has the spectra been flux calibrated")
+        spec.header["CALSRC"] = (None, "Flux calibrator filename")
+        flux_calibrated=False
+        
+    # Flux Calibration
+    if flux_calibrated:
+        spec.header["FLUXCAL"] = (True,"has the spectra been flux calibrated")
+        spec.header["BUNIT"]  = ("erg/s/A/cm^2","Flux Units")
+    else:
+        spec.header["FLUXCAL"] = (False,"has the spectra been flux calibrated")
+        spec.header["BUNIT"]  = (spec.header.get('BUNIT',""),"Flux Units")
+    return spec
 
 # --------------- #
 #   PLOTTER       #
@@ -644,6 +713,624 @@ def display_on_hexagrid(value, traceindexes,
     fig.figout(savefile=savefile, show=show)
     return {"ax":axim,"fig":fig}
 
+
+#################################
+#                               #
+#    SEDM ExtractStar           #
+#                               #
+#################################
+
+class SEDMExtractStar( BaseObject ):
+    """ """
+    PROPERTIES = ["cube", "psfmodel","from_humain"]
+    SIDE_PROPERTIES = ["fitted_cube", "centroid", "centroiderr", "lbdastep1"]
+    DERIVED_PROPERTIES = ["es_products","fitted_spaxels","centroidtype",
+                          "spectrum"]
+
+
+    def __init__(self, cube):
+        """ """
+        self._properties["cube"] = cube
+
+
+    def writeto(self, filebase=None, add_tag="", add_info=None):
+        """ """
+        if filebase:
+            filebase = self.cube.filecube
+
+        spec_info = ""
+        if hasattr(self,_slice_width):
+            spec_info += "_lstep%s"%self._slice_width
+        if add_info is not None and add_info not in [""]:
+            spec_info += add_info_spec
+        if not self.is_spectrum_fluxcalibrated:
+            spec_info += "_notfluxcal"
+        io._saveout_forcepsf_(filebase, self.cube, cuberes=None,
+                                  cubemodel=self.es_products["cubemodel"],
+                                  mode="auto"+add_tag, spec_info=spec_info,
+                                  fluxcal=self.is_spectrum_fluxcalibrated,
+                                  cubefitted=self.fitted_cube, spec=self.spectrum)
+
+    # =============== #
+    #  Methods        #
+    # =============== #
+    # ------- #
+    # MAIN    #
+    # ------- #
+    def run(self, psfmodel=None, slice_width=1,
+                spaxel_unit=IFU_SCALE_UNIT, update=True):
+        """ 
+        Returns
+        -------
+        spec, cubemodel, psfmodel, bkgdmodel, psffit, slpsf
+        """
+        from psfcube import script
+
+        if psfmodel is not None:
+            if psfmodel in ["None","default"]:
+                psfmodel = None
+            self.set_psfmodel(psfmodel)
+
+        if not self.has_centroid():
+            self.set_centroid("auto")
+
+        if not self.is_centroid_in_mla():
+            print("CENTROID NOT IN MLA, extract_star did not run. Default backup solution built")
+            self.build_backup_output()
+            return
+
+        self._slice_width = slice_width
+        spec, *other_es_output  = script.extract_star(self.fitted_cube, self.lbdastep1,
+                                                            centroids=self.centroid,
+                                                            centroids_err=self.centroiderr,
+                                                            spaxel_unit = spaxel_unit,
+                                                            final_slice_width = slice_width,
+                                                            psfmodel=self.psfmodel)
+        if slice_width != 1:
+            spec = spec.reshape(self.cube.lbda)
+
+        if update:
+            self.set_es_products(spec, *other_es_output)
+        else:
+            return es_output
+
+    # ExtractStar output
+    def set_es_products(self, spec, cubemodel, psfmodel, bkgdmodel, psffit, slpsf):
+        """ """
+        for k,v in locals().items():
+            if k in self.es_products:
+                self.es_products[k] = v # defined just above
+                
+        self._build_es_output_()
+        self.es_products["spec"].set_header(self._get_product_header_())
+
+    def build_backup_output(self):
+        """ """
+        backup_spec = get_spectrum( SEDM_LBDA, np.ones(len(SEDM_LBDA))*np.NaN, header=self.cube.header )
+        self.set_es_products(backup_spec, None, None, None, None, None)
+        self._build_es_output_(backup=True)
+        self.es_products["spec"].set_header(self._get_product_header_())
+        
+            
+    # - internal        
+    def _build_es_output_(self, backup=False):
+        """ """
+        if backup:
+            self._es_headerkey = dict(POSOK = self.is_centroid_in_mla(),
+                                    lbdaref     = "nan", fwhm_arcsec = "nan",
+                                    psf_ell     = "nan", psf_pa      = "nan",
+                                    psf_airmass = "nan", psf_chi2    = "nan")
+        else:
+            self._es_headerkey =  dict(posok = self.is_centroid_in_mla(),
+                    lbdaref     = self.es_products["psffit"].adrfitter.model.lbdaref,
+                    fwhm_arcsec = self.es_products["psffit"].slices[2]["slpsf"].model.fwhm * IFU_SCALE_UNIT * 2,
+                    psf_ell     = self.es_products["psffit"].slices[2]["slpsf"].fitvalues['ell'],
+                    psf_pa      = self.es_products["psffit"].adrfitter.fitvalues["parangle"],
+                    psf_airmass = self.es_products["psffit"].adrfitter.fitvalues["airmass"],
+                    psf_chi2    = self.es_products["psffit"].adrfitter.fitvalues["chi2"]/self.es_products["psffit"].adrfitter.dof
+                    )
+            
+    def _get_product_header_(self):
+        """ """
+        from .__init__ import __version__
+        from psfcube import __version__ as psfcubeversion
+        header = self.es_products["spec"].header
+        for k,v in self.cube.header.items():
+            if k not in header:
+                header.set(k,v)
+        #
+        # Additional information
+        header.set('CRPIX1', 1, "")    # correct CRPIX1 from e3d
+        # code
+        header.set('PYSEDMV', __version__, "Version of pysedm used")
+        header.set('PSFV', psfcubeversion, "Version of psfcube used")
+        header.set('PYSEDMPI', "M. Rigault and D. Neill", "authors of the pysedm pipeline")
+        header.set('PSFPI', "M. Rigault", "authors of the psfcube")
+        # centroid
+        header.set('POSOK', self._es_headerkey["posok"], "Is the Target centroid inside the MLA?")
+        header.set('XPOS', self.centroid[0], "x centroid position at reference wavelength (in spaxels)")
+        header.set('YPOS', self.centroid[1], "y centroid position at reference wavelength (in spaxels)")
+        header.set('LBDAPOS',self._es_headerkey["lbdaref"] , "reference wavelength for the centroids (in angstrom)")
+        header.set('SRCPOS', self.centroidtype, "How was the centroid selected ?")
+        
+        # Extraction:
+        header.set('EXTRACT', "manual" if self.from_humain else "auto", "Was the Extraction manual or automatic")        
+        # PSF
+        header.set('PSFMODEL', self.psfmodel, "PSF model used in psfcube")        
+        header.set('PSFFWHM', self._es_headerkey["fwhm_arcsec"], "twice the radius needed to reach half of the pick brightness [in arcsec]")
+        header.set('PSFADRC2',self._es_headerkey["psf_chi2"], "ADR chi2/dof")    
+        header.set('PSFELL', self._es_headerkey["psf_ell"] , "Ellipticity of the PSF")
+        # ADR
+        header.set('PSFADRPA', self._es_headerkey["psf_pa"], "Fitted ADR paralactic angle")
+        header.set('PSFADRZ', self._es_headerkey["psf_airmass"], "Fitted ADR airmass")
+        # Overall quality
+        header.set("QUALITY", asses_quality(self.es_products["spec"]), "spectrum extraction quality flag [3,4 means bad ; 0=default] ")
+
+            
+    # ------- #
+    # HUMAIN  #
+    # ------- #
+    def get_humain_input(self, **kwargs):
+        """ Launches a interactive cube plot to allow the user to:
+        - pick the centroid (double clic)
+        - pick the spaxels that will be used by extractstars
+
+        **kwargs goes to cube interactive plots.
+        
+        """
+        import matplotlib.pyplot as mpl
+        if not self.has_centroid():
+            self.set_centroid()
+            
+        # Display for humain
+        self._humain_iplot = self.cube.show(interactive=True, launch=False)
+
+        self._humain_iplot.axim.scatter( *self.centroid, **self._centroiddisplay )
+        self._humain_iplot.launch(**{**dict(vmin="2", vmax="98"), **kwargs})
+        return self._humain_iplot
+
+    def update_from_humain_input(self):
+        """ Update the centroid and/or spaxels to be used given 
+        what was done in get_humain_input()
+        """
+        if not hasattr(self, "_humain_iplot"):
+            raise AttributeError("You do not have humain_iplot, run get_humain_input()")
+        
+        # -> did Humain changed centroid ?
+        if self._humain_iplot.picked_position is not None:
+            print("You picked the position : ", self._humain_iplot.picked_position )
+            print(" updating the centroid accordingly ")
+            self.set_centroid(centroid=self._humain_iplot.picked_position, centroiderr=[2,2])
+            self._properties["from_humain"] = True
+        # - did Humain defined area to fit ?
+        spaxels_to_use = self._humain_iplot.get_selected_idx()
+        if spaxels_to_use is not None and len(spaxels_to_use) > 0:
+            self.set_fitted_spaxels(spaxels_to_use)
+            self._properties["from_humain"] = True
+            
+    # ------- #
+    # GETTER  #
+    # ------- #
+    def get_fluxcalibrated_spectrum(self, fluxcalfile=None, nofluxcal=False, update=False):
+        """ Get flux calibrated spectra from the extract star spectrum (self.es_products["spec"])
+
+        Parameters
+        ----------
+        fluxcalfile: [None or string] -optional-
+            Filename containing a pysedm's flux calibration file.
+            If None, this will fetch for it. If Failed, the spectrum won't be flux calibrated
+
+        nofluxcal: [bool] -optional-
+            For the non-fluxcalibration (similar as if failed finding a fluxcalibration file)
+            
+        update: [bool] -optional-
+            Shall this update self.spectrum [update=True] or just return the flux calibrated spectrum [update=False]
+
+        Returns
+        None or Spectrum (see update)
+        """
+        if self.es_products["spec"] is None:
+            raise AttributeError("No spectrum extracted yet. use run()")
+
+        spec =  flux_calibrate_sedm(self.es_products["spec"], fluxcalfile=fluxcalfile, nofluxcal=nofluxcal) 
+        if update:
+            self._derived_properties["spectrum"] = spec
+        else:
+            return spec
+        
+    def get_spaxels_tofit(self, centroid=None, buffer=10, update=False):
+        """ Get spaxels to given assuming circular aperture.
+
+        Parameters
+        ----------
+        centroid: [x,y] -optional-
+            Provide the centroid of the circular aperture.
+            If None given, this will use self.centroid.
+
+        buffer: [float] -optional-
+            Radius of the circular aperture (in spaxels)
+            
+        update: [bool] -optional-
+            Shall fitted_spaxels (and consequently fitted_cube) be updated ?
+            If not the spaxel ids are returned
+            
+        Returns
+        -------
+        None (if update is True, this calls set_fitted_spaxels())
+        list (if update is False, list of spaxel ids)
+        """
+        if centroid is None:
+            centroid = self.centroid
+        if centroid is None:
+            raise ValueError("point source centroid not defined nor provided")
+
+        from shapely.geometry import Point
+        point_polygon = Point(*centroid).buffer( buffer )
+        spaxels_tofit = self.cube.get_spaxels_within_polygon(point_polygon)
+        if update:
+            self.set_fitted_spaxels(spaxels_tofit)
+        return spaxels_tofit    
+
+    def get_centroid(self, centroid=None, centroiderr=None, **kwargs):
+        """ get PSF centroid (and its error)
+        This actually are the initial guess and guess error for the PSF fit.
+        
+        [auto mode] If you do not provide any centroid, this will try to find it,
+                    using the `position_source` function from pysedm.astrometry.
+        
+        Parameters:
+        -----------
+        centroid: [string/2d-array/None] -optional-
+            how is the centroid (target position) selected:
+            could be a string:
+            - 'auto/default': try to estimate the position from meta-guider image
+            - 'max/brightest': uses the brightest spaxels as initial guess
+            could be 2d array:
+            - xpos,ypos=`centroid`
+            (returns ValueError is unable to parse)
+            could be None:
+            - then centroid='auto'
+
+        Returns
+        -------
+        [xcentroid, ycentroid], [xcentroiderr, ycentroiderr], centroidtype
+
+        """
+        from . import astrometry
+        if centroid is None:
+            centroid = "auto"
+        if type(centroid)==str:
+            kwargs["maxpos"] = True if centroid in ["max","maxpos","brightest"] else False
+            centroid = None
+            
+        return astrometry.position_source(self.cube, centroid=centroid, **kwargs)
+    
+    # ------- #
+    # SETTER  #
+    # ------- #
+    def set_psfmodel(self, psfmodel):
+        """ Set the model you want:
+        
+        Parameters
+        ----------
+        psfmodel: [str]
+            Name of the model.
+            - NormalMoffat[Flat/Tilted/Curved]
+        
+        Returns
+        -------
+        None
+        """
+        self._properties["psfmodel"] = psfmodel
+        
+    def set_centroid(self, centroid=None, centroiderr=None, **kwargs):
+        """ Set PSF centroid (and its error)
+        This actually are the initial guess and guess error for the PSF fit.
+        
+        [auto mode] If you do not provide any centroid, this will try to find it,
+                    using the `position_source` function from pysedm.astrometry.
+        
+        Parameters:
+        -----------
+        centroid: [string/2d-array/None] -optional-
+            how is the centroid (target position) selected:
+            could be a string:
+            - 'auto/default': try to estimate the position from meta-guider image
+            - 'max/brightest': uses the brightest spaxels as initial guess
+            could be 2d array:
+            - xpos,ypos=`centroid`
+            (returns ValueError is unable to parse)
+            could be None:
+            - then centroid='auto'
+
+        Returns
+        -------
+        None (sets centroid, centroiderr and centroidtype)
+
+        """
+        
+        self._side_properties["centroid"], self._side_properties["centroiderr"], self._derived_properties["centroidtype"] = \
+          self.get_centroid( centroid=None, centroiderr=None, **kwargs)
+
+    # // Fitted Cube
+    def set_fitted_spaxels(self, spaxelids, update_fitted_cube=True):
+        """ Set which spaxels are used for the PSF extraction.
+        
+        Parameters
+        ----------
+        spaxelids: [list]
+            list of spaxels ids that will be use to build the subcube that will be fitted
+            (see self.cube.get_partial_cube() and self.fitted_cube)
+
+        update_fitted_cube: [bool] -optional-
+            Should this arise and replace the fitted_cube (if any)
+            
+        Returns
+        -------
+        None (sets fitted_spaxels [and fitted_cube if `update_fitted_cube` is True])
+            
+        """
+        self._derived_properties["fitted_spaxels"] = spaxelids
+        if update_fitted_cube:
+            self._side_properties["fitted_cube"] = self.cube.get_partial_cube( self.fitted_spaxels, np.arange( len(self.cube.lbda)) )
+
+    def set_fitted_cube(self, cube):
+        """ Set the cube that will be fitted
+        
+        Remark that this method sets self.fitted_spaxels to None
+        as the fitted_cube is not extracted from these spaxels.
+        
+        Parameters
+        ----------
+        cube: [pyifu Cube (or child of)]
+            The cube that will be fitted.
+            
+        Returns
+        -------
+        None (sets fitted_cube and fitted_spaxels)
+        """
+        self._side_properties["fitted_cube"] = cube
+        self._derived_properties["fitted_spaxels"] = None
+
+    def set_lbdastep1(self, lbdarange=[4500,7000], bins=6, lbdastep1=None):
+        """ Set the wavelength boundaries of the meta-slices used during the
+        first phase of extractstars
+
+        lbdastep1 will be [[l_min1, l_max1],[l_min2, l_max2],...]
+
+        Parameters
+        ----------
+        // init 1
+        lbdarange: [array] -optional-
+            Overall minimum and maximum wavelength (in A)
+            This corresponds the [l_min1, l_maxN], where N is the latest bin
+            
+        bins: [int] -optional-
+            How many bins do you want within the given lbdarange.
+
+        // init 2
+        lbdastep1: [2d-array] -optional-
+            Directly provide the complet lbdastep1.
+            If so lbdarange and bins will be ignored.
+
+        Returns
+        -------
+        None (sets lbdastep1)
+        """
+        if lbdastep1 is None:
+            from psfcube import script
+            self._side_properties["lbdastep1"] = script.lbda_and_bin_to_lbda_step1(lbdarange, bins)
+        else:
+            self._side_properties["lbdastep1"] = lbdastep1
+
+
+    # ------- #
+    # PLOTTER #
+    # ------- #
+    def show_mla(self, ax=None, savefile=None, vmin="2", vmax="98", lbdalim=[6000,9000] ):
+        """ Show the MLA, highlighting centroid and used spaxels.
+
+        Parameters
+        ----------
+        ax: [None, mpl's Axes] -optional-
+            The Axes where the plot should be drawn.
+            If None this will create a new figure and new axes (returned)
+
+        savefile: [string] -optional-
+            Where the figure will be saved (savefile should have an extension).
+            
+        vmin, vmax: [float/str] -optional-
+            Lower and upper limit for the colormap.
+            If string, they will be considered as 'in percent of data'
+            
+        lbdalim: [2-value array] -optional-
+            Lower and upper wavelength limit that will be integrated to provide
+            the spaxel flux.
+
+        Returns
+        dict ({fig, ax})
+        
+        """
+        import matplotlib.pyplot as mpl
+        # Pure spaxel
+        if ax is None:
+            fig = mpl.figure(figsize=[3.5,3.5])
+            ax = fig.add_axes([0.15,0.15,0.75,0.75])
+        else:
+            fig = ax.figure
+            
+        _ = self.cube._display_im_(ax, vmax=vmax, vmin=vmin, lbdalim=lbdalim)
+        
+        if self._es_headerkey["posok"]:
+            x,y = np.asarray(cube_to_fit.index_to_xy(self.fitted_cube.indexes)).T
+            ax.plot(x, y, marker=".", ls="None", ms=1, color="k")
+            ax.scatter(xcentroid, ycentroid, **self._centroiddisplay)
+        else:
+            ax.text(0.5,0.95, "Target outside the MLA \n [%.1f, %.1f] (in spaxels)"%(xcentroid, ycentroid),
+                                    fontsize="large", color="k",backgroundcolor=mpl.cm.binary(0.1,0.4),
+                                    transform=ax.transAxes, va="top", ha="center")
+                        
+        ax.set_xticks(np.arange(-20,20, 5))
+        ax.set_yticks(np.arange(-20,20, 5))
+        
+        ax.grid(color='0.6', linestyle='-', linewidth=0.5, alpha=0.5)
+        
+        if savefile is not None:    
+            fig.savefig(savefile)
+            
+        return {"fig":fig, "ax":ax}
+
+    def show_adr(self, ax=None, savefile=None, **kwargs):
+        """ Show the ADR fit.
+        
+        Parameters
+        ----------
+        ax: [None, mpl's Axes] -optional-
+            The Axes where the plot should be drawn.
+            If None this will create a new figure and new axes (returned)
+
+        savefile: [string] -optional-
+            Where the figure will be saved (savefile should have an extension).
+            
+        **kwargs goes to psfcube's PSFFit.show_adr()
+          - show, cmap, show_colorbar, clabel,labelkey, guess_airmass.
+            Want all what ax.scatter accepts.
+
+            
+        Returns
+        -------
+        dict ({"ax":ax, "fig":fig, "plot":[scd,scm]})
+        """
+        if self.es_products["psffit"] is None:
+            print("No psffit es_products. Maybe you did not run the extraction, or maybe it failed. ")
+        return self.es_products["psffit"].show_adr(ax=ax, savefile=savefile,**kwargs)
+
+    def show_psf(self,savefile=None, sliceid=2, **kwargs):
+        """ 
+        kwargs could be:
+           - savefile=None,
+           - show=True,
+           - centroid_prop={},
+           - logscale=True,
+           - psf_in_log=True,
+           - vmin='2',
+           - vmax='98',
+           - ylim_low=None,
+           - xlim=[0, 10]
+        """
+        if self.es_products["psffit"] is None:
+            print("No psffit es_products. Maybe you did not run the extraction, or maybe it failed. ")
+            
+        return self.es_products["psffit"].slices[sliceid]["slpsf"].show(savefile=savefile, **kwargs)
+    
+                
+    # =============== #
+    #  Properties     #
+    # =============== #
+    @property
+    def cube(self):
+        """ """
+        return self._properties["cube"]
+
+    @property
+    def fitted_spaxels(self):
+        """ """
+        return self._derived_properties["fitted_spaxels"]
+
+    @property
+    def psfmodel(self):
+        """ """
+        if self._properties["psfmodel"] is None:
+            self._properties["psfmodel"] = "NormalMoffatTilted"
+        return self._properties["psfmodel"]
+
+    @property
+    def from_humain(self):
+        """ """
+        if self._properties["from_humain"] is None:
+            self._properties["from_humain"] = False
+        return self._properties["from_humain"]
+    # --------
+    # SIDE
+    # --------
+    @property
+    def lbdastep1(self, auto=True):
+        """ """
+        if self._side_properties["lbdastep1"] is None and auto:
+            self.set_lbdastep1()
+        return self._side_properties["lbdastep1"]
+    
+    @property
+    def fitted_cube(self):
+        """ cube from which the spectrum will be extracted """
+        if self._side_properties["fitted_cube"] is None:
+            if self.fitted_spaxels is None:
+                return self.cube
+            # spaxels to fit have been defined.
+            self._side_properties["fitted_cube"] = self.get_partial_cube( spaxels_to_use, np.arange( len(self.lbda)) )    
+        return self._side_properties["fitted_cube"]
+
+    # --------
+    # Derived
+    # --------
+    # // Centroid
+    @property
+    def centroid(self, auto=True):
+        """ """
+        if self._side_properties["centroid"] is None and auto:
+            self.set_centroid(None)
+        return self._side_properties["centroid"]
+
+    @property
+    def centroiderr(self):
+        """ """
+        return self._side_properties["centroiderr"]
+
+    @property
+    def centroidtype(self):
+        """ """
+        return self._derived_properties["centroidtype"]
+
+    @property
+    def _centroiddisplay(self):
+        """ """
+        from . import astrometry
+        return {} if self.centroidtype is None else astrometry.MARKER_PROP[self.centroidtype]
+
+    def has_centroid(self):
+        """ test if any centroid has been defined """
+        return self.centroidtype is not None
+
+    def is_centroid_in_mla(self):
+        """ """
+        return is_coord_in_mla(self.centroid)
+    
+    # // ExtractStars
+    @property
+    def es_products(self):
+        """ """
+        if self._derived_properties["es_products"] is None:
+            self._derived_properties["es_products"] = {k:None for k in "spec,cubemodel,psfmodel,bkgdmodel,psffit,slpsf".split(",")}
+        return self._derived_properties["es_products"]
+
+    @property
+    def spectrum(self):
+        """ flux calibrated spectrum """
+        if self._derived_properties["spectrum"] is None:
+            if self.es_products["spec"] is not None:
+                self.get_fluxcalibrated_spectrum(update=True)
+        return self._derived_properties["spectrum"]
+
+    def is_spectrum_fluxcalibrated(self):
+        """ """
+        if self.spectrum is None:
+            raise AttributeError("No spectrum at all")
+        return self.spectrum["FLUXCAL"]
+        
+                
+                
+        
+    
 #################################
 #                               #
 #    SEDMachine Cube            #
@@ -653,6 +1340,49 @@ class SEDMCube( Cube ):
     """ SEDM Cube """
     DERIVED_PROPERTIES = ["sky"]
 
+
+    def extract_pointsource(self, display=False, displayprop={},
+                                step1range=[4500,7000], step1bins=6,
+                                centroid="auto", prop_position={},
+                                spaxelbuffer = 10, spaxels_to_use=None,
+                                psfmodel="NormalMoffatTilted",
+                                slice_width = 1):
+        """ runs the default extract_star script on the target. 
+        
+        - Method based on psfcube https://github.com/MickaelRigault/psfcube - 
+
+
+        Parameters:
+        -----------
+        centroid: [string/2d-array] -optional-
+            how is the centroid (target position) selected:
+            could be a string:
+            - 'auto/default': try to estimate the position from meta-guider image
+            - 'max/brightest': uses the brightest spaxels as initial guess
+            could be 2d array:
+            - xpos,ypos=`centroid`
+            (returns ValueError is unable to parse)
+
+        """
+        from . import astrometry
+        from shapely import geometry
+        
+        # input convertion
+        self.extractstar = SEDMExtractStar(self)
+        
+        # - centroid
+        self.extractstar.set_centroid(centroid, **prop_position)
+
+        if display: # humain interaction
+            import matplotlib.pyplot as mpl
+            self.extractstar.get_humain_input()
+            self.extractstar.update_from_humain_input()
+            
+        if self.extractstar.fitted_spaxels is None:
+            self.extractstar.get_spaxels_tofit(buffer=spaxelbuffer)
+            
+        return self.extractstar.run(slice_width=slice_width, psfmodel=psfmodel)
+    
     def get_aperture_spec(self, xref, yref, radius, bkgd_annulus=None,
                               refindex=None, adr=True, **kwargs):
         """ 

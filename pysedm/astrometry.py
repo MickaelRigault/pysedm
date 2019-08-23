@@ -14,6 +14,67 @@ from psfcube import fitter
 from . import io
 from .sedm import get_sedm_astrom_param
 
+# ======================= #
+#   FIND POINT SOURCE     #
+# ======================= #
+MARKER_PROP = {"astrom": dict(marker="x", lw=2, s=80, color="C1", zorder=8),
+               "manual": dict(marker="+", lw=2, s=100, color="k", zorder=8),
+               "aperture": dict(marker="+", lw=2, s=100, color="k", zorder=8),
+               "auto":  dict(marker="o", lw=2, s=200, facecolors="None", edgecolors="C3", zorder=8)
+                   }
+
+    
+def position_source(cube,
+                    centroid=None, centroiderr=None,
+                    lbdaranges=[5000,7000], maxpos=False):
+    """ How is the source position selected ? """
+    
+    if centroiderr is None or centroiderr in ["None"]:
+        centroid_err_given = False
+        centroids_err = [3, 3]
+    else:
+        centroid_err_given = True
+        centroids_err = np.asarray(centroiderr, dtype="float")
+
+    # Let's start...
+    position_type = "unknown"
+    
+    # OPTION 1: Use maximum spaxels to derive position
+    if maxpos:
+        print("Centroid guessed based on brightness")
+        xcentroid, ycentroid = estimate_default_position(cube, lbdaranges=lbdaranges)
+        if not centroid_err_given:
+            centroids_err = [5, 5]
+        position_type="auto"
+        
+    # OPTION 2: Use astrometry of guider images for position, if possible
+    elif centroid is None or centroid in ["None"]:
+        xcentroid, ycentroid = get_object_ifu_pos(cube)
+        
+        if np.isnan(xcentroid*ycentroid):
+            # FAILS... go back to OPTION 1
+            print("IFU target location based on CCD astrometry failed. "
+                  "centroid guessed based on brightness used instead")
+            return position_source(cube, lbdaranges=lbdaranges, maxpos=True)
+        
+        # Works !
+        print("IFU position based on CCD wcs solution used : ",
+                  xcentroid, ycentroid)
+        position_type="astrom"
+            
+    # OPTION 3: Use input centroid values for position
+    else:
+        try:
+            xcentroid, ycentroid = np.asarray(centroid, dtype="float")
+        except:
+            raise ValueError("Unable to parse `centroid`. Should be None or a 2d float array `xcentroid, ycentroid = centroids`")
+        position_type="manual"
+
+    print("Position type %s: %.2f, %.2f" %
+          (position_type, xcentroid, ycentroid))
+
+    return [xcentroid, ycentroid], centroids_err, position_type
+
 
 # ======================= #
 #   GET LOCATIONS         #
@@ -36,7 +97,6 @@ def get_object_ifu_pos(cube, parameters=None):
         return rainbow_coords_to_ifu(get_ccd_coords(cube),
                                      parameters) + np.asarray([-5, -30])
     return rainbow_coords_to_ifu(get_ccd_coords(cube), parameters)
-
 
 def get_ccd_coords(cube):
     """ target position in the rainbow camera. 
@@ -83,7 +143,6 @@ def get_ccd_coords(cube):
         warnings.warn("Could not converge on coordinates")
         coords = np.asarray([np.NaN, np.NaN])
     return coords
-
 
 def fit_conversion_matrix(cubes_to_fit, guess=None):
     """ """
@@ -152,7 +211,6 @@ def fit_cube_centroid(cube_, lbdamin=6000, lbdamax=7000):
     centroid = estimate_default_position(cube_)
     slfit = fitter.fit_slice(sl_r, centroids=centroid, centroids_err=[4,4])
     return [slfit.fitvalues[k] for k in ["xcentroid","ycentroid","xcentroid.err","ycentroid.err"]]
-
 
 def get_standard_rainbow_coordinates(rainbow_wcs, stdname):
     """ """

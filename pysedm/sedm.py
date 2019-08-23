@@ -575,8 +575,7 @@ def flux_calibrate_sedm(spec, fluxcalfile=None, nofluxcal=False):
         if fluxcalfile is None:
             from . import io
             print("INFO: default nearest fluxcal file used")
-            date = io.header_to_date(spec.header)
-            fluxcalfile = io.fetch_nearest_fluxcal(date, spec.filename)
+            fluxcalfile = io.fetch_nearest_fluxcal(mjd=spec.header.get("MJD_OBS"))
         else:
             print("INFO: given fluxcal used.")
 
@@ -733,23 +732,28 @@ class SEDMExtractStar( BaseObject ):
         self._properties["cube"] = cube
 
 
-    def writeto(self, filebase=None, add_tag="", add_info=None):
+    def writeto(self, filebase=None, add_tag="", add_info=None, nofig=True):
         """ """
-        if filebase:
-            filebase = self.cube.filecube
+        from .io import _saveout_forcepsf_
+        
+        if filebase is None:
+            filebase = self.cube.filename
 
         spec_info = ""
-        if hasattr(self,_slice_width):
+        if hasattr(self, "_slice_width"):
             spec_info += "_lstep%s"%self._slice_width
         if add_info is not None and add_info not in [""]:
             spec_info += add_info_spec
         if not self.is_spectrum_fluxcalibrated:
             spec_info += "_notfluxcal"
-        io._saveout_forcepsf_(filebase, self.cube, cuberes=None,
+
+        
+        _saveout_forcepsf_(filebase, self.cube, cuberes=None,
                                   cubemodel=self.es_products["cubemodel"],
                                   mode="auto"+add_tag, spec_info=spec_info,
                                   fluxcal=self.is_spectrum_fluxcalibrated,
-                                  cubefitted=self.fitted_cube, spec=self.spectrum)
+                                  cubefitted=self.fitted_cube, spec=self.spectrum,
+                               nofig=nofig)
 
     # =============== #
     #  Methods        #
@@ -802,16 +806,20 @@ class SEDMExtractStar( BaseObject ):
                 self.es_products[k] = v # defined just above
                 
         self._build_es_output_()
-        self.es_products["spec"].set_header(self._get_product_header_())
-
+        self._es_spec_update_()
+        
     def build_backup_output(self):
         """ """
         backup_spec = get_spectrum( SEDM_LBDA, np.ones(len(SEDM_LBDA))*np.NaN, header=self.cube.header )
         self.set_es_products(backup_spec, None, None, None, None, None)
         self._build_es_output_(backup=True)
+        self._es_spec_update_()
+
+    def _es_spec_update_(self):
+        """ """
         self.es_products["spec"].set_header(self._get_product_header_())
+        self.es_products["spec"]._side_properties["filename"] = self.cube.filename.replace("e3d","spec")
         
-            
     # - internal        
     def _build_es_output_(self, backup=False):
         """ """
@@ -865,7 +873,7 @@ class SEDMExtractStar( BaseObject ):
         header.set('PSFADRZ', self._es_headerkey["psf_airmass"], "Fitted ADR airmass")
         # Overall quality
         header.set("QUALITY", asses_quality(self.es_products["spec"]), "spectrum extraction quality flag [3,4 means bad ; 0=default] ")
-
+        return header
             
     # ------- #
     # HUMAIN  #
@@ -1162,9 +1170,9 @@ class SEDMExtractStar( BaseObject ):
         _ = self.cube._display_im_(ax, vmax=vmax, vmin=vmin, lbdalim=lbdalim)
         
         if self._es_headerkey["posok"]:
-            x,y = np.asarray(cube_to_fit.index_to_xy(self.fitted_cube.indexes)).T
+            x,y = np.asarray(self.fitted_cube.index_to_xy(self.fitted_cube.indexes)).T
             ax.plot(x, y, marker=".", ls="None", ms=1, color="k")
-            ax.scatter(xcentroid, ycentroid, **self._centroiddisplay)
+            ax.scatter(*self.centroid, **self._centroiddisplay)
         else:
             ax.text(0.5,0.95, "Target outside the MLA \n [%.1f, %.1f] (in spaxels)"%(xcentroid, ycentroid),
                                     fontsize="large", color="k",backgroundcolor=mpl.cm.binary(0.1,0.4),
@@ -1267,7 +1275,8 @@ class SEDMExtractStar( BaseObject ):
             if self.fitted_spaxels is None:
                 return self.cube
             # spaxels to fit have been defined.
-            self._side_properties["fitted_cube"] = self.get_partial_cube( spaxels_to_use, np.arange( len(self.lbda)) )    
+            self._side_properties["fitted_cube"] = self.get_partial_cube( spaxels_to_use, np.arange( len(self.lbda)) )
+            
         return self._side_properties["fitted_cube"]
 
     # --------
@@ -1379,7 +1388,7 @@ class SEDMCube( Cube ):
             self.extractstar.update_from_humain_input()
             
         if self.extractstar.fitted_spaxels is None:
-            self.extractstar.get_spaxels_tofit(buffer=spaxelbuffer)
+            self.extractstar.get_spaxels_tofit(buffer=spaxelbuffer, update=True)
             
         return self.extractstar.run(slice_width=slice_width, psfmodel=psfmodel)
     

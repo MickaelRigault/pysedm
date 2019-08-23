@@ -149,8 +149,14 @@ def fetch_header(date, target, kind="ccd.crr", getkey=None):
         return {d.split("/")[-1]:getval(d,getkey) for d in datafile}
 
 
-def fetch_nearest_fluxcal(date, file, kind="spec.fluxcal"):
+def fetch_nearest_fluxcal(date=None, file=None, mjd=None, kind="spec.fluxcal"):
     """ Look for the fluxcal_*.fits file the closest (in time) from the given file and returns it. """
+    if date is None:
+        if mjd is not None:
+            date = Time(mjd, format="mjd").datetime.isoformat().split("T")[0].replace("-","")
+        else:
+            raise ValueError("date and/or mjd must be given. None here")
+        
     filefluxcal = get_night_files(date, kind)
     
     if len(filefluxcal)==0:
@@ -161,11 +167,15 @@ def fetch_nearest_fluxcal(date, file, kind="spec.fluxcal"):
         return filefluxcal[0]
 
     import numpy as np
-    try:
-        target_mjd_obs  = getval(file,"MJD_OBS")
-    except KeyError:
-        warnings.warn("No MJD_OBS keyword found, returning most recent file")
-        return filefluxcal[-1]
+    if mjd is not None:
+        target_mjd_obs = mjd
+    else:
+        try:
+            target_mjd_obs  = getval(file,"MJD_OBS")
+        except KeyError:
+            warnings.warn("No MJD_OBS keyword found, returning most recent file")
+            return filefluxcal[-1]
+        
     fluxcal_mjd_obs = [getval(f,"MJD_OBS") for f in filefluxcal]
 
     return filefluxcal[ np.argmin( np.abs( target_mjd_obs - np.asarray(fluxcal_mjd_obs) ) ) ]

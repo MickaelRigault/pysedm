@@ -29,7 +29,7 @@ Basic installation detailed here enables you to:
 - *extract* spectra from cubes. 
 
 ***
-# Running a manual spectral extraction
+# Running a manual spectral extraction (from the shell)
 
 Here is are some examples to use `pysedm`. 
 
@@ -92,6 +92,28 @@ Some other important `extract_star.py` options:
 - `adr_fit...`: figure showing the quality of the ADR (i.e. target centroid as a function of wavelength)
    
    <img src="examples/adr_fit_example.png" width="300">
+   
+***
+# Interactive 3D psf extraction (from notebook or any python code)
+
+Starting with version `0.24.0` you can directly extract a point source from a `SEDMCube`.
+
+Simply do:
+```python
+import pysedm
+cube = pysedm.get_sedmcube(CUBE_FILEPATH)
+cube.extract_pointsource() # runs extractstars creating a cube.extractstar
+```
+Then, to get the flux calibrated spectrum, do:
+```python
+spectrum = cube.extractstar.get_fluxcalibrated_spectrum()
+```
+And to see the validation plots: 
+- `cube.extractstar.show_mla()` ; centroid and spaxel used
+- `cube.extractstar.show_adr()` ; adr fit quality
+- `cube.extractstar.show_psf()` ; psf profile
+
+
 ***
 # pysedm in details:
 

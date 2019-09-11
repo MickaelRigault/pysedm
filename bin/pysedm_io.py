@@ -44,6 +44,11 @@ if  __name__ == "__main__":
                              '- for only upper limit  (here before 15th of Sept 2018):  --timerange None,2018-09-15'
                             )
 
+    parser.add_argument('--info', action="store_true", default=False,
+                        help='Get basic information concerning the given tartget'
+                            )
+
+        
     parser.add_argument('--data',  type=str, default="cube,spec",
                         help='Which kind of data do you want?'+"\n"+\
                              'format: coma separated values "cube,spec,crr"'+"\n"+
@@ -82,6 +87,11 @@ if  __name__ == "__main__":
     # ---------- #
     #  Script    #    
     # ---------- #
+    if args.info:
+        import sys
+        print(SEDMQ.get_target_data(target))
+        sys.exit()
+        
     
     # Downloading options
     datapath = SEDMQ.get_data_path(target, source=args.source,

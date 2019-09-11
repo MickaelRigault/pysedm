@@ -193,17 +193,29 @@ def header_to_date( header, sep=""):
 def filename_to_time(filename):
     """ """
     date, hour, minut, sec = filename.split("ifu")[-1].split("_")[:4]
-    return Time("-".join(['20180708'[i:j] for i,j in [[0,4],[4,6],[6,8]]]) +" "+ ":".join([hour, minut, sec]))
+    return Time("-".join([date[i:j] for i,j in [[0,4],[4,6],[6,8]]]) +" "+ ":".join([hour, minut, sec]))
 
+def filename_to_date(filename, iso=False):
+    """ """
+    if iso:
+        return filename_to_time(filename).datetime.isoformat().split("T")[0]
+    return filename.split("ifu")[1].split("_")[0]
 
 def fetch_guider(date, filename, astrom=True, extinction=".fits"):
     """ fetch the guider data for the given filename. """
-    id_ = filename_to_id(filename)
+    print("DEPRECATED fetch_guider(date, filename) -> filename_to_guider(filename)")
+    return filename_to_guider(filename, astrom=astrom, extinction=extinction)
+
+def filename_to_guider(filename, astrom=True, extinction=".fits"):
+    """ """
+    date = filename_to_date(filename)
+    id_  = filename_to_id(filename)
     guiders =  [l for l in os.listdir( get_datapath(date)) if id_ in l and "guider" in l 
                and extinction in l ]
     if astrom:
         return [get_datapath(date)+"/"+l for l in guiders if "astrom" in l]
     return guiders
+    
 
 
 def filename_to_background_name(filename):

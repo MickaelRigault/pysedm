@@ -296,7 +296,7 @@ if  __name__ == "__main__":
                 spec.header.set('LBDAPOS', -99, "reference wavelength for the centroids (in angstrom) | not defined in apeture")
                 spec.header.set('SRCPOS', position_type, "How was the centroid selected ?")
 
-                spec.header.set("QUALITY", asses_quality(spec), "spectrum extraction quality flag [3,4 means band ; 0=default] ")
+                spec.header.set("QUALITY", sedm.asses_quality(spec), "spectrum extraction quality flag [3,4 means band ; 0=default] ")
                 spec.header.set("REDUCER", args.reducer, "Name of the pysedm pipeline reducer [default: auto]") ######### NOT AUTO
                 
                 # Aperture shape
@@ -484,7 +484,7 @@ if  __name__ == "__main__":
                 except:
                     spec.header.set('PSFADRC2', "nan", "ADR chi2/dof")
 
-                spec.header.set("QUALITY", asses_quality(spec), "spectrum extraction quality flag [3,4 means band ; 0=default] ")
+                spec.header.set("QUALITY", sedm.asses_quality(spec), "spectrum extraction quality flag [3,4 means band ; 0=default] ")
                 spec.header.set("REDUCER", args.reducer, "Name of the pysedm pipeline reducer [default: auto]") ######### NOT AUTO
 
                 spec.header.set('CRPIX1', 1, "")    # correct CRPIX1 from e3d
@@ -560,7 +560,7 @@ if  __name__ == "__main__":
                         cube_.show(show=False)
                         ax = mpl.gca()
                         ax.plot(x,y, marker=".", ls="None", ms=1, color="k")
-                        ax.scatter(xcentroid, ycentroid, **MARKER_PROP[position_type])
+                        ax.scatter(xcentroid, ycentroid, **astrometry.MARKER_PROP[position_type])
                         ax.set_xticks(np.arange(-20,20, 5))
                         ax.set_yticks(np.arange(-20,20, 5))
                         ax.grid(color='0.6', linestyle='-', linewidth=0.5, alpha=0.5)

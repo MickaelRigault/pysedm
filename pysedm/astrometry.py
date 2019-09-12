@@ -146,6 +146,7 @@ def guess_target_pos(filename, parameters=None):
     
     # = NEWEST VERSION = #
     if Time(cube_date) > Time("2019-09-06"):
+        print("INFO: using new astrometric method")
         wcsifu = WCSIFU.from_filename(filename)
         return wcsifu.get_ifu_guess_pos()[0]
 

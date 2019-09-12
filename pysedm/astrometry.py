@@ -167,8 +167,13 @@ def guess_target_pos(filename, parameters=None):
     return rainbow_coords_to_ifu(ccd_xy, parameters)
 
     
-def get_ccd_pos(filename):
-    """ """
+def get_ccd_pos(filename, radec=None):
+    """ 
+
+    Parameters
+    ----------
+    
+    """
     astrom_file = io.filename_to_guider(filename)
     if len(astrom_file)==0:
         if verbose:
@@ -179,14 +184,17 @@ def get_ccd_pos(filename):
     with fits.open(filename) as f:
         # Get target coordinates
         header = f[0].header
-        try:
-            radec = coordinates.SkyCoord(header["OBJRA"],header["OBJDEC"],
+        if radec is None:
+            try:
+                radec = coordinates.SkyCoord(header["OBJRA"],header["OBJDEC"],
                                       unit=(units.hourangle, units.deg))
-        # Format changed at some point
-        except KeyError:
-            radec = coordinates.SkyCoord(header["OBRA"], header["OBDEC"],
+                # Format changed at some point
+            except KeyError:
+                radec = coordinates.SkyCoord(header["OBRA"], header["OBDEC"],
                                       unit=(units.hourangle, units.deg))
-        del header
+            del header
+        elif type(radec) != coordinates.SkyCoord:
+            radec = coordinates.SkyCoord(*radec, unit=units.deg)
 
     # Convert it into ccd pixels    
     with fits.open(astrom_file) as f:
@@ -198,7 +206,6 @@ def get_ccd_pos(filename):
         del radec
         
     return xy
-
 
 def get_object_ifu_pos(cube, parameters=None):
     """ the expected cube x,y position of the target within the cube """
@@ -304,6 +311,21 @@ class WCSIFU():
         """ """
         if date is not None:
             self.load_transform(date)
+
+
+
+    # ============== #
+    #   Get          #
+    # ============== #
+    def coords_to_ccdxy(self, filename=None):
+        """ """
+        if filename is None:
+            if not hasattr(self,"filename"):
+                raise ValueError("no filename loaded, you must provide one.")
+            
+            filename = self.filename
+
+        
         
     # ============== #
     #   Loader       #

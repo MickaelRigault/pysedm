@@ -167,6 +167,7 @@ def guess_target_pos(filename, parameters=None):
     return rainbow_coords_to_ifu(ccd_xy, parameters)
 
     
+    
 def get_ccd_pos(filename, radec=None):
     """ 
 
@@ -352,8 +353,8 @@ class WCSIFU():
         from skimage import transform
         #
         transform_type = "Affine"
-        parameters  = np.asarray([[ 8.67522516e-01, -4.16311901e-03, -8.87184528e+02],
-                                  [ 8.95969179e-02, -8.19962252e-01,  7.07479349e+02],
+        parameters  = np.asarray([[ 9.40402465e-01, -1.17417175e-01, -8.52095952e+02],
+                                  [ 3.03093868e-02, -7.43615349e-01,  6.94043198e+02],
                                   [ 0.00000000e+00,  0.00000000e+00,  1.00000000e+00]])
         #
         
@@ -392,6 +393,8 @@ def get_astrometry_fitter():
                      "ZTF19abrlznf","ZTF19abxvkvc","ZTF19abuzjqa","ZTF19abwaohs","ZTF19abwrzqb",
                      "ZTF18abksgkt","ZTF19abvhduf","ZTF19abupyxe","ZTF19abuhlxk","ZTF19abxivpg",
                      "ZTF19abvdbyx","ZTF19abttrte","ZTF19ablwwox","ZTF19aburnqh","ZTF19abupyxe"]
+
+    NON_STDTARGET += ["ZTF19abrdnty","ZTF19abqykyd"]
 
     # ztfquery finding target files
     p = sedm.SEDMQuery()

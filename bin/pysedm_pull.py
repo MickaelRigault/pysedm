@@ -44,6 +44,10 @@ if  __name__ == "__main__":
                              '- for only upper limit  (here before 15th of Sept 2018):  --timerange None,2018-09-15'
                             )
 
+    parser.add_argument('--update',  action="store_true", default=False,
+                        help='Update the sedm local database of what have been observed (what-files)'
+                            )
+
     parser.add_argument('--data',  type=str, default="cube,spec",
                         help='Which kind of data do you want?'+"\n"+\
                              'format: coma separated values "cube,spec,crr"'+"\n"+
@@ -85,6 +89,13 @@ if  __name__ == "__main__":
     # ---------- #
     #  Target    #    
     # ---------- #
+    if args.update:
+        if not args.quiet:
+            print("Updating sedmdata")
+        SEDMQ.update_sedmdata()
+        
+
+    
     target = args.infile
     if not args.quiet:
         print(" pysedm pull ".center(40,'='))

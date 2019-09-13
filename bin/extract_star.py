@@ -152,7 +152,7 @@ if  __name__ == "__main__":
     parser.add_argument('--autobins',  type=int, default=7,
                         help='Number of bins within the wavelength range (see --autorange)')
 
-    parser.add_argument('--buffer',  type=float, default=10,
+    parser.add_argument('--buffer',  type=float, default=8,
                         help='Radius [in spaxels] of the aperture used for the PSF fit. (see --centroid for aperture center)')
 
     parser.add_argument('--psfmodel',  type=str, default="NormalMoffatTilted",

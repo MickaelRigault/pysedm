@@ -168,7 +168,7 @@ def guess_target_pos(filename, parameters=None):
 
     
     
-def get_ccd_pos(filename, radec=None):
+def get_ccd_pos(filename, radec=None, verbose=True):
     """ 
 
     Parameters

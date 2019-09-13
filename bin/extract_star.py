@@ -304,7 +304,7 @@ if  __name__ == "__main__":
                 spec.header.set('APRAD', radius, "spaxel radius of extraction aperture")
                 spec.header.set('PSFFWHM', -99, "Not defined in Aperture Mode")
                 # fwhm & A/B ratio
-                spec.header.set('PSFELL', -99, "Ellipticity of the PSF | Not defined in Aperture mode")
+                spec.header.set('PSFAB', -99, "A/B ratio of the PSF | Not defined in Aperture mode")
 
                 spec.header.set('CRPIX1', 1, "")    # correct CRPIX1 from e3d
                 
@@ -411,7 +411,7 @@ if  __name__ == "__main__":
                     POSOK = False
                     lbdaref     = "nan"
                     fwhm_arcsec = "nan"
-                    psf_ell     = "nan"
+                    psf_ab     = "nan"
                     psf_pa      = "nan"
                     psf_airmass = "nan"
                     psf_chi2    = "nan"                    
@@ -442,7 +442,7 @@ if  __name__ == "__main__":
                     POSOK       = True
                     lbdaref     = psffit.adrfitter.model.lbdaref
                     fwhm_arcsec = psffit.slices[2]["slpsf"].model.fwhm * IFU_SCALE_UNIT * 2
-                    psf_ell     = psffit.slices[2]["slpsf"].fitvalues['ell']
+                    psf_ab     = psffit.slices[2]["slpsf"].fitvalues['ab']
                     psf_pa      = psffit.adrfitter.fitvalues["parangle"]
                     psf_airmass = psffit.adrfitter.fitvalues["airmass"]
                     psf_chi2    = psffit.adrfitter.fitvalues["chi2"]/psffit.adrfitter.dof
@@ -474,7 +474,7 @@ if  __name__ == "__main__":
                 spec.header.set('PSFFWHM', fwhm_arcsec, "twice the radius needed to reach half of the pick brightness [in arcsec]")
                 
                 # fwhm & A/B ratio
-                spec.header.set('PSFELL', psf_ell , "Ellipticity of the PSF")
+                spec.header.set('PSFAB', psf_ab , "A/B ratio of the PSF")
                 
                 # ADR
                 spec.header.set('PSFADRPA', psf_pa, "Fitted ADR paralactic angle")

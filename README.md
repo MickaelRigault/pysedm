@@ -5,6 +5,10 @@ Data Reduction Pipeline for the SEDmachine. Please have a look at [the pysedm pa
 
 _works in python 2.7+ and 3.x, but the 2.7+ might not be supported in the future._
 
+### Acknowledgements
+
+This project was funded by the European Research Council (ERC) under the European Union's Horizon 2020 research and innovation programme (grant agreement n°759194 - USNAC, PI: Rigault).
+
 ## Reference
 
 If you are using a SEDM spectrum obtained since July 2018 (incl.) please cite [the pysedm paper](http://adsabs.harvard.edu/abs/2019arXiv190208526R) 

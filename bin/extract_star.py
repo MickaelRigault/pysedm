@@ -87,7 +87,7 @@ def flux_calibrate(spec, fluxcalfile=None, nofluxcal=False):
         else:
             from pysedm.fluxcalibration import load_fluxcal_spectrum
             fluxcal = load_fluxcal_spectrum( fluxcalfile ) 
-            spec.scale_by( fluxcal.get_inversed_sensitivity(spec.header.get("AIRMASS", 1.1) ))
+            spec.scale_by( fluxcal.get_inversed_sensitivity(spec.header.get("AIRMASS", 1.1) ), onraw=False)
             spec.header["CALSRC"] = (fluxcal.filename.split("/")[-1], "Flux calibrator filename")
             flux_calibrated=True
             
@@ -435,12 +435,13 @@ if  __name__ == "__main__":
                     # Hack to be removed:
                     #print("INFO: Temporary variance hacking to be removed ")
                     spec._properties['rawvariance'] = np.ones(len(spec.lbda)) * np.nanmedian( spec.variance[spec.variance>0] )
+
                     # Divide out exposure time
                     expt = spec.header.get("EXPTIME", 1.0)
                     print("Dividing counts by %s seconds" % expt)
-                    spec._properties["rawdata"] = spec.rawdata / expt
-                    spec._properties["rawvariance"] = spec.rawvariance / expt**2
+                    spec.scale_by(expt)
                     spec.header.set("CALSCL", True, "Exposure time divided out")
+
                     if final_slice_width != 1:
                         spec = spec.reshape(cube.lbda)
                     # For header:

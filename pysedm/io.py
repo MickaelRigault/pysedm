@@ -192,14 +192,14 @@ def header_to_date( header, sep=""):
 
 def filename_to_time(filename):
     """ """
-    date, hour, minut, sec = filename.split("ifu")[-1].split("_")[:4]
+    date, hour, minut, sec = filename.split("_ifu")[-1].split("_")[:4]
     return Time("-".join([date[i:j] for i,j in [[0,4],[4,6],[6,8]]]) +" "+ ":".join([hour, minut, sec]))
 
 def filename_to_date(filename, iso=False):
     """ """
     if iso:
         return filename_to_time(filename).datetime.isoformat().split("T")[0]
-    return filename.split("ifu")[1].split("_")[0]
+    return filename.split("_ifu")[1].split("_")[0]
 
 def fetch_guider(date, filename, astrom=True, extinction=".fits"):
     """ fetch the guider data for the given filename. """

@@ -826,13 +826,13 @@ class SEDMExtractStar( BaseObject ):
         if backup:
             self._es_headerkey = dict(POSOK = self.is_centroid_in_mla(),
                                     lbdaref     = "nan", fwhm_arcsec = "nan",
-                                    psf_ell     = "nan", psf_pa      = "nan",
+                                    psf_ab     = "nan", psf_pa      = "nan",
                                     psf_airmass = "nan", psf_chi2    = "nan")
         else:
             self._es_headerkey =  dict(posok = self.is_centroid_in_mla(),
                     lbdaref     = self.es_products["psffit"].adrfitter.model.lbdaref,
                     fwhm_arcsec = self.es_products["psffit"].slices[2]["slpsf"].model.fwhm * IFU_SCALE_UNIT * 2,
-                    psf_ell     = self.es_products["psffit"].slices[2]["slpsf"].fitvalues['ell'],
+                    psf_ab     = self.es_products["psffit"].slices[2]["slpsf"].fitvalues['ab'],
                     psf_pa      = self.es_products["psffit"].adrfitter.fitvalues["parangle"],
                     psf_airmass = self.es_products["psffit"].adrfitter.fitvalues["airmass"],
                     psf_chi2    = self.es_products["psffit"].adrfitter.fitvalues["chi2"]/self.es_products["psffit"].adrfitter.dof
@@ -867,7 +867,7 @@ class SEDMExtractStar( BaseObject ):
         header.set('PSFMODEL', self.psfmodel, "PSF model used in psfcube")        
         header.set('PSFFWHM', self._es_headerkey["fwhm_arcsec"], "twice the radius needed to reach half of the pick brightness [in arcsec]")
         header.set('PSFADRC2',self._es_headerkey["psf_chi2"], "ADR chi2/dof")    
-        header.set('PSFELL', self._es_headerkey["psf_ell"] , "Ellipticity of the PSF")
+        header.set('PSFAB', self._es_headerkey["psf_ab"] , "A/B ratio of the PSF")
         # ADR
         header.set('PSFADRPA', self._es_headerkey["psf_pa"], "Fitted ADR paralactic angle")
         header.set('PSFADRZ', self._es_headerkey["psf_airmass"], "Fitted ADR airmass")

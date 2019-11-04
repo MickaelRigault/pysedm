@@ -154,8 +154,10 @@ def fetch_nearest_fluxcal(date=None, file=None, mjd=None, kind="spec.fluxcal"):
     if date is None:
         if mjd is not None:
             date = Time(mjd, format="mjd").datetime.isoformat().split("T")[0].replace("-","")
+        elif file is not None:
+            date = filename_to_date(file)
         else:
-            raise ValueError("date and/or mjd must be given. None here")
+            raise ValueError("file is None, then date and/or mjd must be given. None here")
         
     filefluxcal = get_night_files(date, kind)
     

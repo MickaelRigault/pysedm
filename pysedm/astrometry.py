@@ -13,10 +13,18 @@ from astropy.io import fits
 from astropy.wcs import WCS
 
 # Others
-import pycalspec
+
 from psfcube import fitter
 from . import io
 from .sedm import get_sedm_astrom_param
+
+
+
+SEDM_SPAXEL_ARCSEC = 0.55
+SEDM_LEFT_ROTATION = 2.5 * np.pi/180
+
+
+
 
 # ======================= #
 #   FIND POINT SOURCE     #
@@ -122,7 +130,7 @@ def get_allccd_pos(cube_filenames, verbose=True):
     coords = {}
     for fitsfile in cube_filenames:
         dateid = filename_to_dateid(fitsfile)
-        coords[dateid] = get_ccd_pos(fitsfile).tolist()
+        coords[dateid] = np.asarray(get_ccd_pos(fitsfile)).tolist()
             
     return coords
 
@@ -145,7 +153,7 @@ def guess_target_pos(filename, parameters=None):
     cube_date = io.filename_to_date(filename, iso=True)
     
     # = NEWEST VERSION = #
-    if Time(cube_date) > Time("2019-09-06"):
+    if Time(cube_date) > Time("2019-04-17"):
         print("INFO: using new astrometric method")
         wcsifu = WCSIFU.from_filename(filename)
         return wcsifu.get_ifu_guess_pos()[0]
@@ -155,9 +163,9 @@ def guess_target_pos(filename, parameters=None):
     
     if parameters is None:
         parameters = get_sedm_astrom_param(cube_date)
+        
     # CCD Position
     ccd_xy = get_ccd_pos(filename)
-    
     if Time(cube_date) > Time("2019-02-20") and Time(cube_date) < Time("2019-04-17"):
         # print("TEMPORARY PATCH FOR SHIFTED IFU POS")
         return rainbow_coords_to_ifu(ccd_xy, parameters) + np.asarray([11, 1])
@@ -261,7 +269,7 @@ def estimate_default_position(cube, lbdaranges=[5000,7000]):
 
 def rainbow_coords_to_ifu(ccd_coords, parameters):
     """ """
-    centroid_ccd = [parameters[4],parameters[5]]
+    centroid_ccd = np.asarray([parameters[4],parameters[5]])
     matrix = np.asarray([ [parameters[0], parameters[1]],
                           [parameters[2], parameters[3]] ])
     
@@ -285,13 +293,14 @@ def fit_cube_centroid(cube_, lbdamin=6000, lbdamax=7000):
     -------
     list: [x,y, dx, dy] # (centroids and errors)
     """
-    sl_r = cube_.get_slice(lbda_min=6000, lbda_max=7000, slice_object=True)
+    sl_r = cube_.get_slice(lbda_min=lbdamin, lbda_max=lbdamax, slice_object=True)
     centroid = estimate_default_position(cube_)
     slfit = fitter.fit_slice(sl_r, centroids=centroid, centroids_err=[4,4])
     return [slfit.fitvalues[k] for k in ["xcentroid","ycentroid","xcentroid.err","ycentroid.err"]]
 
 def get_standard_rainbow_coordinates(rainbow_wcs, stdname):
     """ """
+    import pycalspec
     rhms = coordinates.SkyCoord(*pycalspec.std_radec(stdname),
                                 unit=(units.hourangle, units.deg))
     return np.asarray(rhms.icrs.to_pixel(rainbow_wcs))
@@ -313,8 +322,6 @@ class WCSIFU():
         if date is not None:
             self.load_transform(date)
 
-
-
     # ============== #
     #   Get          #
     # ============== #
@@ -326,8 +333,6 @@ class WCSIFU():
             
             filename = self.filename
 
-        
-        
     # ============== #
     #   Loader       #
     # ============== #
@@ -347,16 +352,20 @@ class WCSIFU():
     def load_transform(self, date):
         """ """
         from astropy.time import Time
-        if Time(date) < Time("2019-09-06"):
-            raise ValueError("Guider<->IFU matching not made for dates prior 2019-09-06")
-        
         from skimage import transform
-        #
-        transform_type = "Affine"
-        parameters  = np.asarray([[ 9.40402465e-01, -1.17417175e-01, -8.52095952e+02],
+        if Time(date) < Time("2019-09-06"):
+            transform_type = "Affine"
+            parameters  = np.asarray([[ 9.40402465e-01, -1.17417175e-01, -8.52095952e+02],
                                   [ 3.03093868e-02, -7.43615349e-01,  6.94043198e+02],
                                   [ 0.00000000e+00,  0.00000000e+00,  1.00000000e+00]])
-        #
+            
+        elif Time(date) > Time("2019-04-17"):
+            transform_type = "Affine"
+            parameters  = np.asarray([[ 8.02889540e-01, -2.30053433e-01, -6.00201420e+02],
+                                      [ 1.94282497e-01, -5.06596412e-01,  2.93073783e+02],
+                                      [ 0.00000000e+00,  0.00000000e+00,  1.00000000e+00]])
+        else:
+            raise ValueError("Transformation ready for date > 2019-04-17")
         
         self.transformation = eval("transform.%sTransform(parameters)"%transform_type)
 
@@ -384,24 +393,59 @@ class WCSIFU():
 
 
 
-def get_astrometry_fitter():
-    """ """
+def get_astrometry_fitter(date=None, download_data=False):
+    """ 
+    See timeline here http://www.astro.caltech.edu/sedm/Hardware.html
+    """
     from ztfquery import sedm
-    timerange = ["2019-09-05",None]
-    NON_STDTARGET = ["ZTF19abqyoxj","ZTF19abwnpus","ZTF19abuayqg","ZTF19abuxhqc","ZTF19abujuex",
+    from astropy.time import Time
+    if date is None:
+        date = "2019-09-10"
+
+    if Time(date) > Time("2019-09-05"):
+        timerange = ["2019-09-05",None]
+        NON_STDTARGET = ["ZTF19abqyoxj","ZTF19abwnpus","ZTF19abuayqg","ZTF19abuxhqc","ZTF19abujuex",
                      "ZTF19abuszom","ZTF19abyfazm","ZTF19abwscnk","ZTF19abqwtfu","ZTF19abvanim",
                      "ZTF19abrlznf","ZTF19abxvkvc","ZTF19abuzjqa","ZTF19abwaohs","ZTF19abwrzqb",
                      "ZTF18abksgkt","ZTF19abvhduf","ZTF19abupyxe","ZTF19abuhlxk","ZTF19abxivpg",
                      "ZTF19abvdbyx","ZTF19abttrte","ZTF19ablwwox","ZTF19aburnqh","ZTF19abupyxe"]
 
-    NON_STDTARGET += ["ZTF19abrdnty","ZTF19abqykyd"]
+        NON_STDTARGET += ["ZTF19abrdnty","ZTF19abqykyd"]
 
+    elif Time(date) > Time("2019-05-15"):
+        print("Time Period: 2019-04-17, 2019-09-01")
+        timerange = ["2019-05-15","2019-09-01"]        
+        NON_STDTARGET = ["ZTF19abiahik","ZTF19abhzelh","ZTF19abhztqq","ZTF19abhemuy","ZTF19abiahik",
+                         "ZTF19abhzelh","ZTF19abidbqp","ZTF19abgfuhh","ZTF19abgsyrp",
+                         "ZTF19abfvpkq","ZTF19aawethv","ZTF19abhdqlq","ZTF19abcvrpm","ZTF19abdrwsz",
+                         "ZTF19abdzehg","ZTF19abangub","ZTF19abegruk","ZTF19abdgpuv",
+                          "ZTF19abbnamr","ZTF19abdkecj","ZTF19aatyrpj", "ZTF19aayjqpa"]
+
+    elif Time(date) > Time("2019-04-23"):
+        timerange = ["2019-04-23","2019-05-15"]
+        NON_STDTARGET = ["ZTF19aatesgp","ZTF19aarkpif","ZTF19aatlmbo","ZTF19aatgxjy",
+                        "ZTF19aarjfqe", "ZTF19aarstfg","ZTF19aariwpf"]
+
+    else:
+        raise ValueError("Astrometry Fitting made for date>2019-04-17")
+
+    # Cosmics: ZTF19abdoznh
     # ztfquery finding target files
     p = sedm.SEDMQuery()
+    if download_data:
+        _ = [p.download_target_data(name, which="cube") for name in NON_STDTARGET] 
+        _ = [p.download_target_data(name, which="astrom") for name in NON_STDTARGET]
+
+    
     target_files = p.get_local_data(NON_STDTARGET,  timerange=timerange)
     return AstrometryFitter(target_files)
 
-    
+"""
+20190728
+"""
+
+
+
         
 class AstrometryFitter():
     def __init__(self, cube_filenames):

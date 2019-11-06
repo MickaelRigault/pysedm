@@ -931,16 +931,20 @@ class SEDMExtractStar( BaseObject ):
     def get_spectrum(self, which="fluxcalibrated", persecond=True, troncate_edges="default"):
         """ """
         if which in ["fluxcal", "fluxcalibrated", "calibrated"]:
-            spec = self.spectrum.copy()    
+            spec = self.spectrum.copy()
+            
         elif which in ["raw", "extracted"]:
             spec = self.es_products["spec"].copy()
+            
         else:
             raise ValueError("which could either be 'raw/extracted' or 'calibrated/fluxcalibrated', you gave %s"%which)
 
+        
         # - Per Second 
         if persecond and not spec.header["FLXPSEC"]:
             spec.scale_by(spec.header["EXPTIME"])
             spec.header.set("FLXPSEC", True, "Exposure time divided out (flux per sec)")
+            
         elif not persecond and spec.header["FLXPSEC"]:
             spec.scale_by(1/spec.header["EXPTIME"])
             spec.header.set("FLXPSEC", False, "Exposure time divided out (flux per sec)")
@@ -960,7 +964,7 @@ class SEDMExtractStar( BaseObject ):
             print("Already is troncation")
         else:
             if troncate_edges in ["default"]:
-                troncate_edges = 101010
+                troncate_edges = LBDA_PIXEL_CUT
     
             spec = get_spectrum( spec.lbda[troncate_edges:-troncate_edges],
                                  spec.data[troncate_edges:-troncate_edges],

@@ -50,6 +50,21 @@ def figout(fig,savefile=None,show=True,add_thumbnails=False,
         fig.canvas.draw()
         fig.show()
 
+@make_method(mpl.Axes)        
+def set_axes_edgecolor(ax, color,  ticks=True, labels=False):
+    """ """
+    import matplotlib
+    prop = {}
+    if ticks:
+        prop["color"] = color
+        prop["which"] = "both"
+    if labels:
+        prop["labelcolor"] = color
+    ax.tick_params(**prop)
+    for child in ax.get_children():
+        if isinstance(child, matplotlib.spines.Spine):
+            child.set_color(color)
+
 ###############################
 #                             #
 # SEDMachine Plotting special #
@@ -156,3 +171,5 @@ class InteractiveCubeandCCD( InteractiveCube ):
     def ccdimage(self):
         """ """
         return self._properties["ccd"]
+
+

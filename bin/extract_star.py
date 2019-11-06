@@ -364,8 +364,6 @@ if  __name__ == "__main__":
     if args.auto is not None and len(args.auto) >0:
         final_slice_width = int(args.lstep)
         # - Step 1 parameters
-        lbdaranges, bins = np.asarray(args.autorange.split(","), dtype="float"), int(args.autobins+1)
-        lbda_step1       = script.lbda_and_bin_to_lbda_step1(lbdaranges, bins)
         
         for target in args.auto.split(","):
             filecubes = io.get_night_files(date, "cube.*", target=target.replace(".fits","")) if not args.inputcube else [target]

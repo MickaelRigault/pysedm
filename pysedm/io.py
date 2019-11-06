@@ -394,7 +394,7 @@ def load_telluric_line(filter=None):
 #########################
 def _saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=None,
                       cubefitted=None,spec=None, bkgd=None, extraction_type="Force 3DPSF extraction: Spectral Model",
-                       mode="auto", spec_info="", fluxcal=True, nofig=False):
+                       mode="auto", spec_info="", fluxcal=True):
      # Cube Model
     if cubemodel is not None:
         cubemodel.set_header(cube.header)
@@ -440,12 +440,6 @@ def _saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=None,
         spec.writeto(fileout.replace(".fits",".txt"), ascii=True)
     
         spec._side_properties["filename"] = fileout
-        if not nofig:
-            from pyifu import get_spectrum
-            spec_to_plot = get_spectrum(spec.lbda, spec.data, variance=spec.variance if spec.has_variance() else None,
-                                            header=spec.header)
-            spec_to_plot.show(savefile=spec.filename.replace(".fits",".pdf"), show_zero=fluxcal,show=False)
-            spec_to_plot.show(savefile=spec.filename.replace(".fits",".png"), show_zero=fluxcal,show=False)
         
     # - background
     if bkgd is not None:

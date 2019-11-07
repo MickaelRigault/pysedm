@@ -394,8 +394,8 @@ def load_telluric_line(filter=None):
 #########################
 
 def _saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=None,
-                      cubefitted=None,spec=None, bkgd=None, extraction_type="Force 3DPSF extraction: Spectral Model",
-                       mode="auto", spec_info="", fluxcal=True):
+                      cubefitted=None, spec=None, bkgd=None, extraction_type="Force 3DPSF extraction: Spectral Model",
+                    mode="auto", spec_info="", fluxcal=True):
     # Cube Model
     if cubemodel is not None:
         cubemodel.set_header(cube.header)
@@ -422,10 +422,7 @@ def _saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=None,
     # ----------------- #
     # Save the Spectrum #
     # ----------------- #
-    if mode in ["auto", "forcepsf"]:
-        kind_key ="_forcepsf"
-    else:
-        kind_key =""
+    kind_key =""
     # - build the spectrum
     if spec is not None:
         for k,v in cube.header.items():
@@ -436,7 +433,7 @@ def _saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=None,
         spec.header["PYSEDMT"]  = (extraction_type, "This is the fitted flux spectrum")
         spec.header["EXTRTYPE"]  = (mode, "Kind of extraction")
 
-        fileout = filecube.replace(PROD_CUBEROOT,PROD_SPECROOT+"%s_%s_"%(kind_key,mode+spec_info))
+        fileout = filecube.replace(PROD_CUBEROOT,PROD_SPECROOT+"%s_%s_"%(kind_key, mode+spec_info))
         spec.writeto(fileout)
         spec.writeto(fileout.replace(".fits",".txt"), ascii=True)
     

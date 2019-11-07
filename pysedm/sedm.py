@@ -735,12 +735,12 @@ class SEDMExtractStar( BaseObject ):
         self._properties["cube"] = cube
 
 
-    def writeto(self, basename=None, add_tag="", add_info=None):
+    def writeto(self, basename=None, add_tag="", add_info=None, **kwargs):
         """ """
         from .io import _saveout_forcepsf_
         
         if basename is None:
-            basename = self.basename.replace("{placeholder}","spec")+".fits"
+            basename = self.basename.replace("{placeholder}","e3d")+".fits" #e3d==cube tmps fix
 
         spec_info = ""
         if hasattr(self, "_slice_width"):
@@ -753,9 +753,10 @@ class SEDMExtractStar( BaseObject ):
 
         # Add the raw spectra too.
         _saveout_forcepsf_(basename,
-                           self.cube, cuberes=None,
+                           self.cube,
+                           cuberes=None,
                            cubemodel=self.es_products["cubemodel"],
-                           mode="auto"+add_tag, spec_info=spec_info,
+                           mode=add_tag, spec_info=spec_info,
                            fluxcal=self.is_spectrum_fluxcalibrated,
                            cubefitted=self.fitted_cube,
                            spec=self.get_spectrum("fluxcalibrated", persecond=True, troncate_edges="default")

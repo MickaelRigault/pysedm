@@ -202,7 +202,7 @@ if  __name__ == "__main__":
                 # ===================== #
                 # SOURCE EXTRACTION     #
                 # ===================== #
-                print(" Starting extract_pointsource ".center(50, "="))
+                print(" Starting extract_pointsource ".center(50, "-"))
                 es_out = cube.extract_pointsource(**es_options)
                 # -> The output object
                 es_object = cube.extractstar
@@ -211,6 +211,7 @@ if  __name__ == "__main__":
                 # - PLOTTING
                 # - 
                 if not args.nofig:
+                    print(" Saving figures ".center(50, "-"))
                     es_object.show_adr(            savefile=es_object.basename.replace("{placeholder}","adr_fit"))
                     es_object.show_metaslices(     savefile=es_object.basename.replace("{placeholder}","metaslices"))
                     es_object.show_extracted_spec( savefile=es_object.basename.replace("{placeholder}","spec_extracted"))
@@ -219,8 +220,13 @@ if  __name__ == "__main__":
                     es_object.spectrum.show(       savefile=es_object.basename.replace("{placeholder}","spec"))
                 # -
                 # - SAVING
-                # - 
-                es_object.writeto(basename=None, add_tag=args.tag, add_info=None)
+                # -
+                add_tag = "_%s"%args.tag if args.tag is not None and args.tag not in ["None", ""] else ""
+                add_info_spec = "_notfluxcal" if not es_object.is_spectrum_fluxcalibrated() else ""
+                spec_info = "_lstep%s"%es_options["slice_width"] + add_info_spec
+
+                print("Tag added", add_tag)
+                es_object.writeto(basename=None, add_tag="auto"+add_tag, add_info=None)
 
                 
                 # -

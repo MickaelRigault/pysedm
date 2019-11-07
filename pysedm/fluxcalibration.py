@@ -19,9 +19,6 @@ def get_fluxcalibrator(stdspectrum, polydegree=POLYDEGREE, fullout=False, filter
     fl.set_std_spectrum(stdspectrum)
     return  fl.fit_inverse_sensitivity(polydegree=polydegree, filter=filter), fl
 
-
-
-
 def show_fluxcalibrated_standard(stdspectrum, savefile=None):
     """ """
     import matplotlib.pyplot as mpl
@@ -294,7 +291,6 @@ class FluxCalibrator( BaseObject ):
         from .io import load_telluric_line
         from modefit import get_polyfit
 
-        
         if masked_area is not None:
             maskin = self.get_avoidance_mask("absorption")
         else:

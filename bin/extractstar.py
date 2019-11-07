@@ -190,13 +190,11 @@ if  __name__ == "__main__":
                     "slice_width": int(args.lstep),
                     }
                 
-                #
-                # SOURCE EXTRACTION
-                #
-                es_out = cube.extract_pointsource(**es_options)
                 # ===================== #
-                # Extract star output   #
+                # SOURCE EXTRACTION     #
                 # ===================== #                
+                es_out = cube.extract_pointsource(**es_options)
+                # -> The output object
                 es_object = cube.extractstar
                 
                 # -
@@ -208,55 +206,40 @@ if  __name__ == "__main__":
                     es_object.show_extracted_spec( savefile=es_object.basename.replace("{placeholder}","spec_extracted"))
                     es_object.show_mla(            savefile=es_object.basename.replace("{placeholder}","ifu_spaxels_source"))
                     es_object.show_psf(            savefile=es_object.basename.replace("{placeholder}","psfprofile"), sliceid=2)
-
-                    if cube.header['IMGTYPE'].lower() in ['standard'] and es_object.is_spectrum_fluxcalibrated():
-                        from pysedm.fluxcalibration import show_fluxcalibrated_standard
-                        show_fluxcalibrated_standard(es_object.spectrum, savefile=es_object.basename.replace("{placeholder}","adr_fit")+".pdf")
-                        show_fluxcalibrated_standard(es_object.spectrum, savefile=es_object.basename.replace("{placeholder}","adr_fit")+".png")
+                    es_object.spectrum.show(       savefile=es_object.basename.replace("{placeholder}","spec"))
+                # -
+                # - SAVING
+                # - 
+                es_object.writeto(basename=None, add_tag=args.tag, add_info=None)
 
                 
                 # -
                 # - Standard Specific
                 # -
-                if args.std and cube.header['IMGTYPE'].lower() in ['standard'] and 'AIRMASS' in cube.header:
-                    # Spectrum used for flux calibration
-                    raw_spec = es_object.get_spectrum("raw", persecond=True, troncate_edges=False)
-                    
-                    if raw_spec.header['QUALITY'] == 0:
-                        from pysed import fluxcalibration
-                        # Based on the flux non calibrated spectsra
-                        try:
-                            speccal, fl = fluxcalibration.get_fluxcalibrator(
-                                spec_raw, fullout=True)
-                            speccal.header["SOURCE"] = (
-                                spec.filename.split("/")[-1],
-                                "This object has been derived from this file")
-                            speccal.header["PYSEDMT"] = (
-                                "Flux Calibration Spectrum",
-                                "Object to use to flux calibrate")
-                            filename_inv = spec.filename.replace(
-                                io.PROD_SPECROOT,
-                                io.PROD_SENSITIVITYROOT).replace("notfluxcal",
-                                                                 "")
-                            speccal._side_properties['filename'] = filename_inv
-                            speccal.writeto(filename_inv)
-                            if not args.nofig:
-                                fl.show(
-                                    savefile=speccal.filename.replace(".fits",
-                                                                      ".pdf"),
-                                    show=False)
-                                fl.show(
-                                    savefile=speccal.filename.replace(".fits",
-                                                                      ".png"),
-                                    show=False)
-                        except OSError:
-                            print("WARNING: no reference spectrum for target, "
-                                  "skipping flux calibration")
+                if args.std:
+                    print("Standard Star object, starting estimation of flux calibration")
+                    #
+                    # Flux Calibrator
+                    #
+                    speccal, fl = es_object.get_fluxcalibrator(persecond=True, troncate_edges=False)
+                    if speccal is None:
+                        print("WARNING: Getting the Flux Calibrator Failed.")
                     else:
-                        print("WARNING: Standard spectrum of low quality, "
-                              "skipping fluxcal generation")
+                        speccal.writeto(speccal.filename)
+
+                    #
+                    # PLOTTING
+                    #
+                    if not args.nofig:
+                        if cube.header['IMGTYPE'].lower() in ['standard'] and es_object.is_spectrum_fluxcalibrated():
+                            from pysedm.fluxcalibration import show_fluxcalibrated_standard
+                            show_fluxcalibrated_standard(es_object.spectrum, savefile=es_object.basename.replace("{placeholder}","adr_fit")+".pdf")
+                            show_fluxcalibrated_standard(es_object.spectrum, savefile=es_object.basename.replace("{placeholder}","adr_fit")+".png")
+                        if fl is not None:
+                            fl.show(savefile=speccal.filename.replace(".fits",".pdf"),
+                                        show=False)
+                            fl.show(savefile=speccal.filename.replace(".fits",".png"),
+                                        show=False)
+                            
                 
-                # -
-                # - SAVING
-                # - 
-                es_object.writeto(basename=None, add_tag=args.tag, add_info=None)
+               

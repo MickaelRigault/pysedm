@@ -12,7 +12,7 @@ from propobject           import BaseObject
 from pyifu.spectroscopy   import Cube, Spectrum, get_spectrum, load_spectrum
 from .utils.tools         import kwargs_update, is_arraylike
 
-from .io import PROD_CUBEROOT
+from . import io
 
 __all__ = ["get_sedmcube", "build_sedmcube","kpy_to_e3d"]
 
@@ -309,7 +309,7 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
     
     fileindex = "_%s"%fileindex if fileindex is not None and fileindex.replace(" ","") != "" else ""
     
-    fileout     = io.get_datapath(date)+"%s%s_%s.fits"%(PROD_CUBEROOT,fileindex,fileout_)
+    fileout     = io.get_datapath(date)+"%s%s_%s.fits"%(io.PROD_CUBEROOT,fileindex,fileout_)
 
         
         
@@ -376,7 +376,7 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
         
         if savefig:
             cube._side_properties["filename"] = fileout
-            savefile= fileout.replace(PROD_CUBEROOT,"flex_sodiumline_"+PROD_CUBEROOT).replace(".fits",".pdf")
+            savefile= fileout.replace(io.PROD_CUBEROOT,"flex_sodiumline_"+io.PROD_CUBEROOT).replace(".fits",".pdf")
             flexure.show(savefile=savefile,show=False)
             flexure.show(savefile=savefile.replace(".pdf",".png"),show=False)
 
@@ -439,7 +439,7 @@ def build_calibrated_sedmcube(cubefile, date=None, calibration_ref=None, kindout
     cube.header['FCALSRC'] = (calibration_ref.split('/')[-1], "the calibration source reference")
     cube.header['PYSEDMT'] = ("Flux Calibrated Cube")
     # - Save it
-    cube.writeto(cubefile.replace("%s"%PROD_CUBEROOT,"%s_%s"%(PROD_CUBEROOT,kindout)))
+    cube.writeto(cubefile.replace("%s"%io.PROD_CUBEROOT,"%s_%s"%(io.PROD_CUBEROOT,kindout)))
 
 def get_sedm_flatcube(domecube, s=0.8, loc=4300):
     """ Froma e3d dome cube, This returns a flatfielder cube """
@@ -1003,6 +1003,45 @@ class SEDMExtractStar( BaseObject ):
             self._derived_properties["spectrum"] = spec
         else:
             return spec
+
+    def get_fluxcalibrator(self, persecond=True, troncate_edges=False):
+        """ Method that only works if the target is a standard star. 
+        If not this will raise an TypeError() 
+
+        Returns
+        -------
+        CalibrationSpectrum, FluxCalibrator (or None, None)
+        """
+        from . import fluxcalibration
+        
+        # - Input check
+        if not self.raw_spectrum.header['IMGTYPE'].lower() in ['standard']:
+            raise TypeError("The target is not a standard star (header keyword IMPTYME != standard)")
+
+        if 'AIRMASS' not in self.raw_spectrum.header:
+            raise ValueError("The given standard star target has no AIRMASS parameter in the header. Unusable.")
+
+        if self.raw_spectrum.header['QUALITY'] != 0:
+            warnings.warn("Standard spectrum of low quality, "+
+                              "\n -> skipping fluxcal generation")
+            return None, None
+
+        # - Which Spectrum
+        raw_spec = self.get_spectrum("raw", persecond=persecond, troncate_edges=troncate_edges)
+        
+        # - Get Flux Calibration
+        
+        speccal, fl = fluxcalibration.get_fluxcalibrator(raw_spec, fullout=True)
+        speccal.header.set("SOURCE", raw_spec.filename.split("/")[-1], "This object has been derived from this file")
+        speccal.header.set("PYSEDMT","Flux Calibration Spectrum", "Object to use to flux calibrate")
+        speccal._side_properties["filename"] = raw_spec.filename.replace(io.PROD_SPECROOT,
+                                                                             io.PROD_SENSITIVITYROOT).replace("notfluxcal", "")
+        #except:
+        #    warnings.warn("Failed getting 'fluxcalibrator' ; No reference spectrum for target ? (%s) "%raw_spec.header["OBJECT"]+
+        #                          "\n -> skipping fluxcal generation")
+        #    return None, None
+        
+        return speccal, fl
         
     def get_spaxels_tofit(self, centroid=None, buffer=10, update=False):
         """ Get spaxels to given assuming circular aperture.
@@ -1196,6 +1235,7 @@ class SEDMExtractStar( BaseObject ):
     # ------- #
     # PLOTTER #
     # ------- #
+    
     def show_extracted_spec(self, ax=None, savefile=None, setlabels=True, add_metaslices=True, colors=None, show=True):
         """ """
         import matplotlib.pyplot as mpl

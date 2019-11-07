@@ -61,12 +61,12 @@ if  __name__ == "__main__":
                         help='Expected seeing. This helps the PSF model to converge.')
 
     # Centroid
-    parser.add_argument('--centroid',  type=str, default="auto", nargs=2,
+    parser.add_argument('--centroid',  type=str, default="auto", nargs="+",
                         help='Where is the point source expected to be ?'+
                             "\nYou have 3 potential cases:"+
                             "\n   * --centroid auto: Use astrometry from guider if possible or falls back to the 'brightest' mode"+
                             "\n   * --centroid brightest: Use the position of the bightest spaxels "+
-                            "\n   * --centroid x0 y0: Use the given x0 y0 position."
+                            "\n   * --centroid x0,y0: Use the given x0 y0 position (separated by a coma)."
                             )
     
     parser.add_argument('--centroiderr',  type=str, default="None",nargs=2,
@@ -118,9 +118,6 @@ if  __name__ == "__main__":
         
     args = parser.parse_args()
 
-
-
-
     # ================= #
     #   The Scripts     #
     # ================= #
@@ -131,7 +128,16 @@ if  __name__ == "__main__":
     if not args.inputcube:
         date = args.infile
 
-
+    # --------- #
+    #  Parsing  #
+    # --------- #
+    if len(args.centroid)==1:
+        args.centroid = args.centroid[0]
+    elif len(args.centroid)>2:
+        raise ValueError("--centroid should be 'auto', 'brightness' or X Y")
+        
+    
+        
 
     # ------------- #
     #               #
@@ -179,7 +185,7 @@ if  __name__ == "__main__":
                     "step1range": np.asarray(args.autorange.split(","), dtype="float"),
                     "step1bins": args.autobins,
                     # -- Centroid guess                    
-                    "centroid": args.centroid, "prop_position":{"centroiderr":args.centroid},
+                    "centroid":args.centroid, "prop_position":{"centroiderr":args.centroid},
                     # Sub IFU
                     "spaxelbuffer": args.buffer,
                     # PSF Model
@@ -188,11 +194,15 @@ if  __name__ == "__main__":
                     "fwhm_guess": args.seeing,
                     # Spectral options
                     "slice_width": int(args.lstep),
+                    #
+                    #
+                    "verbose":True, 
                     }
                 
                 # ===================== #
                 # SOURCE EXTRACTION     #
-                # ===================== #                
+                # ===================== #
+                print(" Starting extract_pointsource ".center(50, "="))
                 es_out = cube.extract_pointsource(**es_options)
                 # -> The output object
                 es_object = cube.extractstar

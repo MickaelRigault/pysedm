@@ -782,6 +782,7 @@ class SEDMExtractStar( BaseObject ):
             self.set_psfmodel(psfmodel)
 
         if not self.has_centroid():
+            print("No target centroid yet, on the set automatically ('auto') ")
             self.set_centroid("auto")
 
         if not self.is_centroid_in_mla():
@@ -1104,6 +1105,7 @@ class SEDMExtractStar( BaseObject ):
         from . import astrometry
         if centroid is None:
             centroid = "auto"
+            
         if type(centroid)==str:
             kwargs["maxpos"] = True if centroid in ["max","maxpos","brightest"] else False
             centroid = None
@@ -1155,7 +1157,7 @@ class SEDMExtractStar( BaseObject ):
         """
         
         self._side_properties["centroid"], self._side_properties["centroiderr"], self._derived_properties["centroidtype"] = \
-          self.get_centroid( centroid=None, centroiderr=None, **kwargs)
+          self.get_centroid( centroid=centroid, centroiderr=centroiderr, **kwargs)
 
     def set_basename(self, basename):
         """ """
@@ -1610,7 +1612,7 @@ class SEDMCube( Cube ):
                                 centroid="auto", prop_position={},
                                 spaxelbuffer = 10, spaxels_to_use=None,
                                 psfmodel="NormalMoffatTilted",
-                                slice_width = 1, fwhm_guess=None, **kwargs):
+                                slice_width = 1, fwhm_guess=None, verbose=False, **kwargs):
         """ runs the default extract_star script on the target. 
         
         - Method based on psfcube https://github.com/MickaelRigault/psfcube - 
@@ -1634,9 +1636,12 @@ class SEDMCube( Cube ):
         # input convertion
         self.extractstar = SEDMExtractStar(self)
         self.extractstar.set_lbdastep1(lbdarange=step1range, bins=step1bins)
+        
         # - centroid
+        if verbose: print("* Setting centroid: ", centroid)
         self.extractstar.set_centroid(centroid, **prop_position)
 
+        if verbose: print("* Selecting spaxel to fit.")
         if display: # humain interaction
             import matplotlib.pyplot as mpl
             self.extractstar.get_humain_input()
@@ -1648,7 +1653,8 @@ class SEDMCube( Cube ):
 
         if self.extractstar.fitted_spaxels is None:
             self.extractstar.get_spaxels_tofit(buffer=spaxelbuffer, update=True)
-            
+
+        if verbose: print("* Starting extractstar.run")
         return self.extractstar.run(slice_width=slice_width, psfmodel=psfmodel,
                                         fwhm_guess=fwhm_guess, **kwargs)
     

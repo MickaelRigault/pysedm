@@ -206,29 +206,30 @@ if  __name__ == "__main__":
                 es_out = cube.extract_pointsource(**es_options)
                 # -> The output object
                 es_object = cube.extractstar
-                
-                # -
-                # - PLOTTING
-                # - 
-                if not args.nofig:
-                    print(" Saving figures ".center(50, "-"))
-                    es_object.show_adr(            savefile=es_object.basename.replace("{placeholder}","adr_fit"))
-                    es_object.show_metaslices(     savefile=es_object.basename.replace("{placeholder}","metaslices"))
-                    es_object.show_extracted_spec( savefile=es_object.basename.replace("{placeholder}","spec_extracted"))
-                    es_object.show_mla(            savefile=es_object.basename.replace("{placeholder}","ifu_spaxels_source"))
-                    es_object.show_psf(            savefile=es_object.basename.replace("{placeholder}","psfprofile"), sliceid=2)
-                    es_object.spectrum.show(       savefile=es_object.basename.replace("{placeholder}","spec"))
+
                 # -
                 # - SAVING
                 # -
-                add_tag = "_%s"%args.tag if args.tag is not None and args.tag not in ["None", ""] else ""
+                add_tag = "_%s" % args.tag if args.tag is not None and args.tag not in ["None", ""] else ""
                 add_info_spec = "_notfluxcal" if not es_object.is_spectrum_fluxcalibrated() else ""
-                spec_info = "_lstep%s"%es_options["slice_width"] + add_info_spec
+                spec_info = "_lstep%s" % es_options["slice_width"] + add_info_spec
 
                 print("Tag added", add_tag)
-                es_object.writeto(basename=None, add_tag="auto"+add_tag, add_info=None)
+                es_object.writeto(basename=None, add_tag="auto" + add_tag, add_info=None)
 
-                
+                # -
+                # - PLOTTING
+                # -
+                plot_tag = "_auto" + add_tag + spec_info + "_"
+                if not args.nofig:
+                    print(" Saving figures ".center(50, "-"))
+                    es_object.show_adr(            savefile=es_object.basename.replace("{placeholder}","adr_fit" + plot_tag))
+                    es_object.show_metaslices(     savefile=es_object.basename.replace("{placeholder}","metaslices" + plot_tag))
+                    es_object.show_extracted_spec( savefile=es_object.basename.replace("{placeholder}","extracted_spec" + plot_tag))
+                    es_object.show_mla(            savefile=es_object.basename.replace("{placeholder}","ifu_spaxels_source" + plot_tag))
+                    es_object.show_psf(            savefile=es_object.basename.replace("{placeholder}","psfprofile" + plot_tag), sliceid=2)
+                    es_object.spectrum.show(       savefile=es_object.basename.replace("{placeholder}","spec" + plot_tag))
+
                 # -
                 # - Standard Specific
                 # -
@@ -249,8 +250,8 @@ if  __name__ == "__main__":
                     if not args.nofig:
                         if cube.header['IMGTYPE'].lower() in ['standard'] and es_object.is_spectrum_fluxcalibrated():
                             from pysedm.fluxcalibration import show_fluxcalibrated_standard
-                            show_fluxcalibrated_standard(es_object.spectrum, savefile=es_object.basename.replace("{placeholder}","adr_fit")+".pdf")
-                            show_fluxcalibrated_standard(es_object.spectrum, savefile=es_object.basename.replace("{placeholder}","adr_fit")+".png")
+                            show_fluxcalibrated_standard(es_object.spectrum, savefile=es_object.basename.replace("{placeholder}","calibcheck_spec" + plot_tag)+".pdf")
+                            show_fluxcalibrated_standard(es_object.spectrum, savefile=es_object.basename.replace("{placeholder}","calibcheck_spec" + plot_tag)+".png")
                         if fl is not None:
                             fl.show(savefile=speccal.filename.replace(".fits",".pdf"),
                                         show=False)

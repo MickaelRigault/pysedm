@@ -589,7 +589,7 @@ def flux_calibrate_sedm(spec_, fluxcalfile=None, nofluxcal=False):
         else:
             from .fluxcalibration import load_fluxcal_spectrum
             fluxcal = load_fluxcal_spectrum( fluxcalfile ) 
-            spec.scale_by( fluxcal.get_inversed_sensitivity(spec.header.get("AIRMASS", 1.1) ))
+            spec.scale_by( fluxcal.get_inversed_sensitivity(spec.header.get("AIRMASS", 1.1) ), onraw=False)
             spec.header["CALSRC"] = (fluxcal.filename.split("/")[-1], "Flux calibrator filename")
             flux_calibrated=True
             
@@ -798,6 +798,12 @@ class SEDMExtractStar( BaseObject ):
                                                             spaxel_unit = spaxel_unit,
                                                             final_slice_width = slice_width,
                                                             psfmodel=self.psfmodel, **kwargs)
+        # Divide out exposure time
+        expt = spec.header.get("EXPTIME", 1.0)
+        print("Dividing counts by %s seconds" % expt)
+        spec.scale_by(expt)
+        spec.header.set("CALSCL", True, "Exposure time divided out")
+
         if slice_width != 1:
             spec = spec.reshape(self.cube.lbda)
 

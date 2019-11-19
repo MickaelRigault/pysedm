@@ -173,6 +173,7 @@ if  __name__ == "__main__":
                 # DATA IN
                 #
                 cube = get_sedmcube(filecube)
+                cube.header['REDUCER'] = args.reducer
                 #
                 # OPTIONS
                 #

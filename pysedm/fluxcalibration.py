@@ -316,12 +316,12 @@ class FluxCalibrator( BaseObject ):
         start_airmass = float(self.spectrum.header["AIRMASS"])
         airmass = np.mean([start_airmass, end_airmass])
         ##
-        # Older proceedure
+        # Older procedure
         ##
         ##
-        # New proceedure
+        # New procedure
         ##
-        # A: 3 Step proceedure.
+        # A: 3 Step procedure.
         # - Step 1 fit for the telluric region
         tell_range = (self.spectrum.lbda>6000) & (self.spectrum.lbda<8500)
         POLY_TELL  = 5
@@ -340,7 +340,7 @@ class FluxCalibrator( BaseObject ):
         print("step 1 Done")
         # - Step 2 fit The blue region
         if get_sedm_version(self.spectrum.header.get("OBSDATE",None)):
-            print("SEDM version <3 (pre-Feb 2019): running the old flux calibration proceedure")
+            print("SEDM version <3 (pre-Feb 2019): running the old flux calibration procedure")
             POLY_TELL_BLUE = 20
             self.tpoly_blue = TelluricPolynomeFit(self.spectrum.lbda,
                                                   datacal,

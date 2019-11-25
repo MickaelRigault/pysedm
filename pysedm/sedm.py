@@ -573,9 +573,9 @@ def flux_calibrate_sedm(spec_, fluxcalfile=None, nofluxcal=False):
     spec = spec_.copy()
     
     if not nofluxcal:
+        from . import io
         # Which Flux calibration file ?
         if fluxcalfile is None:
-            from . import io
             print("INFO: default nearest fluxcal file used")
             fluxcalfile = io.fetch_nearest_fluxcal(mjd=spec.header.get("MJD_OBS"))
         else:
@@ -583,13 +583,14 @@ def flux_calibrate_sedm(spec_, fluxcalfile=None, nofluxcal=False):
 
         # Do I have a flux calibration file ?
         if fluxcalfile is None:
+            date = io.header_to_date(spec.header)
             print("ERROR: No fluxcal for night %s and no alternative fluxcalsource provided. Uncalibrated spectra saved."%date)
             spec.header["CALSRC"] = (None, "Flux calibrator filename")
             flux_calibrated=False
         else:
             from .fluxcalibration import load_fluxcal_spectrum
             fluxcal = load_fluxcal_spectrum( fluxcalfile ) 
-            spec.scale_by( fluxcal.get_inversed_sensitivity(spec.header.get("AIRMASS", 1.1) ))
+            spec.scale_by( fluxcal.get_inversed_sensitivity(spec.header.get("AIRMASS", 1.1) ), onraw=False)
             spec.header["CALSRC"] = (fluxcal.filename.split("/")[-1], "Flux calibrator filename")
             flux_calibrated=True
             
@@ -798,6 +799,12 @@ class SEDMExtractStar( BaseObject ):
                                                             spaxel_unit = spaxel_unit,
                                                             final_slice_width = slice_width,
                                                             psfmodel=self.psfmodel, **kwargs)
+        # Divide out exposure time
+        expt = spec.header.get("EXPTIME", 1.0)
+        print("Dividing counts by %s seconds" % expt)
+        spec.scale_by(expt)
+        spec.header.set("CALSCL", True, "Exposure time divided out")
+
         if slice_width != 1:
             spec = spec.reshape(self.cube.lbda)
 

@@ -5,6 +5,7 @@
 
 import numpy              as np
 import warnings
+from datetime import datetime
 
 # Propobject
 from propobject           import BaseObject
@@ -878,12 +879,13 @@ class SEDMExtractStar( BaseObject ):
         header.set('SRCPOS', self.centroidtype, "How was the centroid selected ?")
         
         # Extraction:
-        header.set('EXTRACT', "manual" if self.from_humain else "auto", "Was the Extraction manual or automatic")        
+        header.set('EXTRACT', "manual" if self.from_humain else "auto", "Was the Extraction manual or automatic")
+        header.set('EXTDATE', datetime.now().isoformat(), "Date and time of Extraction")
         # PSF
         header.set('PSFMODEL', self.psfmodel, "PSF model used in psfcube")        
         header.set('PSFFWHM', self._es_headerkey["fwhm_arcsec"], "twice the radius needed to reach half of the pick brightness [in arcsec]")
         header.set('PSFADRC2', self._es_headerkey["psf_chi2"], "ADR chi2/dof")    
-        header.set('PSFAB', self._es_headerkey["psf_ab"] , "A/B ratio of the PSF")
+        header.set('PSFAB', self._es_headerkey["psf_ab"], "A/B ratio of the PSF")
         # ADR
         header.set('PSFADRPA', self._es_headerkey["psf_pa"], "Fitted ADR paralactic angle")
         header.set('PSFADRZ', self._es_headerkey["psf_airmass"], "Fitted ADR airmass")
@@ -2044,10 +2046,11 @@ class ApertureSpectrum( Spectrum ):
         Void
         """
         from astropy.io.fits import ImageHDU
-        self.header['PYSEDMT']  = ("ApertureSpectrum","Pysedm object Type")
+        self.header['PYSEDMT'] = ("ApertureSpectrum", "Pysedm object Type")
+        self.header['EXTDATE'] = (datetime.now().isoformat(), "Date and time of Extraction")
         hdul = super(ApertureSpectrum, self)._build_hdulist_(saveerror=saveerror)
 
-        hduAp  = ImageHDU(self.apweight, name='APWEIGHT')
+        hduAp = ImageHDU(self.apweight, name='APWEIGHT')
         hdul.append(hduAp)
         # -- Variance saving
         if self.has_background():

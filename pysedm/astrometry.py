@@ -606,8 +606,6 @@ class IFUReference(Astrometry):
         if where in ["reference","ref","refimage","refccd","refxy"]:
             return contours_ref
         return {iso: [self.reference_to(where, *cc.T).T for cc in conts] for iso, conts in contours_ref.items()}
-    
-            
         
     def get_refimage_sources_coordinates(self, where="ref", inifu=False):
         """ """

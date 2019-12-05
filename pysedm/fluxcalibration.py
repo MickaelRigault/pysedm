@@ -48,8 +48,8 @@ def show_fluxcalibrated_standard(stdspectrum, savefile=None):
     ax   = fig.add_axes([0.13,0.43,0.8,0.5])
     axr  = fig.add_axes([0.13,0.13,0.8,0.28])
 
-    stdspectrum.show(ax=ax, label="observation", show=False)
-    specref.show(ax=ax, color="C1", label="calspec", show=False)
+    stdspectrum.show(ax=ax, label="observation", show=False, yscalefill=True)
+    specref.show(ax=ax, color="C1", label="calspec", show=False, yscalefill=True)
 
     axr.axhline(1, ls="--", color="0.5")
     axr.axhspan(0.9,1.1, color="0.5", alpha=0.1)

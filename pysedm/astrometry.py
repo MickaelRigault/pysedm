@@ -211,7 +211,7 @@ def get_ccd_pos(filename, radec=None, verbose=True):
     with fits.open(astrom_file) as f:
         header = f[0].header
         wcs_ = wcs.WCS(header)
-        xy  = np.asarray(radec.to_pixel(wcs))
+        xy  = np.asarray(radec.to_pixel(wcs_))
         del header
         del wcs_
         del radec
@@ -789,7 +789,7 @@ class SliceAligner():
     FREEPARAMETERS = ["theta", "offsetx","offsety"]
     def __init__(self, slice_, source_position):
         """ """
-        PRINT("*** SliceAligner is DEPRECATED ***")
+        print("*** SliceAligner is DEPRECATED ***")
         self.slice = slice_
         self.set_sourcepos(*source_position)
 
@@ -1288,7 +1288,7 @@ class WCSIFU():
 
     def __init__(self, date=None):
         """ """
-        PRINT("*** WCSIFU will soon be DEPRECATED ***")
+        print("*** WCSIFU will soon be DEPRECATED ***")
         if date is not None:
             self.load_transform(date)
 

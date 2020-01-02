@@ -182,7 +182,7 @@ def header_to_date( header, sep=""):
 
 def filename_to_time(filename):
     """ """
-    date, hour, minut, sec = filename.split("ifu")[-1].split("_")[:4]
+    date, hour, minut, sec = filename.split("_ifu")[-1].split("_")[:4]
     return Time("-".join(['20180708'[i:j] for i,j in [[0,4],[4,6],[6,8]]]) +" "+ ":".join([hour, minut, sec]))
 
 

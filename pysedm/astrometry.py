@@ -31,10 +31,14 @@ def get_object_ifu_pos(cube, parameters=None):
     if Time(cube_date) > Time("2019-02-20") and Time(cube_date) < Time("2019-04-17"):
         print("TEMPORARY PATCH FOR SHIFTED IFU POS")
         return rainbow_coords_to_ifu(get_ccd_coords(cube), parameters) + np.asarray([11, 1])
-    elif Time(cube_date) > Time("2019-04-22"):
+    elif Time(cube_date) > Time("2019-04-22") and Time(cube_date) < Time("2019-12-31"):
         print("TEMPORARY PATCH 2 FOR SHIFTED IFU POS")
         return rainbow_coords_to_ifu(get_ccd_coords(cube),
                                      parameters) + np.asarray([-5, -30])
+    elif Time(cube_date) > Time("2019-12-31"):
+        print("TEMPORARY PATCH 3 FOR SHIFTED IFU POS")
+        return rainbow_coords_to_ifu(get_ccd_coords(cube),
+                                     parameters) + np.asarray([-4, -32])
     return rainbow_coords_to_ifu(get_ccd_coords(cube), parameters)
 
 

@@ -51,14 +51,14 @@ if  __name__ == "__main__":
     parser.add_argument('--autobins',  type=int, default=7,
                         help='Number of bins within the wavelength range (see --autorange)')
 
-    parser.add_argument('--buffer',  type=float, default=10,
+    parser.add_argument('--buffer',  type=float, default=8,
                         help='Radius [in spaxels] of the aperture used for the PSF fit. (see --centroid for aperture center)')
 
     parser.add_argument('--psfmodel',  type=str, default="NormalMoffatTilted",
                         help='PSF model used for the PSF fit: NormalMoffat{Flat/Tilted/Curved}')
 
-    parser.add_argument('--seeing',  type=float, default=None,
-                        help='Expected seeing. This helps the PSF model to converge.')
+    parser.add_argument('--seeing',  type=float, default=2,
+                        help='NOT READY YET Expected seeing (not quite in arcsec). This helps the PSF model to converge.')
 
     # Centroid
     parser.add_argument('--centroid',  type=str, default="auto", nargs="+",

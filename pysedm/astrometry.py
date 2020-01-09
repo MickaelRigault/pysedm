@@ -151,8 +151,17 @@ def fit_allcubes_pos(cube_filenames, lbdarange=[6000,8000] ,**kwargs):
 # ======================= #
 #   GET LOCATIONS         #
 # ======================= #
-def guess_target_pos(filename, parameters=None):
+def guess_target_pos(filename, parameters=None, oldmethod=False):
     """ """
+    if oldmethod:
+        return oldversion_get_target_pos(filename, parameters=parameters)
+    
+    astro = Astrometry(filename)
+    return astro.get_target_coordinate()
+
+
+def oldversion_get_target_pos(filename, parameters=None):
+    print
     # date
     cube_date = io.filename_to_date(filename, iso=True)
     
@@ -486,7 +495,10 @@ class Astrometry():
     def astromfile(self):
         """ """
         if not hasattr(self,"_astromfile"):
-            self._astromfile = io.filename_to_guider(self.filename)[0]
+            try:
+                self._astromfile = io.filename_to_guider(self.filename)[0]
+            except:
+                raise IOError("No ")
         return self._astromfile
     
     @property
@@ -595,7 +607,7 @@ class IFUReference(Astrometry):
     # ------- #
     # GETTER  #
     # ------- #
-    def get_isu_contours(self, where="ref", targetmag=None, isomag=None):
+    def get_iso_contours(self, where="ref", targetmag=None, isomag=None):
         """ """
         if targetmag is not None:
             iref.photoref.build_pointsource_image(targetmag)
@@ -789,7 +801,7 @@ class SliceAligner():
     FREEPARAMETERS = ["theta", "offsetx","offsety"]
     def __init__(self, slice_, source_position):
         """ """
-        PRINT("*** SliceAligner is DEPRECATED ***")
+        print("*** SliceAligner is DEPRECATED ***")
         self.slice = slice_
         self.set_sourcepos(*source_position)
 
@@ -1288,7 +1300,7 @@ class WCSIFU():
 
     def __init__(self, date=None):
         """ """
-        PRINT("*** WCSIFU will soon be DEPRECATED ***")
+        print("*** WCSIFU will soon be DEPRECATED ***")
         if date is not None:
             self.load_transform(date)
 

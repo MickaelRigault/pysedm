@@ -220,7 +220,7 @@ def get_ccd_pos(filename, radec=None, verbose=True):
     with fits.open(astrom_file) as f:
         header = f[0].header
         wcs_ = wcs.WCS(header)
-        xy  = np.asarray(radec.to_pixel(wcs))
+        xy  = np.asarray(radec.to_pixel(wcs_))
         del header
         del wcs_
         del radec

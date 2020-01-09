@@ -1260,7 +1260,7 @@ class SEDMExtractStar( BaseObject ):
         _ = self.raw_spectrum.show(ax=ax, zorder=3, show_zero=True, )
         if setlabels:
             ax.set_xlabel(r"Wavelength [$\AA$]", fontsize="large")
-            ax.set_ylabel("flux [pseudo adu]", fontsize="large")
+            ax.set_ylabel("flux [pseudo adu/s]", fontsize="large")
 
         ax.axhline(0,ls="-", lw=0.5, color="k", zorder=1)
         if not add_metaslices:
@@ -1271,10 +1271,10 @@ class SEDMExtractStar( BaseObject ):
         
         if colors is None:
             colors = mpl.cm.viridis(np.arange(self.nmetaslices)/(self.nmetaslices-1))
-                                
+        expt = self.spectrum.header['EXPTIME']
         for i,sl_ in enumerate(self.es_products["psffit"].slices.values()):
             color = colors[i]
-            ax.errorbar(np.mean(sl_["lbdarange"]), sl_["slpsf"].fitvalues["amplitude"],
+            ax.errorbar(np.mean(sl_["lbdarange"]), sl_["slpsf"].fitvalues["amplitude"]/expt,
                                     yerr=sl_["slpsf"].fitvalues["amplitude.err"], marker="o", ls="None",
                                     ecolor="0.7", mfc=color, mec="0.7", ms=10, zorder=5)
             ax.axvspan(*sl_["lbdarange"], color=color, alpha=0.2, zorder=1)

@@ -51,7 +51,7 @@ if  __name__ == "__main__":
     parser.add_argument('--autobins',  type=int, default=7,
                         help='Number of bins within the wavelength range (see --autorange)')
 
-    parser.add_argument('--buffer',  type=float, default=8,
+    parser.add_argument('--buffer',  type=float, default=10,
                         help='Radius [in spaxels] of the aperture used for the PSF fit. (see --centroid for aperture center)')
 
     parser.add_argument('--psfmodel',  type=str, default="NormalMoffatTilted",
@@ -204,7 +204,21 @@ if  __name__ == "__main__":
                 # SOURCE EXTRACTION     #
                 # ===================== #
                 print(" Starting extract_pointsource ".center(50, "-"))
-                es_out = cube.extract_pointsource(**es_options)
+                try:
+                    es_out = cube.extract_pointsource(**es_options)
+                except IOError:
+                    # Astrometry was not solved
+                    print("ERROR: Astrometry file not found, "
+                          "using brightest spaxel instead")
+                    es_options["centroid"] = "brightest"
+                    es_out = cube.extract_pointsource(**es_options)
+                except AttributeError:
+                    # Astrometry solved, but target outside IFU
+                    print("ERROR: Astrometry places target outside IFU, "
+                          "using brightest spaxel instead")
+                    es_options["centroid"] = "brightest"
+                    es_out = cube.extract_pointsource(**es_options)
+                    cube.header['QUALITY'] = 3
                 # -> The output object
                 es_object = cube.extractstar
 
@@ -243,7 +257,7 @@ if  __name__ == "__main__":
                     if speccal is None:
                         print("WARNING: Getting the Flux Calibrator Failed.")
                     else:
-                        speccal.writeto(speccal.filename)
+                        speccal.writeto(speccal.filename.replace("fluxcal", "fluxcal" + plot_tag))
 
                     #
                     # PLOTTING
@@ -258,6 +272,3 @@ if  __name__ == "__main__":
                                         show=False)
                             fl.show(savefile=speccal.filename.replace(".fits",".png"),
                                         show=False)
-                            
-                
-               

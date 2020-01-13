@@ -890,7 +890,7 @@ class SEDMExtractStar( BaseObject ):
         header.set('PSFADRPA', self._es_headerkey["psf_pa"], "Fitted ADR paralactic angle")
         header.set('PSFADRZ', self._es_headerkey["psf_airmass"], "Fitted ADR airmass")
         # Overall quality
-        header.set("QUALITY", asses_quality(self.raw_spectrum), "spectrum extraction quality flag [3,4 means bad ; 0=default] ")
+        header.set("QUALITY", asses_quality(self.raw_spectrum), "spec quality flag [>2 means bad ; 0=default] ")
         # CALIBRATION
         header.set("FLXPSEC", False, "Exposure time divided out (flux per sec)")
         return header

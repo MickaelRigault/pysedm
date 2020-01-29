@@ -1275,7 +1275,8 @@ class SEDMExtractStar( BaseObject ):
         for i,sl_ in enumerate(self.es_products["psffit"].slices.values()):
             color = colors[i]
             ax.errorbar(np.mean(sl_["lbdarange"]), sl_["slpsf"].fitvalues["amplitude"]/expt,
-                                    yerr=sl_["slpsf"].fitvalues["amplitude.err"], marker="o", ls="None",
+                                    yerr=sl_["slpsf"].fitvalues["amplitude.err"]/expt,
+                                    marker="o", ls="None",
                                     ecolor="0.7", mfc=color, mec="0.7", ms=10, zorder=5)
             ax.axvspan(*sl_["lbdarange"], color=color, alpha=0.2, zorder=1)
         
@@ -1659,7 +1660,7 @@ class SEDMCube( Cube ):
         elif spaxels_to_use is not None:
             if len(spaxels_to_use)<4:
                 print("WARNING, you provided less than 4 spaxel to be f")
-            self.set_fitted_spaxels(spaxels_to_use)
+            self.extractstar.set_fitted_spaxels(spaxels_to_use)
 
         if self.extractstar.fitted_spaxels is None:
             self.extractstar.get_spaxels_tofit(buffer=spaxelbuffer, update=True)

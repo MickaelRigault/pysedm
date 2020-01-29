@@ -24,7 +24,7 @@ import datetime
 from astropy.io import fits
 
     
-def build_image_report(specfile):
+def build_image_report(specfile, doab=False):
     """ """
     from pysedm.utils import pil
     now = datetime.datetime.now()
@@ -39,8 +39,17 @@ def build_image_report(specfile):
     filesourcename = specfile.split("spec_")[-1].split(".fits")[0]
     if "+" in filesourcename:
         filesourcename = filesourcename.split("+")[0]
+
+    if doab:
+        if '_robotA_' in specfile:
+            spec_id = pysedm.io.filename_to_id(header['ABFILA'])
+        elif '_robotB_' in specfile:
+            spec_id = pysedm.io.filename_to_id(header['ABFILB'])
+        else:
+            spec_id = pysedm.io.filename_to_id(header['ABFILA'])
+            filesourcename = filesourcename.replace("_robot_", "_robotA_")
         
-    object_name = header['OBJECT'].split()[0] # remove the [A] in 'TARGET [A]'
+    object_name = header['OBJECT'].split()[0]  # remove the [A] in 'TARGET [A]'
     
     if "STD" in filesourcename:
         STD = True
@@ -179,6 +188,8 @@ if  __name__ == "__main__":
                         help='Submit the report to slack')
     parser.add_argument('--justpush', action="store_true", default=False,
                         help='Just push to slack')
+    parser.add_argument('--doab', action="store_true", default=False,
+                        help='Report for A/B pair')
 
     # ================ #
     # END of Option    #
@@ -214,7 +225,7 @@ if  __name__ == "__main__":
                 continue
             report_filename = specfile.replace("spec_","pysedm_report_").replace(".fits",".png")
             if not args.justpush:
-                img_report = build_image_report(specfile)
+                img_report = build_image_report(specfile, doab=args.doab)
                 img_report.save(report_filename, dpi=(1000,1000))
 
             # Slack push report

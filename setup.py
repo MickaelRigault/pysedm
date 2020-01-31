@@ -65,14 +65,15 @@ if __name__ == "__main__":
           install_requires=install_requires,
           scripts=["bin/ccd_to_cube.py" ,
                    "bin/extract_star.py",
-                   "bin/extractstar.py",                   
+                   "bin/extractstar.py",
+                   "bin/extractstar_ab.py",
                    "bin/cube_quality.py",
                    "bin/pysedm_report.py",
                    "bin/pysedm_pull.py",
                    "bin/pysedm_io.py",                   
                    "bin/derive_wavesolution.py",
                    "bin/quality_check.py",
-                    "bin/build_guider.py"],
+                   "bin/build_guider.py"],
           packages=packages,
           include_package_data=True,
           package_data={'pysedm': ['data/*.*']},
@@ -85,4 +86,4 @@ if __name__ == "__main__":
               'Operating System :: POSIX',
               'Operating System :: Unix',
               'Operating System :: MacOS'],
-      )
+          )

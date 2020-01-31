@@ -7,7 +7,7 @@ import datetime
 from astropy.io import fits
 
     
-def build_image_report(specfile, doab=False):
+def build_image_report(specfile):
     """ """
     from pysedm.utils import pil
     now = datetime.datetime.now()
@@ -22,15 +22,6 @@ def build_image_report(specfile, doab=False):
     filesourcename = specfile.split("spec_")[-1].split(".fits")[0]
     if "+" in filesourcename:
         filesourcename = filesourcename.split("+")[0]
-
-    if doab:
-        if '_robotA_' in specfile:
-            spec_id = pysedm.io.filename_to_id(header['ABFILA'])
-        elif '_robotB_' in specfile:
-            spec_id = pysedm.io.filename_to_id(header['ABFILB'])
-        else:
-            spec_id = pysedm.io.filename_to_id(header['ABFILA'])
-            filesourcename = filesourcename.replace("_robot_", "_robotA_")
         
     object_name = header['OBJECT'].split()[0]  # remove the [A] in 'TARGET [A]'
     
@@ -79,10 +70,6 @@ def build_image_report(specfile, doab=False):
         img_adr= pil.get_buffer([9, 4], "ADR image missing" , **prop_missing)
 
     # Output Spectra
-    if doab:
-        filesourcename = specfile.split("spec_")[-1].split(".fits")[0]
-        if "+" in filesourcename:
-            filesourcename = filesourcename.split("+")[0]
     all_spectra_files = pysedm.io.get_night_files(date, "re:spec", filesourcename, extention=".png")
     extention = "%s.png" % object_name.split("+")[-1] if "+" in object_name else "%s.png" % object_name
     pysedm_spec_file = pysedm.io.get_night_files(date, "re:spec", filesourcename, extention=extention)
@@ -93,7 +80,7 @@ def build_image_report(specfile, doab=False):
         calib_spectra = pysedm.io.get_night_files(date, "re:calibcheck", filesourcename, extention=".png")
         used_spec_file = pysedm_spec_file if len(calib_spectra) == 0 else calib_spectra
     try:
-        img_spec = pil.Image.open(used_spec_file[0])
+        img_spec = pil.Image.open(used_spec_file[-1])
     except:
         img_spec = pil.get_buffer([13, 7], "Spectra image missing", **prop_missing)
 
@@ -160,8 +147,6 @@ if __name__ == "__main__":
                         help='Submit the report to slack')
     parser.add_argument('--justpush', action="store_true", default=False,
                         help='Just push to slack')
-    parser.add_argument('--doab', action="store_true", default=False,
-                        help='Report for A/B pair')
 
     # ================ #
     # END of Option    #
@@ -198,7 +183,7 @@ if __name__ == "__main__":
                 continue
             report_filename = specfile.replace("spec_","pysedm_report_").replace(".fits",".png")
             if not args.justpush:
-                img_report = build_image_report(specfile, doab=args.doab)
+                img_report = build_image_report(specfile)
                 img_report.save(report_filename, dpi=(1000,1000))
 
             # Slack push report

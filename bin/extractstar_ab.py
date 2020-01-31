@@ -298,7 +298,7 @@ if __name__ == "__main__":
                 spec_A = es_object.get_spectrum()
 
                 spec_AB = pyifu.get_spectrum(spec_A.lbda,
-                                             spec_A.data+spec_B.data,
+                                             (spec_A.data+spec_B.data)/2.,
                                              variance=(spec_A.variance +
                                                        spec_B.variance)/2.,
                                              header=spec_A.header)

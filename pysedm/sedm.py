@@ -748,7 +748,7 @@ class SEDMExtractStar( BaseObject ):
         if hasattr(self, "_slice_width"):
             spec_info += "_lstep%s"%self._slice_width
         if add_info is not None and add_info not in [""]:
-            spec_info += add_info_spec
+            spec_info += add_info
         if not self.is_spectrum_fluxcalibrated:
             spec_info += "_notfluxcal"
 

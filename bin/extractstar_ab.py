@@ -273,9 +273,9 @@ if __name__ == "__main__":
                     "verbose": True,
                 }
 
-                # ===================== #
-                # SOURCE EXTRACTION     #
-                # ===================== #
+                # ================= #
+                # SOURCE EXTRACTION #
+                # ================= #
                 print(" Starting A extract_pointsource ".center(50, "-"))
                 try:
                     es_out = cube.extract_pointsource(**es_options)
@@ -294,27 +294,8 @@ if __name__ == "__main__":
                     cube.header['QUALITY'] = 3
                 # -> The output object
                 es_object = cube.extractstar
-                # Generate A/B spectrum
-                spec_A = es_object.get_spectrum()
-
-                spec_AB = pyifu.get_spectrum(spec_A.lbda,
-                                             (spec_A.data+spec_B.data)/2.,
-                                             variance=(spec_A.variance +
-                                                       spec_B.variance)/2.,
-                                             header=spec_A.header)
-                # Update A/B spectrum header
-                spec_AB.header['EXPTIME'] = spec_A.header['EXPTIME'] + \
-                    spec_B.header['EXPTIME']
-                spec_AB.header['ABPSFWA'] = spec_A.header['PSFFWHM']
-                spec_AB.header['ABXPOSA'] = spec_A.header['XPOS']
-                spec_AB.header['ABYPOSA'] = spec_A.header['YPOS']
-                spec_AB.header['ABPSFWB'] = spec_B.header['PSFFWHM']
-                spec_AB.header['ABXPOSB'] = spec_B.header['XPOS']
-                spec_AB.header['ABYPOSB'] = spec_B.header['YPOS']
-                es_object._derived_properties["spectrum"] = spec_AB
-                # -
-                # - SAVING
-                # -
+                #
+                # Generate output file tag
                 add_tag = "_%s" % args.tag if args.tag is not None and \
                     args.tag not in ["None", ""] \
                     else ""
@@ -324,10 +305,8 @@ if __name__ == "__main__":
                             add_info_spec
 
                 print("Tag added", add_tag)
-                es_object.writeto(basename=None, add_tag="auto" + add_tag,
-                                  add_info=None)
                 # -
-                # - PLOTTING
+                # - PLOTTING: A is reference
                 # -
                 plot_tag = "_auto" + add_tag + spec_info + "_"
                 if not args.nofig:
@@ -348,6 +327,28 @@ if __name__ == "__main__":
                         savefile=es_object.basename.replace(
                             "{placeholder}", "psfprofile" + plot_tag),
                         sliceid=2)
-                    es_object.spectrum.show(
-                        savefile=es_object.basename.replace(
-                            "{placeholder}", "spec" + plot_tag))
+                # Generate A/B spectrum
+                spec_A = es_object.get_spectrum()
+
+                spec_AB = pyifu.get_spectrum(spec_A.lbda,
+                                             (spec_A.data + spec_B.data) / 2.,
+                                             variance=(spec_A.variance +
+                                                       spec_B.variance) / 2.,
+                                             header=spec_A.header)
+                # Update A/B spectrum header
+                spec_AB.header['EXPTIME'] = spec_A.header['EXPTIME'] + \
+                                            spec_B.header['EXPTIME']
+                spec_AB.header['ABPSFWA'] = spec_A.header['PSFFWHM']
+                spec_AB.header['ABXPOSA'] = spec_A.header['XPOS']
+                spec_AB.header['ABYPOSA'] = spec_A.header['YPOS']
+                spec_AB.header['ABPSFWB'] = spec_B.header['PSFFWHM']
+                spec_AB.header['ABXPOSB'] = spec_B.header['XPOS']
+                spec_AB.header['ABYPOSB'] = spec_B.header['YPOS']
+                es_object._derived_properties["spectrum"] = spec_AB
+                # Save A/B spectrum
+                es_object.writeto(basename=None, add_tag="auto" + add_tag,
+                                  add_info=None)
+                # Plot A/B spectrum
+                es_object.spectrum.show(
+                    savefile=es_object.basename.replace(
+                        "{placeholder}", "spec" + plot_tag))

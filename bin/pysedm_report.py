@@ -76,6 +76,7 @@ def build_image_report(specfile):
     if not STD:
         typed_spectra = [f for f in all_spectra_files if not f.endswith(extention)]
         used_spec_file = pysedm_spec_file if len(typed_spectra) == 0 else typed_spectra
+        used_spec_file.sort()
     else:
         calib_spectra = pysedm.io.get_night_files(date, "re:calibcheck", filesourcename, extention=".png")
         used_spec_file = pysedm_spec_file if len(calib_spectra) == 0 else calib_spectra

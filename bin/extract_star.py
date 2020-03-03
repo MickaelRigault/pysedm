@@ -378,10 +378,19 @@ if  __name__ == "__main__":
                 # ----------------- #
                 print("Automatic extraction of target %s, file: %s"%(target, filecube))
                 cube_ = get_sedmcube(filecube)
-                [xcentroid, ycentroid], centroids_err, position_type = \
-                    astrometry.position_source(cube_, centroid=args.centroid,
-                                    centroiderr=args.centroiderr,
-                                    maxpos=args.maxpos)
+                try:
+                    [xcentroid, ycentroid], centroids_err, position_type = \
+                        astrometry.position_source(cube_,
+                                                   centroid=args.centroid,
+                                                   centroiderr=args.centroiderr,
+                                                   maxpos=args.maxpos)
+                except IOError:
+                    print("Astrometry file not found, using maxpos")
+                    [xcentroid, ycentroid], centroids_err, position_type = \
+                        astrometry.position_source(cube_,
+                                                   centroid=args.centroid,
+                                                   centroiderr=args.centroiderr,
+                                                   maxpos=True)
                 if args.display:
                     iplot = cube_.show(interactive=True, launch=False)
                     iplot.axim.scatter( xcentroid, ycentroid, **astrometry.MARKER_PROP[position_type] )

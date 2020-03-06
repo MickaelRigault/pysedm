@@ -119,6 +119,20 @@ def get_night_files(date, kind, target=None, extention=".fits"):
                  (target is None or re.search(r'%s'%target, f)) and
                  (extention is None or f.endswith(extention))]
 
+def get_cleaned_sedmcube(filename):
+    """ get sky and flux calibrated cube """
+
+    cube = get_sedmcube(filename)
+
+    fluxcalfile = io.fetch_nearest_fluxcal(date, cube.filename)
+    fluxcal = fluxcalibration.load_fluxcal_spectrum(fluxcalfile)
+
+    cube.remove_sky()
+    #cube.scale_by(fluxcal.data) # old version
+    cube.scale_by( fluxcal.get_inversed_sensitivity(cube.header.get("AIRMASS", 1.1)), onraw=False )
+
+    return cube
+  
 #########################
 #                       #
 #   Reading the DB      #

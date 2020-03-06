@@ -8,16 +8,9 @@ import numpy as np
 import matplotlib.pyplot as mpl
 from shapely import geometry
 
-import pysedm
-from pysedm import astrometry
-
-from sedmhaz import sedmz
-
-####################
-#                  #
-#   CLASS          #
-#                  #
-####################
+from . import io
+from . import fluxcalibration
+from . import astrometry
 
 def get_spaxels_from_constsep(date, targetid):
     """ get target spaxels
@@ -25,6 +18,13 @@ def get_spaxels_from_constsep(date, targetid):
     """
     return SEDM_CONTOUR.from_sedmid(date, targetid)
 
+
+
+####################
+#                  #
+#   CLASS          #
+#                  #
+####################
 
 class SEDM_CONTOUR():
 
@@ -66,8 +66,9 @@ class SEDM_CONTOUR():
         -------
         Instance of the class (like a __init__)
         """
-        cube = sedmz.get_cleaned_sedmcube(date, targetid)
-        filename = pysedm.io.get_night_files(date, "cube", targetid)[0]
+        filename = io.get_night_files(date, "cube", targetid)[0]
+        cube = get_cleaned_sedmcube(filename)
+        
         return cls(filename, cube)
 
     #
@@ -365,3 +366,5 @@ class SEDM_CONTOUR():
         others_consep_spaxel_ids = np.unique(_others_consep_spaxel_ids)
 
         return others_consep_spaxel_ids
+
+   

@@ -9,8 +9,8 @@ import matplotlib.pyplot as mpl
 from shapely import geometry
 
 from . import io
-from . import fluxcalibration
 from . import astrometry
+from . import sedm
 
 def get_spaxels_from_constsep(date, targetid):
     """ get target spaxels
@@ -67,7 +67,7 @@ class SEDM_CONTOUR():
         Instance of the class (like a __init__)
         """
         filename = io.get_night_files(date, "cube", targetid)[0]
-        cube = get_cleaned_sedmcube(filename)
+        cube = sedm.get_sedmcube(filename)
         
         return cls(filename, cube)
 

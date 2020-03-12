@@ -338,7 +338,7 @@ class SEDM_CONTOUR():
             others_ids_from_contsep = self.get_others_spaxels()
             spaxel_patches = self.cube._display_im_(axim=ax, vmin="5", vmax="99")
 
-            for i in others_ids_from_contep:
+            for i in others_ids_from_contsep:
                 spaxel_patches[i].set_edgecolor("k")
                 spaxel_patches[i].set_linewidth(1)
                 spaxel_patches[i].set_zorder(9)

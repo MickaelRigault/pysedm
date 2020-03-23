@@ -232,9 +232,9 @@ class SEDM_CONTOUR():
             #print("From area method = ", area_method, "mag contour.")
             #print("From counting method = ", counting_method)
 
-            target_consep_mag_ = area_method
+            target_contsep_mag_ = area_method
 
-            return target_consep_mag
+            return target_contsep_mag_
 
         elif method is "counting":
             counting_method = self.get_target_faintest_contour_w_counting_method()
@@ -256,7 +256,7 @@ class SEDM_CONTOUR():
         ## When there is only 1 marked target in the cube, use 'area' method.
         if refimage_coords_in_ifu.size == 0:
             #ifucounts = self.get_ifu_iso_contours()
-            target_contsep_mag = self.get_target_faintest_contour(method="area", target_polygon_loc=target_polygon_loc)
+            target_contsep_mag = self.get_target_faintest_contour(method="area")
         else:
             target_contsep_mag  = self.get_target_faintest_contour()
 
@@ -350,11 +350,11 @@ class SEDM_CONTOUR():
     # Method for Spaxels #
     ######################
 
-    def get_target_spaxels(self):
+    def get_target_spaxels(self, spaxels_id=True):
         """
         get target spaxels from the faintest consep.
 
-        return spaxel ids in numpy array.
+        Return spaxel ids in numpy array. If not, it returns spaxel indexes.
         """
 
         target_contsep_mag_index, target_contsep_array_index = self.get_target_contsep_information()
@@ -364,12 +364,17 @@ class SEDM_CONTOUR():
         target_contsep_poly_index = self.cube.get_spaxels_within_polygon(target_contsep_poly) #spaxel index
         target_contsep_spaxel_ids = np.arange(self.cube.nspaxels)[np.isin(self.cube.indexes,target_contsep_poly_index)] #spaxel index to id for drawing.
 
-        return target_contsep_spaxel_ids
+        if spaxels_id:
+            return target_contsep_spaxel_ids
+        else:
+            return np.array(target_contsep_poly_index)
 
-    def get_others_spaxels(self):
+    def get_others_spaxels(self, spaxels_id=True):
         """
         get other sources' spaxels (including host and so on).
         !!! It should be updated to select only host spaxels !!!
+
+        Return spaxel ids in numpy array. If not, it returns spaxel indexes.
         """
 
         target_contsep_mag_index, target_contsep_array_index = self.get_target_contsep_information()
@@ -378,22 +383,22 @@ class SEDM_CONTOUR():
         others_contsep_array_index = [i for i in range(0,len( self.ifucounts[ list(self.ifucounts.keys())[others_contsep_mag_index] ] )) if i != target_contsep_array_index]
 
         __others_contsep_spaxel_ids = []
+        _others_contsep_poly_index = []
 
         for i in range(0, len(others_contsep_array_index)):
             others_contsep_polys = geometry.Polygon(self.ifucounts[ list(self.ifucounts.keys())[others_contsep_mag_index] ][others_contsep_array_index[i]] )
 
-            others_contsep_poly_index = self.cube.get_spaxels_within_polygon(others_contsep_polys) #spaxel index
-            __others_contsep_spaxel_ids.append( np.arange(self.cube.nspaxels)[np.isin(self.cube.indexes,others_contsep_poly_index)] ) #spaxel index to id for drawing.
+            __others_contsep_poly_index = self.cube.get_spaxels_within_polygon(others_contsep_polys) #spaxel index
+            if len(__others_contsep_poly_index) > 0:
+                _others_contsep_poly_index += __others_contsep_poly_index
 
-        _others_contsep_spaxel_ids = __others_contsep_spaxel_ids[0]
+        others_contsep_poly_index = np.unique(_others_contsep_poly_index) #spaxel index
+        others_contsep_spaxel_ids = np.arange(self.cube.nspaxels)[np.isin(self.cube.indexes, others_contsep_poly_index)] #spaxel index to id for drawing.
 
-        for i in range(0, len(__others_contsep_spaxel_ids)):
-            if len(__others_contsep_spaxel_ids[i] > 0):
-                _others_contsep_spaxel_ids = np.append(_others_contsep_spaxel_ids, __others_contsep_spaxel_ids[i])
-
-        others_contsep_spaxel_ids = np.unique(_others_contsep_spaxel_ids)
-
-        return others_contsep_spaxel_ids
+        if spaxels_id:
+            return others_contsep_spaxel_ids
+        else:
+            return others_contsep_poly_index
 
     ###################
     # Properties      #

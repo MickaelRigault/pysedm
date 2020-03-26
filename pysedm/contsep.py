@@ -3,8 +3,6 @@
 
 """
 This module is to get target or host spaxels in SEDM cube data.
-NOTE: This module is working with the cube observed after Nov 10 2019.
-      Before that date, an error related to 'old format' is raised.
 """
 
 import numpy as np

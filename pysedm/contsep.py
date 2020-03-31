@@ -116,8 +116,6 @@ class SEDM_CONTOUR():
         Returns a list of [ (isomag, ifucount key of isomag, isomag index, 1 th array in isomag contour)]
         """
 
-        #ifucounts = self.get_ifu_iso_contours()
-
         __target_polygon_loc = []
 
         for mag_index in range( 0, len(self.ifucounts) ):
@@ -157,21 +155,19 @@ class SEDM_CONTOUR():
 
         for i in range(1, len(self.target_polygon_loc)+mag_step_diff):
             poly_ref = geometry.Polygon( self.ifucounts[ self.target_polygon_loc[len(self.target_polygon_loc) - i ][1] ][int(self.target_polygon_loc[len(self.target_polygon_loc)- i ][3])] )
-            #print(self.isomag[ len(self.target_polygon_loc) - i + mag_step_diff ], "mag contour area:", poly_ref.area)
 
             i_comp = i + 1
             poly_comp = geometry.Polygon( self.ifucounts[ self.target_polygon_loc[len(self.target_polygon_loc) - i_comp ][1] ][int(self.target_polygon_loc[len(self.target_polygon_loc) - i_comp ][3])] )
 
             if (poly_ref.area>50) & (poly_comp.area>50):
                 continue
-                #print("too big\n")
+
             elif poly_ref.area<10:
-                #print("Faint mag contour for target is in", self.isomag[ len(self.target_polygon_loc) - i + mag_step_diff ], " mag contour.")
                 return self.isomag[ len(self.target_polygon_loc) - i + mag_step_diff ]
+
             else:
                 poly_criteria = np.abs(poly_ref.area - poly_comp.area)
                 if poly_criteria > 40:
-                    #print("Faintest mag contour only for the target is in", self.isomag[ len(self.target_polygon_loc) - i_comp + mag_step_diff ], "mag contour.")
                     return self.isomag[ len(self.target_polygon_loc) - i_comp + mag_step_diff ]
 
     def get_target_faintest_contour_w_counting_method(self):
@@ -192,7 +188,6 @@ class SEDM_CONTOUR():
 
         # starts from the faintest in target_polygon_loc
         for i in range(1, len(self.target_polygon_loc)+mag_step_diff):
-            #print(i, self.isomag[ len(self.ifucounts) - i ], "mag contour:")
             poly_ = geometry.Polygon( self.ifucounts[ self.target_polygon_loc[len(self.target_polygon_loc)-i][1] ][int(self.target_polygon_loc[len(self.target_polygon_loc)-i][3])] )
 
             chk_poly_contain_src = []
@@ -200,7 +195,6 @@ class SEDM_CONTOUR():
                 chk_poly_contain_src.append(poly_.contains( geometry.Point([refimag_x[src_num], refimag_y[src_num]]) ))
 
             if any(chk_poly_contain_src) is False:
-                #print("Faintest mag contour only for the target is in", self.isomag[ len(self.ifucounts) - i ], " mag contour.")
                 return self.isomag[ len(self.ifucounts) - i ]
 
     def get_target_faintest_contour(self, method="both", forced_addcontsep_mag=0.0):
@@ -216,19 +210,14 @@ class SEDM_CONTOUR():
 
             if area_method == counting_method:
                 target_consep_mag_ = area_method
-                #print("From area method = ", area_method, "mag contour.")
-                #print("From counting method = ", counting_method, "mag contour.")
-
                 return target_consep_mag_
+
             else:
                 raise ValueError("Check the number of sources in the cube. If 1, use method='area'.")
 
         elif method is "area":
             area_method = self.get_target_faintest_contour_w_area_method()
             counting_method = "Not used."
-
-            #print("From area method = ", area_method, "mag contour.")
-            #print("From counting method = ", counting_method)
 
             target_contsep_mag_ = area_method
 
@@ -237,9 +226,6 @@ class SEDM_CONTOUR():
         elif method is "counting":
             counting_method = self.get_target_faintest_contour_w_counting_method()
             area_method = "Not used."
-
-            #print("From area method = ", area_method)
-            #print("From counting method = ", counting_method, "mag contour.")
 
             target_consep_mag_ = counting_method
 
@@ -253,7 +239,6 @@ class SEDM_CONTOUR():
 
         ## When there is only 1 marked target in the cube, use 'area' method.
         if refimage_coords_in_ifu.size == 0:
-            #ifucounts = self.get_ifu_iso_contours()
             target_contsep_mag = self.get_target_faintest_contour(method="area")
         else:
             target_contsep_mag  = self.get_target_faintest_contour()
@@ -399,6 +384,7 @@ class SEDM_CONTOUR():
         """
 
         _target_contsep_spaxel_index = self.get_target_spaxels(spaxels_id=False)
+
         if len(_target_contsep_spaxel_index) < 11: # when SN is exploded close to the bright center.
             self.forced_addcontsep_mag = 0.5
             print(self.forced_addcontsep_mag, " is used.")

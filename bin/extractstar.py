@@ -5,18 +5,18 @@
 
 #################################
 #
-#   MAIN 
+#   MAIN
 #
 #################################
 if  __name__ == "__main__":
-    
+
     import argparse
     import numpy as np
-    
+
     from pysedm import get_sedmcube, io
 
 
-    
+
     # ================= #
     #   Options         #
     # ================= #
@@ -30,14 +30,14 @@ if  __name__ == "__main__":
     # // AUTOMATIC EXTRACTION
     parser.add_argument('--inputcube',   action="store_true", default=False,
                         help='Is the input a cube ?')
-    
+
     parser.add_argument('--reducer',  type=str, default=io.SEDM_REDUCER,
                         help='What is your name? This will be added in the header [default: $SEDM_REDUCER]')
 
     #  which extraction
     parser.add_argument('--aperture',  type=str, default=None,
                         help='Do you want a simple aperture extraction ?')
-    
+
     parser.add_argument('--ap_bkgdscale',  type=float, default=1.4,
                         help='Default width scale of the outter background ring [default 1.4]')
 
@@ -47,7 +47,7 @@ if  __name__ == "__main__":
 
     parser.add_argument('--autorange',  type=str, default="4000,8000",
                         help='Wavelength range [in Angstrom] for measuring the metaslice PSF')
-    
+
     parser.add_argument('--autobins',  type=int, default=7,
                         help='Number of bins within the wavelength range (see --autorange)')
 
@@ -71,7 +71,7 @@ if  __name__ == "__main__":
                             "\n   * --centroid brightest: Use the position of the bightest spaxels "+
                             "\n   * --centroid x0,y0: Use the given x0 y0 position (separated by a coma)."
                             )
-    
+
     parser.add_argument('--centroiderr',  type=str, default="None",nargs=2,
                         help='Where is the point source location guess boundaries ?'+
                         "\nYou have 2 potential cases:"+
@@ -84,18 +84,18 @@ if  __name__ == "__main__":
 
     parser.add_argument('--vmin',  type=str, default="2",
                         help='Data Percentage used for imshow "vmin" when using the --display mode')
-    
+
     parser.add_argument('--vmax',  type=str, default="98",
                         help='Data Percentage used for imshow "vmax" when using the --display mode')
 
     # Flux calibration
     parser.add_argument('--nofluxcal',  action="store_true", default=False,
                         help='No Flux calibration')
-    
+
     parser.add_argument('--fluxcalsource',  type=str, default="None",
                         help="Path to a 'fluxcal' .fits file. This file will be used for the flux calibration"+
                         "\nIf nothing given, the nearest (in time and within the night) fluxcal will be used.")
-    
+
     # wavelength step
     parser.add_argument('--lstep',  type=int, default=1,
                         help='Slice width in lbda step: default is 1, use 2 for fainter source and maybe 3 for really faint target')
@@ -113,12 +113,12 @@ if  __name__ == "__main__":
     # - Standard Star object
     parser.add_argument('--std',  action="store_true", default=False,
                         help='Set this to True to tell the program you what to build a calibration spectrum from this object')
-    
-    
-    
-    
 
-        
+
+
+
+
+
     args = parser.parse_args()
 
     # ================= #
@@ -138,9 +138,9 @@ if  __name__ == "__main__":
         args.centroid = args.centroid[0]
     elif len(args.centroid)>2:
         raise ValueError("--centroid should be 'auto', 'brightness' or X Y")
-        
-    
-        
+
+
+
 
     # ------------- #
     #               #
@@ -152,7 +152,7 @@ if  __name__ == "__main__":
         if args.std:
             raise NotImplementedError("--std option cannot be used (yet) with --aperture. Use --auto")
 
-    
+
 
     # ------------- #
     #               #
@@ -160,9 +160,9 @@ if  __name__ == "__main__":
     #               #
     # ------------- #
     if args.auto is not None and len(args.auto) >0:
-        
+
         for target in args.auto.split(","):
-            
+
             filecubes = io.get_night_files(date, "cube.*", target=target.replace(".fits","")) if not args.inputcube else [target]
             print("cube file from which the spectra will be extracted [auto]: "+ ", ".join(filecubes))
 
@@ -183,12 +183,12 @@ if  __name__ == "__main__":
                 es_options = {
                     # Display mode ?
                     "display":args.display, "displayprop":{"vmin":args.vmin, "vmax":args.vmax},
-                    
+
                     # Metaslices
                     # -- How many slices
                     "step1range": np.asarray(args.autorange.split(","), dtype="float"),
                     "step1bins": args.autobins,
-                    # -- Centroid guess                    
+                    # -- Centroid guess
                     "centroid":args.centroid, "prop_position":{"centroiderr":args.centroid},
                     # Sub IFU
                     "spaxelbuffer": args.buffer,
@@ -201,12 +201,13 @@ if  __name__ == "__main__":
                     "slice_width": int(args.lstep),
                     #
                     #
-                    "verbose":True, 
+                    "verbose":True,
                     }
 
                 # This means that you want to remove non-target spaxel contamination
                 if args.contsep:
                     from pysedm import contsep
+                    print(" Starting contsep non-target spaxel removal ".center(50, "-"))
                     targetid = io.filename_to_id(filecube)
                     cont = contsep.get_spaxels_from_constsep(date, targetid)
                     es_options["spaxels_to_avoid"] =  list( cont.get_others_spaxels(spaxels_id=False) )
@@ -255,6 +256,9 @@ if  __name__ == "__main__":
                     es_object.show_mla(            savefile=es_object.basename.replace("{placeholder}","ifu_spaxels_source" + plot_tag))
                     es_object.show_psf(            savefile=es_object.basename.replace("{placeholder}","psfprofile" + plot_tag), sliceid=2)
                     es_object.spectrum.show(       savefile=es_object.basename.replace("{placeholder}","spec" + plot_tag))
+                    if args.contsep:
+                        cont.show_ifudata(wcontour=False, wtargetspaxel=False, wotherspaxel=True,
+                        savefile=es_object.basename.replace("{placeholder}","contsep" + plot_tag), forced_addcontsep_mag=0.0)
 
                 # -
                 # - Standard Specific

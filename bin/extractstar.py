@@ -54,6 +54,9 @@ if  __name__ == "__main__":
     parser.add_argument('--buffer',  type=float, default=10,
                         help='Radius [in spaxels] of the aperture used for the PSF fit. (see --centroid for aperture center)')
 
+    parser.add_argument('--contsep',  action="store_true", default=False,
+                        help='Shall this run contsep to avoid non-target spaxels within the fit.')
+
     parser.add_argument('--psfmodel',  type=str, default="NormalMoffatTilted",
                         help='PSF model used for the PSF fit: NormalMoffat{Flat/Tilted/Curved}')
 
@@ -192,6 +195,7 @@ if  __name__ == "__main__":
                     # PSF Model
                     "psfmodel": args.psfmodel,
                     "spaxels_to_use":None, # not ready yet, provide here directly the spaxels to be used
+                    "spaxels_to_avoid":None, # not ready yet, provide here directly the spaxels to be used
                     "fwhm_guess": args.seeing,
                     # Spectral options
                     "slice_width": int(args.lstep),
@@ -199,7 +203,14 @@ if  __name__ == "__main__":
                     #
                     "verbose":True, 
                     }
-                
+
+                # This means that you want to remove non-target spaxel contamination
+                if args.contsep:
+                    from pysedm import contsep
+                    targetid = io.filename_to_id(filecube)
+                    cont = contsep.get_spaxels_from_constsep(date, targetid)
+                    es_options["spaxels_to_avoid"] =  list( cont.get_others_spaxels(spaxels_id=False) )
+
                 # ===================== #
                 # SOURCE EXTRACTION     #
                 # ===================== #

@@ -1086,7 +1086,7 @@ class SEDMExtractStar( BaseObject ):
         pysedm_spaxels_tofit = [f for f in self.cube.get_spaxels_within_polygon(point_polygon)
                                     if spaxels_to_avoid is None or f not in spaxels_to_avoid]
         
-#        contsep_others_spaxel_index = list( contsep.get_others_spaxels(spaxels_id=False) )
+#        spaxels_to_avoid = contsep.get_others_spaxels(spaxels_id=False)
 
         if update:
             self.set_fitted_spaxels(pysedm_spaxels_tofit)
@@ -1626,7 +1626,9 @@ class SEDMCube( Cube ):
     def extract_pointsource(self, display=False, displayprop={},
                                 step1range=[4500,7000], step1bins=6,
                                 centroid="auto", prop_position={},
-                                spaxelbuffer = 10, spaxels_to_use=None,
+                                spaxelbuffer = 10,
+                                spaxels_to_use=None,
+                                spaxels_to_avoid=None,
                                 psfmodel="NormalMoffatTilted",
                                 slice_width = 1, fwhm_guess=None, verbose=False, **kwargs):
         """ runs the default extract_star script on the target.
@@ -1646,7 +1648,7 @@ class SEDMCube( Cube ):
             (returns ValueError is unable to parse)
 
         """
-        from . import astrometry
+        #from . import astrometry
         from shapely import geometry
 
         # input convertion
@@ -1662,13 +1664,13 @@ class SEDMCube( Cube ):
             import matplotlib.pyplot as mpl
             self.extractstar.get_humain_input()
             self.extractstar.update_from_humain_input()
-        elif spaxels_to_use is not None:
+        elif spaxels_to_use is not None: # You fixed which you want
             if len(spaxels_to_use)<4:
                 print("WARNING, you provided less than 4 spaxel to be f")
             self.extractstar.set_fitted_spaxels(spaxels_to_use)
 
-        if self.extractstar.fitted_spaxels is None:
-            self.extractstar.get_spaxels_tofit(buffer=spaxelbuffer, update=True)
+        if self.extractstar.fitted_spaxels is None: # Automatic selections (with or without spaxels)
+            self.extractstar.get_spaxels_tofit(buffer=spaxelbuffer, update=True, spaxels_to_avoid=spaxels_to_avoid)
 
         if verbose: print("* Starting extractstar.run")
         return self.extractstar.run(slice_width=slice_width, psfmodel=psfmodel,

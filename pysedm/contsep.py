@@ -3,6 +3,7 @@
 
 """
 This module is to get target or host spaxels in SEDM cube data.
+(v.20200407)
 """
 
 import numpy as np
@@ -387,7 +388,7 @@ class SEDM_CONTOUR():
 
         if len(_target_contsep_spaxel_index) < 11: # when SN is exploded close to the bright center.
             self.forced_addcontsep_mag = 0.5
-            
+
             target_contsep_mag_index, target_contsep_array_index = self.get_target_contsep_information(forced_addcontsep=True)
             others_contsep_mag_index = target_contsep_mag_index
             others_contsep_array_index = [i for i in range(0,len( self.ifucounts[ list(self.ifucounts.keys())[others_contsep_mag_index] ] )) ]

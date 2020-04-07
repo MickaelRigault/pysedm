@@ -1055,7 +1055,7 @@ class SEDMExtractStar( BaseObject ):
 
         return speccal, fl
 
-    def get_spaxels_tofit(self, centroid=None, buffer=10, update=False):
+    def get_spaxels_tofit(self, centroid=None, buffer=10, update=False, spaxels_to_avoid=None):
         """ Get spaxels to given assuming circular aperture.
 
         Parameters
@@ -1083,19 +1083,14 @@ class SEDMExtractStar( BaseObject ):
 
         from shapely.geometry import Point
         point_polygon = Point(*centroid).buffer( buffer )
-        pysedm_spaxels_tofit = self.cube.get_spaxels_within_polygon(point_polygon)
-        contsep_others_spaxel_index = list( contsep.get_others_spaxels(spaxels_id=False) )
-
-        spaxels_tofit_wo_contam = []
-        for spax_ in pysedm_spaxels_tofit:
-            if spax_ in contsep_others_spaxel_index:
-                continue
-            else:
-                spaxels_tofit_wo_contam.append(spax_)
+        pysedm_spaxels_tofit = [f for f in self.cube.get_spaxels_within_polygon(point_polygon)
+                                    if spaxels_to_avoid is None or f not in spaxels_to_avoid]
+        
+#        contsep_others_spaxel_index = list( contsep.get_others_spaxels(spaxels_id=False) )
 
         if update:
-            self.set_fitted_spaxels(spaxels_tofit_wo_contam)
-        return spaxels_tofit_wo_contam
+            self.set_fitted_spaxels(pysedm_spaxels_tofit)
+        return pysedm_spaxels_tofit
 
     def get_centroid(self, centroid=None, centroiderr=None, **kwargs):
         """ get PSF centroid (and its error)

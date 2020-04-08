@@ -14,7 +14,6 @@ from pyifu.spectroscopy   import Cube, Spectrum, get_spectrum, load_spectrum
 from .utils.tools         import kwargs_update, is_arraylike
 
 from . import io
-from . import contsep
 
 __all__ = ["get_sedmcube", "build_sedmcube","kpy_to_e3d"]
 

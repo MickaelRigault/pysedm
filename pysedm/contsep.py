@@ -20,7 +20,7 @@ from . import sedm
 #                  #
 ####################
 
-def get_spaxels_from_constsep(date, targetid):
+def get_spaxels_from_constsep(date, targetid, offset=[0.0, 0.0]):
     """
     Parameters
     ----------
@@ -33,7 +33,7 @@ def get_spaxels_from_constsep(date, targetid):
     ----------
     SEDM_CONTOUR class
     """
-    return SEDM_CONTOUR.from_sedmid(date, targetid)
+    return SEDM_CONTOUR.from_sedmid(date, targetid, offset)
 
 
 class SEDM_CONTOUR():
@@ -42,7 +42,7 @@ class SEDM_CONTOUR():
     # Initializing
     #
 
-    def __init__(self, astromfile, cube, isomag_range=[20, 26, 13], fake_mag=18.0):
+    def __init__(self, astromfile, cube, offset=[0.0, 0.0], isomag_range=[20, 26, 13], fake_mag=18.0):
         """
         "astromfile" will be provided with its full path.
         "isomag_range": lists to make an isomag contour, [start, end, step number]
@@ -60,13 +60,15 @@ class SEDM_CONTOUR():
 
         self.set_target_astrometry(astromfile)
         self.set_ps_reference()
+        self.set_offset(offset)
         self.set_fake_target_in_ref(fake_mag)
         self.set_ref_iso_contours()
 
-        self.offset = np.asarray( [0,0] )
+        #self.offset = np.asarray( [0,0] )
+        #self.offset = offset
 
     @classmethod
-    def from_sedmid(cls, date, targetid):
+    def from_sedmid(cls, date, targetid, offset):
         """
         Parameters
         ----------
@@ -81,8 +83,9 @@ class SEDM_CONTOUR():
         """
         filename = io.get_night_files(date, "cube", targetid)[0]
         cube = sedm.get_sedmcube(filename)
+        offset = offset
 
-        return cls(filename, cube)
+        return cls(filename, cube, offset)
 
     #
     #  SETTER
@@ -95,6 +98,11 @@ class SEDM_CONTOUR():
     def set_ps_reference(self):
         """ download PS BytesIO data (it takes time.). """
         self.iref = astrometry.IFUReference.from_astrometry(self.astro)
+
+    def set_offset(self, offset):
+        """ set astrometry offset between reference image and cube image. """
+        self.iref.set_ifu_offset( offset[0], offset[1] )
+        self.offset = np.asarray( offset )
 
     def set_ref_iso_contours(self):
         """ get iso mag contours in reference PS data ("refcounts"). """
@@ -257,6 +265,7 @@ class SEDM_CONTOUR():
     #
 
     def show_ref_ifu(self, offset=[0.0, 0.0], savefile=None):
+    #def show_ref_ifu(self, savefile=None):
         """
         !!! offset will be given by hand after a visual check !!!
         """
@@ -320,6 +329,8 @@ class SEDM_CONTOUR():
                 spaxel_patches[i].set_edgecolor("red")
                 spaxel_patches[i].set_linewidth(1)
                 spaxel_patches[i].set_zorder(10)
+            ax.set_xlim(-20,19)
+            ax.set_ylim(-24,22)
 
         if wotherspaxel:
             others_ids_from_contsep = self.get_others_spaxels(forced_addcontsep_mag=forced_addcontsep_mag)
@@ -329,6 +340,8 @@ class SEDM_CONTOUR():
                 spaxel_patches[i].set_edgecolor("k")
                 spaxel_patches[i].set_linewidth(1)
                 spaxel_patches[i].set_zorder(9)
+            ax.set_xlim(-20,19)
+            ax.set_ylim(-24,22)
 
         if savefile is not None:
             fig.savefig( savefile )

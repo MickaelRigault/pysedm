@@ -56,8 +56,8 @@ if  __name__ == "__main__":
 
     parser.add_argument('--contsep',  action="store_true", default=False,
                         help='Shall this run contsep to avoid non-target spaxels within the fit.')
-    parser.add_argument('--offset', type=str, default="0,0",
-                        help='Offset between reference image and cube image.')
+    parser.add_argument('--contsep_offset', type=str, default="0,0",
+                        help='Offset between reference image and cube image for the contsep module.')
     parser.add_argument('--psfmodel',  type=str, default="NormalMoffatTilted",
                         help='PSF model used for the PSF fit: NormalMoffat{Flat/Tilted/Curved}')
 
@@ -210,8 +210,8 @@ if  __name__ == "__main__":
                     from pysedm import contsep
                     print(" Starting contsep non-target spaxel removal ".center(50, "-"))
                     targetid = io.filename_to_id(filecube)
-                    offset = np.asarray(args.offset.split(","), dtype="float")
-                    cont = contsep.get_spaxels_from_constsep(date, targetid, offset)
+                    cont_offset = np.asarray(args.contsep_offset.split(","), dtype="float")
+                    cont = contsep.get_spaxels_from_constsep(date, targetid, cont_offset)
                     es_options["spaxels_to_avoid"] =  list( cont.get_others_spaxels(spaxels_id=False) )
 
                 # ===================== #

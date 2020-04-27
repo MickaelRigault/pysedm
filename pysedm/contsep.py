@@ -3,7 +3,9 @@
 
 """
 This module is to get target or host spaxels in SEDM cube data.
-(v.20200407)
+-v.20200427: show_ifudata: add showing 'offset' and 'contsep_mag'.
+-v.20200420: 'offset' option.
+-v.20200407.
 """
 
 import numpy as np
@@ -309,6 +311,12 @@ class SEDM_CONTOUR():
 
         ax = fig.add_subplot(111)
         _ = self.iref.show_slice(ax=ax, vmin="5", vmax="99")
+
+        #t = "\n".join( r"offset = (%.1f, %.1f)" %(self.offset[0], self.offset[1])
+        #              )
+        t = "offset = (%.1f, %.1f), contsep_mag = %.1f mag" %(self.offset[0], self.offset[1], self.get_target_faintest_contour())
+
+        ax.text(-20, 22.5, t, fontsize=10)
 
         if wcontour:
             ii=0

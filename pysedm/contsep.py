@@ -3,7 +3,8 @@
 
 """
 This module is to get target or host spaxels in SEDM cube data.
--v.20200427: show_ifudata: add showing 'offset' and 'contsep_mag'.
+-v.20200427-28: 1.show_ifudata: add showing 'offset', 'contsep_mag' and 'fake_mag'.
+             2. add 'fake_mag' (affects target) and 'forced_mag' (affects host) option.
 -v.20200420: 'offset' option.
 -v.20200407.
 """
@@ -22,7 +23,7 @@ from . import sedm
 #                  #
 ####################
 
-def get_spaxels_from_constsep(date, targetid, offset=[0.0, 0.0]):
+def get_spaxels_from_constsep(date, targetid, offset=None, fake_mag=None, forced_mag=None, isomag=None):
     """
     Parameters
     ----------
@@ -30,12 +31,29 @@ def get_spaxels_from_constsep(date, targetid, offset=[0.0, 0.0]):
         YYYYMMDD
     targetid: str
         unique part of the filename, i.e. ZTF name or timestamp like 06_10_45
+    offset: list of 2 floats, default=[0.0, 0.0],
+        x and y offset between the cube and reference images.
+    fake_mag: float, default=16.0,
+        fake target mag for the reference image.
+    forced_mag: float, default=0.0, (1.0 is recommended to use host spectra)
+        add forced_mag to contsep_mag in steps of 0.5 to get more host spaxels.
+        ! if contpse_mag = 26 mag (the faintest), it raises error.
 
     Return
     ----------
     SEDM_CONTOUR class
     """
-    return SEDM_CONTOUR.from_sedmid(date, targetid, offset)
+
+    if offset is None:
+        offset = [0.0, 0.0]
+    if fake_mag is None:
+        fake_mag = 16.0
+    if forced_mag is None:
+        force_mag = 0.0
+    if isomag is None:
+        isomag = [20, 26, 13]
+
+    return SEDM_CONTOUR.from_sedmid(date, targetid, offset, fake_mag, forced_mag, isomag)
 
 
 class SEDM_CONTOUR():
@@ -44,11 +62,10 @@ class SEDM_CONTOUR():
     # Initializing
     #
 
-    def __init__(self, astromfile, cube, offset=[0.0, 0.0], isomag_range=[20, 26, 13], fake_mag=18.0):
+    def __init__(self, astromfile, cube, offset, fake_mag, forced_mag, isomag_range):
         """
         "astromfile" will be provided with its full path.
         "isomag_range": lists to make an isomag contour, [start, end, step number]
-        "fake_mag": magnitude to make a fake target in reference image.
 
         1. Set astrometry and download PS BytesIO data, so it takes time.
         2. Then, make a fake target in the reference PS image with 'fake_mag',
@@ -63,14 +80,16 @@ class SEDM_CONTOUR():
         self.set_target_astrometry(astromfile)
         self.set_ps_reference()
         self.set_offset(offset)
-        self.set_fake_target_in_ref(fake_mag)
+
+        self.set_fake_mag(fake_mag)
+        self.set_fake_target_in_ref(self.fake_mag)
         self.set_ref_iso_contours()
 
-        #self.offset = np.asarray( [0,0] )
-        #self.offset = offset
+        #self.set_forced_addcontsep_mag(forced_mag)
+        self.forced_addcontsep_mag = forced_mag # to tweak host (others) contour.
 
     @classmethod
-    def from_sedmid(cls, date, targetid, offset):
+    def from_sedmid(cls, date, targetid, offset, fake_mag, forced_mag, isomag):
         """
         Parameters
         ----------
@@ -85,9 +104,8 @@ class SEDM_CONTOUR():
         """
         filename = io.get_night_files(date, "cube", targetid)[0]
         cube = sedm.get_sedmcube(filename)
-        offset = offset
 
-        return cls(filename, cube, offset)
+        return cls(filename, cube, offset, fake_mag, forced_mag, isomag)
 
     #
     #  SETTER
@@ -106,14 +124,18 @@ class SEDM_CONTOUR():
         self.iref.set_ifu_offset( offset[0], offset[1] )
         self.offset = np.asarray( offset )
 
-    def set_ref_iso_contours(self):
-        """ get iso mag contours in reference PS data ("refcounts"). """
-
-        self.refcounts_ = self.iref.get_iso_contours(where="ref", isomag=self.isomag )
+    def set_fake_mag(self, fake_mag):
+        """ """
+        self.fake_mag = fake_mag
 
     def set_fake_target_in_ref(self, fake_mag):
         """ get a fake target with magnitude of "fake_mag" in the reference PS imaga to make a contour for IFU data. """
         return self.iref.photoref.build_pointsource_image(fake_mag)
+
+    def set_ref_iso_contours(self):
+        """ get iso mag contours in reference PS data ("refcounts"). """
+
+        self.refcounts_ = self.iref.get_iso_contours(where="ref", isomag=self.isomag )
 
     def set_ifu_iso_contours(self):
         """ get iso mag contours in IFU data ("ifucounts"). """
@@ -139,6 +161,18 @@ class SEDM_CONTOUR():
                     __target_polygon_loc.append( (self.isomag[mag_index], list(self.ifucounts.keys())[mag_index], mag_index, i) )
 
         self._target_polygon_loc = np.array(__target_polygon_loc)
+
+    def _reset_forced_addcontsep_mag(self, forced_mag):
+        """ for host spaxels """
+        self.forced_addcontsep_mag = forced_mag
+
+    def _reset_fake_mag(self, fake_mag):
+        """ """
+        self.fake_mag = fake_mag
+        self.set_fake_target_in_ref(self.fake_mag)
+        self.set_ref_iso_contours()
+        self.set_ifu_iso_contours()
+        self.set_target_contour_location()
 
     #
     #  GETTER
@@ -208,7 +242,7 @@ class SEDM_CONTOUR():
             if any(chk_poly_contain_src) is False:
                 return self.isomag[ len(self.ifucounts) - i ]
 
-    def get_target_faintest_contour(self, method="both", forced_addcontsep_mag=0.0):
+    def get_target_faintest_contour(self, method="both"):
         """
         NOTE: When there is only 1 marked target in the cube,
               counting method always returns the faintest defined isomag, e.g., here 26.0 mag.
@@ -224,7 +258,9 @@ class SEDM_CONTOUR():
                 return target_consep_mag_
 
             else:
-                raise ValueError("Check the number of sources in the cube. If 1, use method='area'.")
+                #raise ValueError("Check the number of sources in the cube. If 1, use method='area'.")
+                target_consep_mag_ = counting_method
+                return target_consep_mag_
 
         elif method is "area":
             area_method = self.get_target_faintest_contour_w_area_method()
@@ -250,15 +286,15 @@ class SEDM_CONTOUR():
 
         ## When there is only 1 marked target in the cube, use 'area' method.
         if refimage_coords_in_ifu.size == 0:
-            target_contsep_mag = self.get_target_faintest_contour(method="area")
+            self.target_contsep_mag = self.get_target_faintest_contour(method="area")
         else:
-            target_contsep_mag  = self.get_target_faintest_contour()
+            self.target_contsep_mag  = self.get_target_faintest_contour()
 
         if forced_addcontsep:
-            target_contsep_mag = target_contsep_mag + self.forced_addcontsep_mag
+            self.target_contsep_mag = self.target_contsep_mag + self.forced_addcontsep_mag
 
-        target_contsep_mag_index_ = int( self.target_polygon_loc[self.target_polygon_loc[:,0] == target_contsep_mag][0][2] )
-        target_contsep_array_index_  = int( self.target_polygon_loc[self.target_polygon_loc[:,0] == target_contsep_mag][0][3] )
+        target_contsep_mag_index_ = int( self.target_polygon_loc[self.target_polygon_loc[:,0] == self.target_contsep_mag][0][2] )
+        target_contsep_array_index_  = int( self.target_polygon_loc[self.target_polygon_loc[:,0] == self.target_contsep_mag][0][3] )
 
         return target_contsep_mag_index_, target_contsep_array_index_
 
@@ -304,19 +340,13 @@ class SEDM_CONTOUR():
         if savefile is not None:
             fig.savefig( savefile )
 
-    def show_ifudata(self, wcontour=True, wtargetspaxel=False, wotherspaxel=False, savefile=None, forced_addcontsep_mag=0.0):
+    def show_ifudata(self, wcontour=True, wtargetspaxel=False, wotherspaxel=False, savefile=None):
         """ """
 
         fig = mpl.figure()
 
         ax = fig.add_subplot(111)
         _ = self.iref.show_slice(ax=ax, vmin="5", vmax="99")
-
-        #t = "\n".join( r"offset = (%.1f, %.1f)" %(self.offset[0], self.offset[1])
-        #              )
-        t = "offset = (%.1f, %.1f), contsep_mag = %.1f mag" %(self.offset[0], self.offset[1], self.get_target_faintest_contour())
-
-        ax.text(-20, 22.5, t, fontsize=10)
 
         if wcontour:
             ii=0
@@ -341,7 +371,7 @@ class SEDM_CONTOUR():
             ax.set_ylim(-24,22)
 
         if wotherspaxel:
-            others_ids_from_contsep = self.get_others_spaxels(forced_addcontsep_mag=forced_addcontsep_mag)
+            others_ids_from_contsep = self.get_others_spaxels()
             spaxel_patches = self.cube._display_im_(axim=ax, vmin="5", vmax="99")
 
             for i in others_ids_from_contsep:
@@ -350,6 +380,12 @@ class SEDM_CONTOUR():
                 spaxel_patches[i].set_zorder(9)
             ax.set_xlim(-20,19)
             ax.set_ylim(-24,22)
+
+        t1 = "offset=(%.1f, %.1f), contsep_mag for target=%.1f mag (host=%.1f mag)" % (self.offset[0], self.offset[1], self.target_contsep_mag-self.forced_addcontsep_mag, self.target_contsep_mag)
+        t2 = "fake_mag=%1.f mag, forced_mag=%.1f mag" % (self.fake_mag, self.forced_addcontsep_mag)
+
+        ax.text(-20, 24.5, t1, fontsize=10)
+        ax.text(-20, 22.5, t2, fontsize=10)
 
         if savefile is not None:
             fig.savefig( savefile )
@@ -385,7 +421,7 @@ class SEDM_CONTOUR():
         else:
             return np.array(target_contsep_spaxel_index)
 
-    def get_others_spaxels(self, spaxels_id=True, forced_addcontsep_mag=0.0):
+    def get_others_spaxels(self, spaxels_id=True):
         """
         get other sources' spaxels (including host and so on).
         !!! It should be updated to select only host spaxels !!!
@@ -407,8 +443,9 @@ class SEDM_CONTOUR():
 
         _target_contsep_spaxel_index = self.get_target_spaxels(spaxels_id=False)
 
-        if len(_target_contsep_spaxel_index) < 11: # when SN is exploded close to the bright center.
-            self.forced_addcontsep_mag = 0.5
+        #if len(_target_contsep_spaxel_index) < 11: # when SN is exploded close to the bright center.
+        contsep_mag = self.get_target_faintest_contour()
+        if (self.forced_addcontsep_mag > 0.0) & (self.get_target_faintest_contour() < 26.0): # TO BE CAHGNED
 
             target_contsep_mag_index, target_contsep_array_index = self.get_target_contsep_information(forced_addcontsep=True)
             others_contsep_mag_index = target_contsep_mag_index
@@ -431,6 +468,7 @@ class SEDM_CONTOUR():
                 others_contsep_spaxel_index = others_contsep_spaxel_index[others_contsep_spaxel_index != spax_]
 
         else:
+            self.forced_addcontsep_mag = 0.0
             target_contsep_mag_index, target_contsep_array_index = self.get_target_contsep_information(forced_addcontsep=False)
             others_contsep_mag_index = target_contsep_mag_index
             others_contsep_array_index = [i for i in range(0,len( self.ifucounts[ list(self.ifucounts.keys())[others_contsep_mag_index] ] )) if i != target_contsep_array_index]

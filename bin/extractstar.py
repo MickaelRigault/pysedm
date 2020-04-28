@@ -54,15 +54,26 @@ if  __name__ == "__main__":
     parser.add_argument('--buffer',  type=float, default=10,
                         help='Radius [in spaxels] of the aperture used for the PSF fit. (see --centroid for aperture center)')
 
-    parser.add_argument('--contsep',  action="store_true", default=False,
-                        help='Shall this run contsep to avoid non-target spaxels within the fit.')
-    parser.add_argument('--contsep_offset', nargs=2, type=float, default=[0, 0],
-                         help='Offset between reference image and cube image for the contsep module.')
+
+
     parser.add_argument('--psfmodel',  type=str, default="NormalMoffatTilted",
                         help='PSF model used for the PSF fit: NormalMoffat{Flat/Tilted/Curved}')
 
     parser.add_argument('--seeing',  type=float, default=2,
                         help='NOT READY YET Expected seeing (not quite in arcsec). This helps the PSF model to converge.')
+
+    # Contour separation with contsep.py
+    parser.add_argument('--contsep',  action="store_true", default=False,
+                        help='Shall this run contsep to avoid non-target spaxels within the fit.')
+
+    parser.add_argument('--contsep_offset', nargs=2, type=float, default=[0, 0],
+                        help='Offset between reference image and cube image for the contsep module.')
+
+    parser.add_argument('--contsep_fakemag', type=float, default=16.0,
+                        help="Fake magnitude of the target for a reference image.")
+
+    parser.add_argument('--contsep_forcedmag', type=float, default=0.0,
+                        help="Addition to contse_mag to select more host spaxels.")
 
     # Centroid
     parser.add_argument('--centroid',  type=str, default="auto", nargs="+",
@@ -211,7 +222,10 @@ if  __name__ == "__main__":
                     from pysedm import contsep
                     print(" Starting contsep non-target spaxel removal ".center(50, "-"))
                     targetid = io.filename_to_id(filecube)
-                    cont = contsep.get_spaxels_from_constsep(date, targetid, offset=args.contsep_offset)
+                    cont = contsep.get_spaxels_from_constsep(date, targetid,
+                                                             offset=args.contsep_offset,
+                                                             fake_mag=args.contsep_fakemag,
+                                                             forced_mag=args.contsep_forcedmag)
                     es_options["spaxels_to_avoid"] =  list( cont.get_others_spaxels(spaxels_id=False) )
 
                 # ===================== #
@@ -259,8 +273,8 @@ if  __name__ == "__main__":
                     es_object.show_psf(            savefile=es_object.basename.replace("{placeholder}","psfprofile" + plot_tag), sliceid=2)
                     es_object.spectrum.show(       savefile=es_object.basename.replace("{placeholder}","spec" + plot_tag))
                     if args.contsep:
-                        cont.show_ifudata(wcontour=False, wtargetspaxel=False, wotherspaxel=True,
-                        savefile=es_object.basename.replace("{placeholder}","contsep" + plot_tag), forced_addcontsep_mag=0.0)
+                        cont.show_ifudata( wcontour=False, wtargetspaxel=True, wotherspaxel=True,
+                        savefile=es_object.basename.replace("{placeholder}","contsep" + plot_tag) )
 
                 # -
                 # - Standard Specific

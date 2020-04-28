@@ -382,7 +382,7 @@ class SEDM_CONTOUR():
             ax.set_ylim(-24,22)
 
         t1 = "offset=(%.1f, %.1f), contsep_mag for target=%.1f mag (host=%.1f mag)" % (self.offset[0], self.offset[1], self.target_contsep_mag-self.forced_addcontsep_mag, self.target_contsep_mag)
-        t2 = "fake_mag=%1.f mag, forced_mag=%.1f mag" % (self.fake_mag, self.forced_addcontsep_mag)
+        t2 = "fake_mag=%.1f mag, forced_mag=%.1f mag" % (self.fake_mag, self.forced_addcontsep_mag)
 
         ax.text(-20, 24.5, t1, fontsize=10)
         ax.text(-20, 22.5, t2, fontsize=10)

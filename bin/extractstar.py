@@ -73,7 +73,7 @@ if  __name__ == "__main__":
                         help="Fake magnitude of the target for a reference image.")
 
     parser.add_argument('--contsep_forcedmag', type=float, default=0.0,
-                        help="Addition to contse_mag to select more host spaxels.")
+                        help="Addition to contsep_mag to select more host spaxels.")
 
     # Centroid
     parser.add_argument('--centroid',  type=str, default="auto", nargs="+",

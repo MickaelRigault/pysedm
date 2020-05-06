@@ -42,11 +42,11 @@ SEDMSPAXELS = np.dot( np.asarray([[np.cos(_rot), -np.sin(_rot)],[np.sin(_rot),np
 #                        [SEDM_CCD_SIZE[0]-_EDGES_X[1],_EDGES_Y]]
 
 # = Could be improved Maybe.
-INDEX_CCD_CONTOURS = [[20, 300], [300,40], 
+INDEX_CCD_CONTOURS = [[20, 300], [300,40],
                       [1600, 40], [SEDM_CCD_SIZE[0]-20, 300],
-                      [SEDM_CCD_SIZE[0]-20, 1600], 
+                      [SEDM_CCD_SIZE[0]-20, 1600],
                       [1600, SEDM_CCD_SIZE[1]-30],
-                      [1500, SEDM_CCD_SIZE[1]-30], 
+                      [1500, SEDM_CCD_SIZE[1]-30],
                       [480, SEDM_CCD_SIZE[1]-30],
                       [20, 1675]
                      ]
@@ -55,7 +55,7 @@ from shapely import geometry
 MLA_CIRCLE = geometry.Point(950,950).buffer(1090)
 MLA_GRID   = geometry.Polygon([[40,40],[40,2000], [2000,2000], [2000,40]])
 INDEX_CCD_CONTOURS = MLA_CIRCLE.intersection(MLA_GRID)
-    
+
 # --- LBDA
 SEDM_LBDA = np.linspace(3700, 9300, 220)
 LBDA_PIXEL_CUT = 3
@@ -64,7 +64,7 @@ LBDA_PIXEL_CUT = 3
 # --- ADR
 MLA_ROTATION_DEG= 263
 MLA_ROTATION_RAD= MLA_ROTATION_DEG * np.pi / 180.  # degree -> to rad
-MLA_ROTMATRIX   = np.asarray([[ np.cos(MLA_ROTATION_RAD),-np.sin(MLA_ROTATION_RAD)], 
+MLA_ROTMATRIX   = np.asarray([[ np.cos(MLA_ROTATION_RAD),-np.sin(MLA_ROTATION_RAD)],
                               [ np.sin(MLA_ROTATION_RAD), np.cos(MLA_ROTATION_RAD)]] )
 DEFAULT_REFLBDA = 6000 # In Angstrom
 IFU_SCALE_UNIT  = 0.55
@@ -72,7 +72,7 @@ IFU_SCALE_UNIT  = 0.55
 # ----- WCS
 SEDM_ASTROM_PARAM  = [ 7.28968990e-01,  6.89009309e-02, -6.57804812e-03, -7.94252856e-01,
                            1.02682050e+03 , 1.01659890e+03]
-    
+
 SEDM_ASTROM_PARAM_since_20180928 = [ 6.63023938e-01,  6.57283519e-02, -1.97868377e-02, -7.71650238e-01,
                                          1.01768812e+03,  1.01237730e+03]
 
@@ -81,12 +81,12 @@ SEDM_ASTROM_PARAM_since_20190201 = [ 6.20197410e-01,  1.02551606e-01,  3.8415875
 
 SEDM_ASTROM_PARAM_since_20190417 = [ 6.85554379e-01, -2.01025422e-02,  2.46681500e-02, -6.71790508e-01,
                                          1.02143124e+03,  1.02278900e+03]
-    
+
 def get_sedm_astrom_param(cube_date=None):
     """ """
     if cube_date is None:
         return SEDM_ASTROM_PARAM
-    
+
 
     _sedm_version_ = get_sedm_version(cube_date)
     # Old Rainbow CCD
@@ -98,21 +98,21 @@ def get_sedm_astrom_param(cube_date=None):
         return SEDM_ASTROM_PARAM_since_20190201
     else:
         return SEDM_ASTROM_PARAM_since_20190417
-    
+
 def get_sedm_version(cube_date):
     """ """
 
     if cube_date is None:
         return "v1"
 
-    from astropy.time import Time 
+    from astropy.time import Time
     if Time(cube_date) < Time("2018-09-27"):
         return "v1"
     if Time(cube_date) < Time("2019-01-30"):
         return "v2"
     if Time(cube_date) < Time("2019-04-17"):
         return "v3"
-    
+
     return "v4"
 
 # --- Palomar Atmosphere
@@ -132,12 +132,12 @@ PALOMAR_COORDS = {"latitude":   33.3563, # North
                   "altitude":1712,       #meter
                       }
 
-    
+
 def get_palomar_extinction():
-    """ The ExtinctionSpectrum object of the Palomar Extinction 
+    """ The ExtinctionSpectrum object of the Palomar Extinction
     To correct for atmosphere extinction, see the get_atm_extinction() method
 
-    Return 
+    Return
     ------
     ExtinctionSpectrum
     """
@@ -163,9 +163,9 @@ def load_sedmspec(filename):
     """ Load SEDM .fits or .txt """
     if filename.endswith(".txt"):
         return get_sedmspec( open(filename).read().splitlines() )
-    
+
     return load_spectrum(filename)
-        
+
 def get_sedmspec(ascii_data):
     """ """
     from pyifu import get_spectrum
@@ -175,7 +175,7 @@ def get_sedmspec(ascii_data):
         if not d.startswith("#"): continue
         if "SNID" in d: continue
         header.set(*d.replace("# ","").split(": "))
-        
+
     spec_data = np.asarray([d.split() for d in ascii_data if not d.startswith("#")], dtype="float").T
     return get_spectrum(*spec_data, header=header)
 
@@ -188,29 +188,29 @@ def is_coord_in_mla(spaxel_coords):
 #  SEDM SPECTRUM QUALITY  #
 # ----------------------- #
 def asses_quality(spec, negative_threshold_percent=20):
-    """ 
+    """
     // default
     - 0 = default
 
-    // good 
+    // good
     - 1: to be defined
     - 2: to be defined
 
     // bad
     - 3: Pointing Problem
-    - 4: more than `negative_threshold_percent` of the flux is negative 
+    - 4: more than `negative_threshold_percent` of the flux is negative
     - 5: A science target with no WCS
     """
     if "STD" not in spec.header.get("OBJECT") and spec.header.get("SRCPOS",None) =="auto":
         return 5
-    
+
     if not spec.header.get("POSOK",True):
         return 3
-    
+
     flagnegative = spec.data<0
     if len(spec.data[flagnegative]) / len(spec.data) > negative_threshold_percent/100:
         return 4
-    
+
     return 0
 
 # ------------------ #
@@ -231,35 +231,35 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
                    # Output
                    savefig=True,verbose=False,
                    return_cube=False):
-    """ Build a cube from the an IFU ccd image. This image 
+    """ Build a cube from the an IFU ccd image. This image
     should be bias corrected and cosmic ray corrected.
 
-    The standard created cube will be 3Dflat field correct 
-    (see flatfielded) and corrected for atmosphere extinction 
-    (see atmcorrected). A second cube will be flux calibrated 
+    The standard created cube will be 3Dflat field correct
+    (see flatfielded) and corrected for atmosphere extinction
+    (see atmcorrected). A second cube will be flux calibrated
     if possible (see build_calibrated_cube).
-    
-    = Remark, any TraceFlexure correction on ccd.tracematch should be 
+
+    = Remark, any TraceFlexure correction on ccd.tracematch should be
       made prior calling build_sedmcube =
 
     Parameters
     ----------
     ccd: [CCD]
         A ccd object from which the cube will be extracted.
-        
+
     date: [string]
         date in usual YYYYMMDD format
-    
+
     lbda: [None/array] -optional-
-        wavelength array used to build the cube. 
-        If not given the default sedm wavelength range will be used. 
+        wavelength array used to build the cube.
+        If not given the default sedm wavelength range will be used.
         See pysedm.sedm.SEDM_LBDA.
-        
+
     return_cube: [bool] -optional-
         Shall this function return the cube (True) or save it (False)?
 
     // Cube Calibrator //
-    
+
     wavesolution: [WaveSolution] -optional-
         The wavelength solution containing the pixel<->wavelength conversion.
         If None, this will be loaded using `date`.
@@ -274,13 +274,13 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
 
     pixel_shift: [float] -optional-
         number of i-ccd pixel shift (usually a fraction of pixel) caused by flexure.
-        
+
     // Action Selection //
-    
+
     flatfielded: [bool] -optional-
         Shall the cube be flatfielded?
         - This information will be saved in the header-
-    
+
     atmcorrected: [bool] -optional-
         Shall the cube the corrected for atmosphere extinction?
         - This information will be saved in the header-
@@ -289,12 +289,12 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
 
     build_calibrated_cube: [bool] -optional-
         Shall this method build an additionnal flux calibrated cube?
-        
+
     calibration_ref: [None/string] -optional-
         If you want to build a calibrated cube, you can provide the filename
         of the spectrum containing the inverse-sensitivity (fluxcal*)
         If None, this will load the latest fluxcal object of the night.
-        If Nothing found, no flux calibrated cube will be created. 
+        If Nothing found, no flux calibrated cube will be created.
 
     Returns
     -------
@@ -306,28 +306,28 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
         fileout_ = "%s"%(ccd.filename.split("/")[-1].split(".fits")[0])
     else:
         fileout_ = "%s_%s"%(ccd.filename.split("/")[-1].split(".fits")[0], ccd.objname)
-        
-    
+
+
     fileindex = "_%s"%fileindex if fileindex is not None and fileindex.replace(" ","") != "" else ""
-    
+
     fileout     = io.get_datapath(date)+"%s%s_%s.fits"%(io.PROD_CUBEROOT,fileindex,fileout_)
 
-        
-        
+
+
     # - INPUT [optional]
     if hexagrid is None:
         hexagrid     = io.load_nightly_hexagonalgrid(date)
-    
+
     if wavesolution is None:
         wavesolution = io.load_nightly_wavesolution(date)
         wavesolution._load_full_solutions_()
-    
+
     if lbda is None:
         lbda = SEDM_LBDA
 
     if flatfielded and flatfield is None:
         flatfield = io.load_nightly_flat(date)
-        
+
     # - Build the Cube
     cube = ccd.extract_cube(wavesolution, lbda, hexagrid=hexagrid, show_progress=True,
                             pixel_shift=pixel_shift)
@@ -346,7 +346,7 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
         cube.header['FLATSRC'] = (flatfield.filename.split('/')[-1], "Object use to FlatField the cube")
     else:
         cube.header['FLAT3D'] = (False, "Is the Cube FlatFielded")
-        
+
     # - Amtphore correction
     if atmcorrected:
         atmspec = get_palomar_extinction()
@@ -362,7 +362,7 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
         cube.header['ATMSCALE'] = (np.nanmean(extinction), "Mean atm correction over the entire wavelength range")
     else:
         cube.header['ATMCORR']  = (False, "Has the Atmosphere extinction been corrected?")
-        
+
     # - Flexure Correction
     if flexure_corrected:
         print("Flexure Correction ongoing ")
@@ -370,11 +370,11 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
         from .mapping      import Mapper
         mapper = Mapper(tracematch= ccd.tracematch, wavesolution = wavesolution, hexagrid=hexagrid)
         mapper.derive_spaxel_mapping( list(wavesolution.wavesolutions.keys()) )
-        
+
         flexure = Flexure(cube, mapper=mapper)
         flexure.load_telluric_fit()
         flexure.load_sodium_fit()
-        
+
         if savefig:
             cube._side_properties["filename"] = fileout
             savefile= fileout.replace(io.PROD_CUBEROOT,"flex_sodiumline_"+io.PROD_CUBEROOT).replace(".fits",".pdf")
@@ -383,7 +383,7 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
 
         FLEXURE_REF  = ["sodium", "telluric"]
         i_shift = flexure.get_i_flexure(FLEXURE_REF)
-        
+
         print("Getting the flexure corrected cube. ")
         cube = build_sedmcube(ccd, date, lbda=lbda, flatfield=flatfield,
                                   wavesolution=wavesolution, hexagrid=hexagrid,
@@ -395,7 +395,7 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
                                   flexure_corrected=False,
                                   pixel_shift= i_shift,
                                   return_cube=True)
-        
+
         cube.header['IFLXCORR']  = (True, "Has the Flexure been corrected?")
         cube.header['IFLXREF']   = (",".join(np.atleast_1d(FLEXURE_REF)), "Which line has been used to correct flexure?")
         cube.header['CCDIFLX']   = (i_shift, "Number of i (ccd-x) pixel shifted")
@@ -408,16 +408,16 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
     # - Return it.
     if return_cube:
         return cube
-    
+
     cube.writeto(fileout)
 
     # - Build Also a flux calibrated cube?
     if build_calibrated_cube:
         build_calibrated_sedmcube(fileout, date=date, calibration_ref=calibration_ref)
-        
+
 def build_calibrated_sedmcube(cubefile, date=None, calibration_ref=None, kindout=None):
     """ """
-    
+
     if calibration_ref is None:
         from .io import fetch_nearest_fluxcal
         try:
@@ -429,7 +429,7 @@ def build_calibrated_sedmcube(cubefile, date=None, calibration_ref=None, kindout
         print("using %s as a flux calibration reference"%calibration_ref.split("/")[-1] )
     else:
         if kindout is None: kindout="cal"
-        
+
     # - Inverse Sensitivity
     spec = Spectrum(calibration_ref)
     # - Load it
@@ -454,15 +454,15 @@ def get_sedm_flatcube(domecube, s=0.8, loc=4300):
         flagin = ~flagout
         def chi2(p):
             ampl, scale= p
-            return np.sum(np.abs( spec.data[flagin]/norm - ampl*  stats.exponnorm.pdf(spec.lbda, s, 
+            return np.sum(np.abs( spec.data[flagin]/norm - ampl*  stats.exponnorm.pdf(spec.lbda, s,
                                                                         loc=loc, scale=scale)[::-1][flagin] ))
         return fmin(chi2, [1, 950], disp=False), norm
-    
+
     def display_domeshape(spec, ampl, scale, loc_=loc, s_=s):
         """ """
         ax = spec.show()["ax"]
         ax.plot(spec.lbda, ampl*stats.exponnorm.pdf(spec.lbda,s_, loc=loc_, scale=scale)[::-1], color="C1")
-    
+
     # Higher Level
     def fit_ampl(spec, show=False):
         r, norm = fit_domeshape(spec)
@@ -478,22 +478,22 @@ def get_sedm_flatcube(domecube, s=0.8, loc=4300):
     ampslice   = get_slice([domeindexes[i][0] for i in domecube.indexes], domecube.index_to_xy(domecube.indexes), **prop)
     scaleslice = get_slice([domeindexes[i][1] for i in domecube.indexes], domecube.index_to_xy(domecube.indexes), **prop)
 
-    datacube = [stats.exponnorm.pdf(domecube.lbda, s, loc=loc, scale=s)[::-1]*ampl 
+    datacube = [stats.exponnorm.pdf(domecube.lbda, s, loc=loc, scale=s)[::-1]*ampl
              for ampl,s in zip(ampslice.data, scaleslice.data)]
 
     flatcube = get_cube(np.asarray(datacube).T,
                             spaxel_mapping= domecube.spaxel_mapping,
                             spaxel_vertices=domecube.spaxel_vertices,
                             lbda=domecube.lbda)
-    
+
     flatcube.scale_by(np.mean(flatcube.data, axis=1))
     return flatcube
 # ------------------ #
 #  Main Functions    #
 # ------------------ #
 def load_sedmcube(filename, **kwargs):
-    """Load a Cube from the given filename 
-    
+    """Load a Cube from the given filename
+
     Returns
     -------
     Cube
@@ -503,8 +503,8 @@ def load_sedmcube(filename, **kwargs):
 
 
 def get_sedmcube(filename, **kwargs):
-    """ Load a Cube from the given filename 
-    
+    """ Load a Cube from the given filename
+
     Returns
     -------
     Cube
@@ -518,9 +518,9 @@ def get_aperturespectrum(filename):
     return spec
 
 def kpy_to_e3d(filename, lbda, savefile=None):
-    """ Converts SEDmachine kpy .npy data into pyifu e3d cubes. 
+    """ Converts SEDmachine kpy .npy data into pyifu e3d cubes.
     (rotation information missing)
-    
+
     Parameters
     ----------
     filename: [string]
@@ -531,16 +531,16 @@ def kpy_to_e3d(filename, lbda, savefile=None):
 
     savefile: [string/None] -optional-
         if you want to save the cube, provide here its fullpath
-    
+
     Returns
     -------
-    pyifu Cube 
+    pyifu Cube
     """
     from scipy.interpolate import interp1d
-    # 
+    #
     #  get the data
     data, header = np.load(filename)
-    # 
+    #
     # empty the cube
     cube = Cube(None)
     cubeflux     = []
@@ -553,7 +553,7 @@ def kpy_to_e3d(filename, lbda, savefile=None):
         except:
             # will crash if given lbda is outside the Extraction wavelength
             continue
-        
+
     # create it
     cube.create(np.asarray(cubeflux).T,lbda=lbda, spaxel_mapping=spaxel_map, variance=None)
     cube.set_spaxel_vertices(SEDMSPAXELS/ np.sqrt(3))
@@ -563,7 +563,7 @@ def kpy_to_e3d(filename, lbda, savefile=None):
     # returns it.
     if savefile is not None:
         cube.writeto(savefile)
-        
+
     return cube
 
 def flux_calibrate_sedm(spec_, fluxcalfile=None, nofluxcal=False):
@@ -572,7 +572,7 @@ def flux_calibrate_sedm(spec_, fluxcalfile=None, nofluxcal=False):
         fluxcalfile = None
 
     spec = spec_.copy()
-    
+
     if not nofluxcal:
         from . import io
         # Which Flux calibration file ?
@@ -590,16 +590,16 @@ def flux_calibrate_sedm(spec_, fluxcalfile=None, nofluxcal=False):
             flux_calibrated=False
         else:
             from .fluxcalibration import load_fluxcal_spectrum
-            fluxcal = load_fluxcal_spectrum( fluxcalfile ) 
+            fluxcal = load_fluxcal_spectrum( fluxcalfile )
             spec.scale_by( fluxcal.get_inversed_sensitivity(spec.header.get("AIRMASS", 1.1) ), onraw=False)
             spec.header["CALSRC"] = (fluxcal.filename.split("/")[-1], "Flux calibrator filename")
             flux_calibrated=True
-            
+
     else:
         spec.header["FLUXCAL"] = (False,"has the spectra been flux calibrated")
         spec.header["CALSRC"] = (None, "Flux calibrator filename")
         flux_calibrated=False
-        
+
     # Flux Calibration
     if flux_calibrated:
         spec.header["FLUXCAL"] = (True,"has the spectra been flux calibrated")
@@ -607,14 +607,14 @@ def flux_calibrate_sedm(spec_, fluxcalfile=None, nofluxcal=False):
     else:
         spec.header["FLUXCAL"] = (False,"has the spectra been flux calibrated")
         spec.header["BUNIT"]  = (spec.header.get('BUNIT',""),"Flux Units")
-        
+
     return spec
 
 # --------------- #
 #   PLOTTER       #
 # --------------- #
 def display_on_hexagrid(value, traceindexes,
-                        hexagrid=None, xy=None, 
+                        hexagrid=None, xy=None,
                         outlier_highlight=None,
                         ax = None, savefile=None, show=True,
                         vmin=None, vmax=None, show_colorbar=True,
@@ -623,16 +623,16 @@ def display_on_hexagrid(value, traceindexes,
     """ display on the IFU hexagonal grid the given values
 
     Parameters
-    ----------        
+    ----------
     value: [list]
         value defining the color of the hexagones
-    
+
     traceindexes: [list]
         indexes corresponding to the values
 
     hexagrid: [HexaGrid] -optional if xy given-
         object containing the traceindex<->qr<->xy transformation
-    
+
     xy: [array, array] -optional if hexagrid given-
         x,y, position of the spaxels in the MLA.
 
@@ -655,7 +655,7 @@ def display_on_hexagrid(value, traceindexes,
         value        = np.asarray(value)
 
     traceindexes = np.asarray(traceindexes)
-    
+
     # -- Let's go
     if ax is None:
         fig = mpl.figure(figsize=[6,5])
@@ -663,7 +663,7 @@ def display_on_hexagrid(value, traceindexes,
     else:
         fig = ax.figure
         axim = ax
-    
+
     # - which colors
     if vmin is None:
         vmin = np.percentile(value,0)
@@ -673,7 +673,7 @@ def display_on_hexagrid(value, traceindexes,
         vmax = np.percentile(value,100)
     elif type(vmax) == str:
         vmax = np.percentile(value,float(vmax))
-                
+
     colors = mpl.cm.viridis((value-vmin)/(vmax-vmin))
     # - where
     if xy is None:
@@ -685,11 +685,11 @@ def display_on_hexagrid(value, traceindexes,
         x,y = xy
 
     #invert_rotation=False, rot_degree= SEDM_ROT,
-    """            
+    """
     cube.create(cubeflux.T,lbda=lbda, spaxel_mapping=spaxel_map, variance=cubevar.T)
     cube.set_spaxel_vertices(np.dot(hexagrid.grid_rotmatrix,SEDMSPAXELS.T).T)
     """
-    
+
     # - The Patchs
     ps = [patches.Polygon(SEDMSPAXELS+np.asarray([x[i],y[i]]),
                             facecolor=colors[i], alpha=0.8,**kwargs)
@@ -708,12 +708,12 @@ def display_on_hexagrid(value, traceindexes,
                 axim.text(x[j], y[j], "trace %d: %.3f"%(traceindexes[j], value[j]),
                           rotation=45, ha="left", va="bottom", color=color,
                         bbox=dict(facecolor=mpl.cm.binary(0.1,0.5), edgecolor="k", lw=0.5), zorder=9)
-            
+
     if show_colorbar:
         axcbar = axim.insert_ax("right", shrunk=0.88)
         axcbar.colorbar(mpl.cm.viridis,vmin=vmin,vmax=vmax,label=clabel,
                 fontsize=cfontsize)
-    
+
     fig.figout(savefile=savefile, show=show)
     return {"ax":axim,"fig":fig}
 
@@ -740,7 +740,7 @@ class SEDMExtractStar( BaseObject ):
     def writeto(self, basename=None, add_tag="", add_info=None, **kwargs):
         """ """
         from .io import _saveout_forcepsf_
-        
+
         if basename is None:
             basename = self.basename.replace("{placeholder}","e3d")+".fits" #e3d==cube tmps fix
 
@@ -772,7 +772,7 @@ class SEDMExtractStar( BaseObject ):
     # ------- #
     def run(self, psfmodel=None, slice_width=1,
                 spaxel_unit=IFU_SCALE_UNIT, update=True, **kwargs):
-        """ 
+        """
         Returns
         -------
         spec, cubemodel, psfmodel, bkgdmodel, psffit, slpsf
@@ -820,10 +820,10 @@ class SEDMExtractStar( BaseObject ):
         for k,v in locals().items():
             if k in self.es_products:
                 self.es_products[k] = v # defined just above
-                
+
         self._build_es_output_()
         self._es_spec_update_()
-        
+
     def build_backup_output(self):
         """ """
         backup_spec = get_spectrum( SEDM_LBDA, np.ones(len(SEDM_LBDA))*np.NaN, header=self.cube.header )
@@ -835,8 +835,8 @@ class SEDMExtractStar( BaseObject ):
         """ """
         self.raw_spectrum.set_header(self._get_product_header_())
         self.raw_spectrum._side_properties["filename"] = self.cube.filename.replace("e3d","spec")
-        
-    # - internal        
+
+    # - internal
     def _build_es_output_(self, backup=False):
         """ """
         if backup:
@@ -854,7 +854,7 @@ class SEDMExtractStar( BaseObject ):
                     psf_chi2    = self.es_products["psffit"].adrfitter.fitvalues["chi2"]/np.max(
                                                      [1,self.es_products["psffit"].adrfitter.dof])
                                     )
-            
+
     def _get_product_header_(self):
         """ """
         from .__init__ import __version__
@@ -877,14 +877,14 @@ class SEDMExtractStar( BaseObject ):
         header.set('YPOS', self.centroid[1], "y centroid position at reference wavelength (in spaxels)")
         header.set('LBDAPOS',self._es_headerkey["lbdaref"] , "reference wavelength for the centroids (in angstrom)")
         header.set('SRCPOS', self.centroidtype, "How was the centroid selected ?")
-        
+
         # Extraction:
         header.set('EXTRACT', "manual" if self.from_humain else "auto", "Was the Extraction manual or automatic")
         header.set('EXTDATE', datetime.now().isoformat(), "Date and time of Extraction")
         # PSF
-        header.set('PSFMODEL', self.psfmodel, "PSF model used in psfcube")        
+        header.set('PSFMODEL', self.psfmodel, "PSF model used in psfcube")
         header.set('PSFFWHM', self._es_headerkey["fwhm_arcsec"], "twice the radius needed to reach half of the pick brightness [in arcsec]")
-        header.set('PSFADRC2', self._es_headerkey["psf_chi2"], "ADR chi2/dof")    
+        header.set('PSFADRC2', self._es_headerkey["psf_chi2"], "ADR chi2/dof")
         header.set('PSFAB', self._es_headerkey["psf_ab"], "A/B ratio of the PSF")
         # ADR
         header.set('PSFADRPA', self._es_headerkey["psf_pa"], "Fitted ADR paralactic angle")
@@ -894,7 +894,7 @@ class SEDMExtractStar( BaseObject ):
         # CALIBRATION
         header.set("FLXPSEC", False, "Exposure time divided out (flux per sec)")
         return header
-            
+
     # ------- #
     # HUMAIN  #
     # ------- #
@@ -904,12 +904,12 @@ class SEDMExtractStar( BaseObject ):
         - pick the spaxels that will be used by extractstars
 
         **kwargs goes to cube interactive plots.
-        
+
         """
         import matplotlib.pyplot as mpl
         if not self.has_centroid():
             self.set_centroid()
-            
+
         # Display for humain
         self._humain_iplot = self.cube.show(interactive=True, launch=False)
 
@@ -918,12 +918,12 @@ class SEDMExtractStar( BaseObject ):
         return self._humain_iplot
 
     def update_from_humain_input(self):
-        """ Update the centroid and/or spaxels to be used given 
+        """ Update the centroid and/or spaxels to be used given
         what was done in get_humain_input()
         """
         if not hasattr(self, "_humain_iplot"):
             raise AttributeError("You do not have humain_iplot, run get_humain_input()")
-        
+
         # -> did Humain changed centroid ?
         if self._humain_iplot.picked_position is not None:
             print("You picked the position : ", self._humain_iplot.picked_position )
@@ -935,7 +935,7 @@ class SEDMExtractStar( BaseObject ):
         if spaxels_to_use is not None and len(spaxels_to_use) > 0:
             self.set_fitted_spaxels(spaxels_to_use)
             self._properties["from_humain"] = True
-            
+
     # ------- #
     # GETTER  #
     # ------- #
@@ -943,24 +943,24 @@ class SEDMExtractStar( BaseObject ):
         """ """
         if which in ["fluxcal", "fluxcalibrated", "calibrated"]:
             spec = self.spectrum.copy()
-            
+
         elif which in ["raw", "extracted"]:
             spec = self.es_products["spec"].copy()
-            
+
         else:
             raise ValueError("which could either be 'raw/extracted' or 'calibrated/fluxcalibrated', you gave %s"%which)
 
-        
-        # - Per Second 
+
+        # - Per Second
         if persecond and not spec.header["FLXPSEC"]:
             spec.scale_by(spec.header["EXPTIME"])
             spec.header.set("FLXPSEC", True, "Exposure time divided out (flux per sec)")
-            
+
         elif not persecond and spec.header["FLXPSEC"]:
             spec.scale_by(1/spec.header["EXPTIME"])
             spec.header.set("FLXPSEC", False, "Exposure time divided out (flux per sec)")
 
-            
+
         # - Troncate edges
         # cleaning input
         if troncate_edges is None or troncate_edges in ["None"]:
@@ -976,17 +976,17 @@ class SEDMExtractStar( BaseObject ):
         else:
             if troncate_edges in ["default"]:
                 troncate_edges = LBDA_PIXEL_CUT
-    
+
             spec = get_spectrum( spec.lbda[troncate_edges:-troncate_edges],
                                  spec.data[troncate_edges:-troncate_edges],
                                   variance=spec.variance[troncate_edges:-troncate_edges] if spec.has_variance() else None,
                                 header=spec.header, logwave=spec.spec_prop["logwave"])
-            
+
             spec.header.set("EDGECUT", True, "have some edge pixels been removed during flux cal")
             spec.header.set("EDGECUTL", troncate_edges, "number of edge pixels removed during flux cal")
-            
+
         return spec
-            
+
     def get_fluxcalibrated_spectrum(self, fluxcalfile=None, nofluxcal=False, update=False):
         """ Get flux calibrated spectra from the extract star spectrum (self.es_products["spec"])
 
@@ -998,7 +998,7 @@ class SEDMExtractStar( BaseObject ):
 
         nofluxcal: [bool] -optional-
             For the non-fluxcalibration (similar as if failed finding a fluxcalibration file)
-            
+
         update: [bool] -optional-
             Shall this update self.spectrum [update=True] or just return the flux calibrated spectrum [update=False]
 
@@ -1009,22 +1009,22 @@ class SEDMExtractStar( BaseObject ):
             raise AttributeError("No spectrum extracted yet. use run()")
 
         # fluxcalibration files are not troncated
-        spec =  flux_calibrate_sedm(self.get_spectrum("raw", persecond=True, troncate_edges=False), fluxcalfile=fluxcalfile, nofluxcal=nofluxcal) 
+        spec =  flux_calibrate_sedm(self.get_spectrum("raw", persecond=True, troncate_edges=False), fluxcalfile=fluxcalfile, nofluxcal=nofluxcal)
         if update:
             self._derived_properties["spectrum"] = spec
         else:
             return spec
 
     def get_fluxcalibrator(self, persecond=True, troncate_edges=False):
-        """ Method that only works if the target is a standard star. 
-        If not this will raise an TypeError() 
+        """ Method that only works if the target is a standard star.
+        If not this will raise an TypeError()
 
         Returns
         -------
         CalibrationSpectrum, FluxCalibrator (or None, None)
         """
         from . import fluxcalibration
-        
+
         # - Input check
         if not self.raw_spectrum.header['IMGTYPE'].lower() in ['standard']:
             raise TypeError("The target is not a standard star (header keyword IMPTYME != standard)")
@@ -1039,9 +1039,9 @@ class SEDMExtractStar( BaseObject ):
 
         # - Which Spectrum
         raw_spec = self.get_spectrum("raw", persecond=persecond, troncate_edges=troncate_edges)
-        
+
         # - Get Flux Calibration
-        
+
         speccal, fl = fluxcalibration.get_fluxcalibrator(raw_spec, fullout=True)
         speccal.header.set("SOURCE", raw_spec.filename.split("/")[-1], "This object has been derived from this file")
         speccal.header.set("PYSEDMT","Flux Calibration Spectrum", "Object to use to flux calibrate")
@@ -1051,10 +1051,10 @@ class SEDMExtractStar( BaseObject ):
         #    warnings.warn("Failed getting 'fluxcalibrator' ; No reference spectrum for target ? (%s) "%raw_spec.header["OBJECT"]+
         #                          "\n -> skipping fluxcal generation")
         #    return None, None
-        
+
         return speccal, fl
-        
-    def get_spaxels_tofit(self, centroid=None, buffer=10, update=False):
+
+    def get_spaxels_tofit(self, centroid=None, buffer=10, update=False, spaxels_to_avoid=None):
         """ Get spaxels to given assuming circular aperture.
 
         Parameters
@@ -1065,11 +1065,11 @@ class SEDMExtractStar( BaseObject ):
 
         buffer: [float] -optional-
             Radius of the circular aperture (in spaxels)
-            
+
         update: [bool] -optional-
             Shall fitted_spaxels (and consequently fitted_cube) be updated ?
             If not the spaxel ids are returned
-            
+
         Returns
         -------
         None (if update is True, this calls set_fitted_spaxels())
@@ -1082,18 +1082,22 @@ class SEDMExtractStar( BaseObject ):
 
         from shapely.geometry import Point
         point_polygon = Point(*centroid).buffer( buffer )
-        spaxels_tofit = self.cube.get_spaxels_within_polygon(point_polygon)
+        pysedm_spaxels_tofit = [f for f in self.cube.get_spaxels_within_polygon(point_polygon)
+                                    if spaxels_to_avoid is None or f not in spaxels_to_avoid]
+        
+#        spaxels_to_avoid = contsep.get_others_spaxels(spaxels_id=False)
+
         if update:
-            self.set_fitted_spaxels(spaxels_tofit)
-        return spaxels_tofit    
+            self.set_fitted_spaxels(pysedm_spaxels_tofit)
+        return pysedm_spaxels_tofit
 
     def get_centroid(self, centroid=None, centroiderr=None, **kwargs):
         """ get PSF centroid (and its error)
         This actually are the initial guess and guess error for the PSF fit.
-        
+
         [auto mode] If you do not provide any centroid, this will try to find it,
                     using the `position_source` function from pysedm.astrometry.
-        
+
         Parameters:
         -----------
         centroid: [string/2d-array/None] -optional-
@@ -1115,38 +1119,38 @@ class SEDMExtractStar( BaseObject ):
         from . import astrometry
         if centroid is None:
             centroid = "auto"
-            
+
         if type(centroid)==str:
             kwargs["maxpos"] = True if centroid in ["max","maxpos","brightest"] else False
             centroid = None
-            
+
         return astrometry.position_source(self.cube, centroid=centroid, **kwargs)
-    
+
     # ------- #
     # SETTER  #
     # ------- #
     def set_psfmodel(self, psfmodel):
         """ Set the model you want:
-        
+
         Parameters
         ----------
         psfmodel: [str]
             Name of the model.
             - NormalMoffat[Flat/Tilted/Curved]
-        
+
         Returns
         -------
         None
         """
         self._properties["psfmodel"] = psfmodel
-        
+
     def set_centroid(self, centroid=None, centroiderr=None, **kwargs):
         """ Set PSF centroid (and its error)
         This actually are the initial guess and guess error for the PSF fit.
-        
+
         [auto mode] If you do not provide any centroid, this will try to find it,
                     using the `position_source` function from pysedm.astrometry.
-        
+
         Parameters:
         -----------
         centroid: [string/2d-array/None] -optional-
@@ -1165,18 +1169,18 @@ class SEDMExtractStar( BaseObject ):
         None (sets centroid, centroiderr and centroidtype)
 
         """
-        
+
         self._side_properties["centroid"], self._side_properties["centroiderr"], self._derived_properties["centroidtype"] = \
           self.get_centroid( centroid=centroid, centroiderr=centroiderr, **kwargs)
 
     def set_basename(self, basename):
         """ """
         self._basename = basename
-    
+
     # // Fitted Cube
     def set_fitted_spaxels(self, spaxelids, update_fitted_cube=True):
         """ Set which spaxels are used for the PSF extraction.
-        
+
         Parameters
         ----------
         spaxelids: [list]
@@ -1185,11 +1189,11 @@ class SEDMExtractStar( BaseObject ):
 
         update_fitted_cube: [bool] -optional-
             Should this arise and replace the fitted_cube (if any)
-            
+
         Returns
         -------
         None (sets fitted_spaxels [and fitted_cube if `update_fitted_cube` is True])
-            
+
         """
         self._derived_properties["fitted_spaxels"] = spaxelids
         if update_fitted_cube:
@@ -1197,15 +1201,15 @@ class SEDMExtractStar( BaseObject ):
 
     def set_fitted_cube(self, cube):
         """ Set the cube that will be fitted
-        
+
         Remark that this method sets self.fitted_spaxels to None
         as the fitted_cube is not extracted from these spaxels.
-        
+
         Parameters
         ----------
         cube: [pyifu Cube (or child of)]
             The cube that will be fitted.
-            
+
         Returns
         -------
         None (sets fitted_cube and fitted_spaxels)
@@ -1225,7 +1229,7 @@ class SEDMExtractStar( BaseObject ):
         lbdarange: [array] -optional-
             Overall minimum and maximum wavelength (in A)
             This corresponds the [l_min1, l_maxN], where N is the latest bin
-            
+
         bins: [int] -optional-
             How many bins do you want within the given lbdarange.
 
@@ -1247,16 +1251,16 @@ class SEDMExtractStar( BaseObject ):
     # ------- #
     # PLOTTER #
     # ------- #
-    
+
     def show_extracted_spec(self, ax=None, savefile=None, setlabels=True, add_metaslices=True, colors=None, show=True):
         """ """
         import matplotlib.pyplot as mpl
         if ax is None:
             fig = mpl.figure(figsize=[7,4])
-            ax = fig.add_axes([0.15,0.25, 0.7,0.7])    
+            ax = fig.add_axes([0.15,0.25, 0.7,0.7])
         else:
             fig = ax.figure
-        
+
         _ = self.raw_spectrum.show(ax=ax, zorder=3, show_zero=True, )
         if setlabels:
             ax.set_xlabel(r"Wavelength [$\AA$]", fontsize="large")
@@ -1268,7 +1272,7 @@ class SEDMExtractStar( BaseObject ):
         #
         # Showing the metaslices
         #
-        
+
         if colors is None:
             colors = mpl.cm.viridis(np.arange(self.nmetaslices)/(self.nmetaslices-1))
         expt = self.spectrum.header['EXPTIME']
@@ -1279,29 +1283,29 @@ class SEDMExtractStar( BaseObject ):
                                     marker="o", ls="None",
                                     ecolor="0.7", mfc=color, mec="0.7", ms=10, zorder=5)
             ax.axvspan(*sl_["lbdarange"], color=color, alpha=0.2, zorder=1)
-        
-        
+
+
         if savefile is not None:
             if np.any([savefile.endswith(k) for k in ["pdf", "png","jpeg","svn"]]):
                 fig.savefig(savefile)
             else:
                 fig.savefig(savefile+".pdf")
                 fig.savefig(savefile+".png")
-                
+
         # output
         if show:
             fig.show()
 
-            
+
     def show_metaslices(self, savefile=None, psfh=2, spech=4.5, figwidth= 9):
         """ """
         import matplotlib.pyplot as mpl
         from .utils.mpl import set_axes_edgecolor
-        
+
         slices = self.es_products["psffit"].slices
         nslices = len(slices)
         colors = mpl.cm.viridis(np.arange(self.nmetaslices)/(self.nmetaslices-1))
-    
+
         # Single
         abs_single_h   = psfh
         left, width, space, vspace = 0.1, 0.15, 0.02, 0.10
@@ -1310,8 +1314,8 @@ class SEDMExtractStar( BaseObject ):
         abs_spec_h   = spech
         left_spec, bottom_spec,   height_spec = left,0.2,0.65
         width_spec = 0.97-left_spec
-    
-    
+
+
         #
         # Figure
         #
@@ -1319,58 +1323,58 @@ class SEDMExtractStar( BaseObject ):
         relative_psf = abs_single_h*nslices / total_height
         relative_single = abs_single_h/total_height
         relative_spec = abs_spec_h/total_height
-    
+
         fig = mpl.figure( figsize=np.asarray([figwidth, total_height]))
-        axspec = fig.add_axes([left_spec, bottom_spec*relative_spec, 
+        axspec = fig.add_axes([left_spec, bottom_spec*relative_spec,
                                    width_spec,  height_spec*relative_spec ])
-    
+
         # Plotting
         self.show_extracted_spec( ax=axspec, colors=colors, show=False)
         axspec.set_yticklabels(["" for _ in axspec.get_yticklabels()])
-    
+
         for i,slid in enumerate(slices.keys()):
             bottom_i = relative_spec+(vspace+i*(height+bottom+vspace))*relative_single
-            axes = [fig.add_axes([left+0*(width+space), 
-                                      bottom_i, 
-                                      width, 
+            axes = [fig.add_axes([left+0*(width+space),
+                                      bottom_i,
+                                      width,
                                       height*relative_single]),
-                        fig.add_axes([left+1*(width+space), 
-                                          bottom_i, 
-                                          width, 
-                                          height*relative_single]),
-                        fig.add_axes([left+2*(width+space), 
+                        fig.add_axes([left+1*(width+space),
                                           bottom_i,
-                                          width, 
+                                          width,
                                           height*relative_single]),
-                        fig.add_axes([left+3*(width+space)+space*1.5, 
+                        fig.add_axes([left+2*(width+space),
                                           bottom_i,
-                                          0.97-(left+3*(width+space)+space*1.5), 
+                                          width,
+                                          height*relative_single]),
+                        fig.add_axes([left+3*(width+space)+space*1.5,
+                                          bottom_i,
+                                          0.97-(left+3*(width+space)+space*1.5),
                                           height*relative_single])]
-        
-        
-            
-            slices[slid]["slpsf"].show(axes=axes, psflegend=False, titles=False)            
+
+
+
+            slices[slid]["slpsf"].show(axes=axes, psflegend=False, titles=False)
             if i==0:
                 axes[-1].set_xlabel("elliptical distance", fontsize="medium")
             else:
                 axes[-1].set_xlabel("")
-            
+
             if i==nslices-1:
                 axes[0].set_title('Data', fontsize="medium")
                 axes[1].set_title('Model', fontsize="medium")
                 axes[2].set_title('Residual', fontsize="medium")
                 axes[3].set_title('PSF Profile [elliptical]', fontsize="medium")
-        
+
             axes[-1].set_yticks([])
             axes[-1].set_ylabel("flux [log]", fontsize="small")
             axes[0].set_ylabel(r"$\lambda \in [%.0f, %.0f]$"%(slices[slid]["lbdarange"][0],slices[slid]["lbdarange"][1]),
                            fontsize="small", color=colors[i])
             [ax_.set_axes_edgecolor(colors[i]) for ax_ in axes]
-        
+
             #color = colors[i]
             #color[-1] = 0.1
             #[ax_.set_facecolor(color) for ax_ in axes[:3]]
-            
+
         if savefile is not None:
             #fig.show()
             if np.any([savefile.endswith(k) for k in ["pdf", "png","jpeg","svn"]]):
@@ -1378,9 +1382,9 @@ class SEDMExtractStar( BaseObject ):
             else:
                 fig.savefig(savefile+".pdf", type="pdf")
                 fig.savefig(savefile+".png", type="png")
-            
+
         return fig
-    
+
     def show_mla(self, ax=None, savefile=None, vmin="2", vmax="98", lbdalim=[6000,9000] ):
         """ Show the MLA, highlighting centroid and used spaxels.
 
@@ -1392,18 +1396,18 @@ class SEDMExtractStar( BaseObject ):
 
         savefile: [string] -optional-
             Where the figure will be saved (savefile should have an extension).
-            
+
         vmin, vmax: [float/str] -optional-
             Lower and upper limit for the colormap.
             If string, they will be considered as 'in percent of data'
-            
+
         lbdalim: [2-value array] -optional-
             Lower and upper wavelength limit that will be integrated to provide
             the spaxel flux.
 
         Returns
         dict ({fig, ax})
-        
+
         """
         import matplotlib.pyplot as mpl
         # Pure spaxel
@@ -1412,9 +1416,9 @@ class SEDMExtractStar( BaseObject ):
             ax = fig.add_axes([0.15,0.15,0.75,0.75])
         else:
             fig = ax.figure
-            
+
         _ = self.cube._display_im_(ax, vmax=vmax, vmin=vmin, lbdalim=lbdalim)
-        
+
         if self._es_headerkey["posok"]:
             x,y = np.asarray(self.fitted_cube.index_to_xy(self.fitted_cube.indexes)).T
             ax.plot(x, y, marker=".", ls="None", ms=1, color="k")
@@ -1423,24 +1427,24 @@ class SEDMExtractStar( BaseObject ):
             ax.text(0.5,0.95, "Target outside the MLA \n [%.1f, %.1f] (in spaxels)"%(self.centroid[0],self.centroid[1]),
                                     fontsize="large", color="k",backgroundcolor=mpl.cm.binary(0.1,0.4),
                                     transform=ax.transAxes, va="top", ha="center")
-                        
+
         ax.set_xticks(np.arange(-20,20, 5))
         ax.set_yticks(np.arange(-20,20, 5))
-        
+
         ax.grid(color='0.6', linestyle='-', linewidth=0.5, alpha=0.5)
-        
+
         if savefile is not None:
             if np.any([savefile.endswith(k) for k in ["pdf", "png","jpeg","svn"]]):
                 fig.savefig(savefile)
             else:
                 fig.savefig(savefile+".pdf")
                 fig.savefig(savefile+".png")
-                
+
         return {"fig":fig, "ax":ax}
 
     def show_adr(self, ax=None, savefile=None, **kwargs):
         """ Show the ADR fit.
-        
+
         Parameters
         ----------
         ax: [None, mpl's Axes] -optional-
@@ -1449,12 +1453,12 @@ class SEDMExtractStar( BaseObject ):
 
         savefile: [string] -optional-
             Where the figure will be saved (savefile should have an extension).
-            
+
         **kwargs goes to psfcube's PSFFit.show_adr()
           - show, cmap, show_colorbar, clabel,labelkey, guess_airmass.
             Want all what ax.scatter accepts.
 
-            
+
         Returns
         -------
         dict ({"ax":ax, "fig":fig, "plot":[scd,scm]})
@@ -1464,7 +1468,7 @@ class SEDMExtractStar( BaseObject ):
         return self.es_products["psffit"].show_adr(ax=ax, savefile=savefile,**kwargs)
 
     def show_psf(self,savefile=None, sliceid=2, **kwargs):
-        """ 
+        """
         kwargs could be:
            - savefile=None,
            - show=True,
@@ -1478,10 +1482,10 @@ class SEDMExtractStar( BaseObject ):
         """
         if self.es_products["psffit"] is None:
             print("No psffit es_products. Maybe you did not run the extraction, or maybe it failed. ")
-            
+
         return self.es_products["psffit"].slices[sliceid]["slpsf"].show(savefile=savefile, **kwargs)
-    
-                
+
+
     # =============== #
     #  Properties     #
     # =============== #
@@ -1494,10 +1498,10 @@ class SEDMExtractStar( BaseObject ):
     def basename(self):
         """ """
         if not hasattr(self, "_basename"):
-            self.set_basename(self.cube.filename.replace("e3d", "{placeholder}").replace(".fits","")) 
+            self.set_basename(self.cube.filename.replace("e3d", "{placeholder}").replace(".fits",""))
         return self._basename
-    
-    
+
+
     @property
     def fitted_spaxels(self):
         """ """
@@ -1525,7 +1529,7 @@ class SEDMExtractStar( BaseObject ):
         if self._side_properties["lbdastep1"] is None and auto:
             self.set_lbdastep1()
         return self._side_properties["lbdastep1"]
-    
+
     @property
     def fitted_cube(self):
         """ cube from which the spectrum will be extracted """
@@ -1534,7 +1538,7 @@ class SEDMExtractStar( BaseObject ):
                 return self.cube
             # spaxels to fit have been defined.
             self._side_properties["fitted_cube"] = self.get_partial_cube( spaxels_to_use, np.arange( len(self.lbda)) )
-            
+
         return self._side_properties["fitted_cube"]
 
     # --------
@@ -1571,13 +1575,13 @@ class SEDMExtractStar( BaseObject ):
     def is_centroid_in_mla(self):
         """ """
         return is_coord_in_mla(self.centroid)
-    
+
     # // ExtractStars
     @property
     def nmetaslices(self):
         """ """
         return len(self.lbdastep1)
-    
+
     @property
     def es_products(self):
         """ """
@@ -1603,11 +1607,11 @@ class SEDMExtractStar( BaseObject ):
         if self.spectrum is None:
             raise AttributeError("No spectrum at all")
         return self.spectrum.header["FLUXCAL"]
-        
-                
-                
-        
-    
+
+
+
+
+
 #################################
 #                               #
 #    SEDMachine Cube            #
@@ -1621,12 +1625,14 @@ class SEDMCube( Cube ):
     def extract_pointsource(self, display=False, displayprop={},
                                 step1range=[4500,7000], step1bins=6,
                                 centroid="auto", prop_position={},
-                                spaxelbuffer = 10, spaxels_to_use=None,
+                                spaxelbuffer = 10,
+                                spaxels_to_use=None,
+                                spaxels_to_avoid=None,
                                 psfmodel="NormalMoffatTilted",
                                 slice_width = 1, fwhm_guess=None, verbose=False, **kwargs):
-        """ runs the default extract_star script on the target. 
-        
-        - Method based on psfcube https://github.com/MickaelRigault/psfcube - 
+        """ runs the default extract_star script on the target.
+
+        - Method based on psfcube https://github.com/MickaelRigault/psfcube -
 
 
         Parameters:
@@ -1641,13 +1647,13 @@ class SEDMCube( Cube ):
             (returns ValueError is unable to parse)
 
         """
-        from . import astrometry
+        #from . import astrometry
         from shapely import geometry
-        
+
         # input convertion
         self.extractstar = SEDMExtractStar(self)
         self.extractstar.set_lbdastep1(lbdarange=step1range, bins=step1bins)
-        
+
         # - centroid
         if verbose: print("* Setting centroid: ", centroid)
         self.extractstar.set_centroid(centroid, **prop_position)
@@ -1657,42 +1663,42 @@ class SEDMCube( Cube ):
             import matplotlib.pyplot as mpl
             self.extractstar.get_humain_input()
             self.extractstar.update_from_humain_input()
-        elif spaxels_to_use is not None:
+        elif spaxels_to_use is not None: # You fixed which you want
             if len(spaxels_to_use)<4:
                 print("WARNING, you provided less than 4 spaxel to be f")
             self.extractstar.set_fitted_spaxels(spaxels_to_use)
 
-        if self.extractstar.fitted_spaxels is None:
-            self.extractstar.get_spaxels_tofit(buffer=spaxelbuffer, update=True)
+        if self.extractstar.fitted_spaxels is None: # Automatic selections (with or without spaxels)
+            self.extractstar.get_spaxels_tofit(buffer=spaxelbuffer, update=True, spaxels_to_avoid=spaxels_to_avoid)
 
         if verbose: print("* Starting extractstar.run")
         return self.extractstar.run(slice_width=slice_width, psfmodel=psfmodel,
                                         fwhm_guess=fwhm_guess, **kwargs)
-    
+
     def get_aperture_spec(self, xref, yref, radius, bkgd_annulus=None,
                               refindex=None, adr=True, **kwargs):
-        """ 
+        """
         bkgd_annulus: [float, float ] -optional-
             coefficient (in radius) defining the background annulus.
             e.g. if the radius is 5 and bkgd_annulus=[1,1.5], the resulting
             annulus will have an inner radius of 5 and an outter radius of 5*1.5= 7.5
-        
+
         """
         if adr:
             sourcex, sourcey = self.get_source_position(self.lbda, xref=xref, yref=yref, refindex=refindex)
         else:
             sourcex, sourcey = np.ones( len(self.lbda) )*xref,np.ones( len(self.lbda) )*yref
 
-        # - Radius 
+        # - Radius
         if not is_arraylike(radius):
             radius = np.ones(len(self.lbda))*radius
         elif len(radius)!= len(self.lbda):
             raise TypeError("The radius size must be a constant or have the same lenth as self.lbda")
-        
+
         apert = []
         if bkgd_annulus is not None:
             apert_bkgd = []
-            
+
         for i, x, y, r in zip(range(self.nspaxels), sourcex, sourcey, radius):
             sl_ = self.get_slice(index=i, slice_object=True)
             apert.append(sl_.get_aperture(x,y,r, **kwargs))
@@ -1701,13 +1707,13 @@ class SEDMCube( Cube ):
                                                 radius_min=r*bkgd_annulus[0],
                                                 **kwargs))
         apert = np.asarray(apert)
-        
+
         # - Setting the background
-        
+
         spec  = ApertureSpectrum(self.lbda, apert.T[0]/apert.T[2],
                                 variance=apert.T[1]/apert.T[2]**2 if self.has_variance() else None,
                                 apweight=apert.T[2], header=None)
-        
+
         if bkgd_annulus is not None:
             apert_bkgd = np.asarray(apert_bkgd)
             bspec = ApertureSpectrum(self.lbda, apert_bkgd.T[0]/apert_bkgd.T[2], variance=apert_bkgd.T[1]/apert_bkgd.T[2]**2 if self.has_variance() else None,
@@ -1720,24 +1726,24 @@ class SEDMCube( Cube ):
                 spec.header[k] = v
         if self.filename is not None:
             spec.header["SOURCE"] = self.filename.split("/")[-1]
-            
+
         return spec
-        
+
     def get_source_position(self, lbda, xref=0, yref=0, refindex=None):
         """ The position in the IFU of a spacial element as a function of wavelength.
         Shift caused by the ADR.
-        
+
         Parameters
         ----------
         lbda: [float/array]
             wavelength in angstrom
-        
+
         xref, yref: [float, float]
             x and y position of the spacial element in the IFU at the reference index wavelength
-        
+
         refindex: [int] -optional-
-            index of the wavelength slice used as reference. 
-        
+            index of the wavelength slice used as reference.
+
         Returns
         -------
         [array, array]
@@ -1750,13 +1756,13 @@ class SEDMCube( Cube ):
 
         x_default, y_default = self.adr.refract(0, 0, lbda, unit=IFU_SCALE_UNIT)
         x, y = np.dot(MLA_ROTMATRIX,np.asarray([x_default,y_default]))
-        
+
         return x+xref, y+yref
-    
-    
+
+
     def load_adr(self, pressure=630, lbdaref=DEFAULT_REFLBDA,
                      **kwargs):
-        """ 
+        """
         This method will load the ADR based on data from the header.
         You can overwrite these parameter using kwargs:
 
@@ -1764,9 +1770,9 @@ class SEDMCube( Cube ):
         ----------
         pressure: [float] -optional-
             Air pressure in mbar
-                
+
         lbdaref: [float] -optional-
-            Reference wavelength, the position shift will be given as a function 
+            Reference wavelength, the position shift will be given as a function
             of this wavelength.
 
         kwargs parameters:
@@ -1778,23 +1784,23 @@ class SEDMCube( Cube ):
 
             temperature: [float]
                 temperature in Celcius
-            
+
             relathumidity: [float <100]
                 Relative Humidity in %
-            
+
         Returns
-        ------- 
+        -------
         Void (loads the self.adr)
         """
         adr_prop = kwargs_update( dict(pressure=pressure,
                                        lbdaref=lbdaref,
-                                       temperature=self.header["IN_AIR"], 
-                                       relathumidity=self.header["IN_HUM"], 
+                                       temperature=self.header["IN_AIR"],
+                                       relathumidity=self.header["IN_HUM"],
                                        airmass=self.header.get('AIRMASS', 1.1),
                                        parangle=self.header['TEL_PA']),
                                 **kwargs)
         return super(SEDMCube, self).load_adr(**adr_prop)
-    
+
     def remove_sky(self, nspaxels=50, usemean=False,
                        estimate_from="rawdata", lbda_range=[5000,8000],
                       **kwargs):
@@ -1805,21 +1811,21 @@ class SEDMCube( Cube ):
         ----------
         nspaxels: [int]
             the number of spaxels used to estimate the sky.
-            These will be the faintest spaxels. 
+            These will be the faintest spaxels.
             (NB: **kwargs are options of the spaxels selection)
 
         usemean: [bool] -optional-
             If the variance is available, the weighted (1/variance) average will be used
-            to combine spectra except if `usemean` is True. In that case, the simple mean 
+            to combine spectra except if `usemean` is True. In that case, the simple mean
             will be used.
-        
+
         estimate_from: [string] -optional-
             Attribute that will be used to estimate the `data` of the sky spectrum
- 
+
         lbda_range: [float, float] -optional-
             Which wavelength range is check.
 
-        **kwargs goes to get_faintest_spaxels(): 
+        **kwargs goes to get_faintest_spaxels():
                   e.g: lbda_range, avoid_area, avoid_indexes etc.
 
         Returns
@@ -1839,17 +1845,17 @@ class SEDMCube( Cube ):
                  vmin=None, vmax=None, notebook=None,
                  **kwargs):
         """ Display the cube.
-        
+
         Parameters
         ----------
         toshow: [string] -optional-
-            Variable you want to display. anything accessible as self.`toshow` that 
-            has the same size as the wavelength. 
-            If toshow is data or rawdata (or anything containing 'data'), 
+            Variable you want to display. anything accessible as self.`toshow` that
+            has the same size as the wavelength.
+            If toshow is data or rawdata (or anything containing 'data'),
             the variance will automatically be added if it exists.
             Do not change this is you have a doubt.
-            
-        interactive: [bool] -optional- 
+
+        interactive: [bool] -optional-
            Enable to interact with the plot to navigate through the cube.
            (this might depend on your matplotlib setup.)
 
@@ -1863,7 +1869,7 @@ class SEDMCube( Cube ):
             Lower and upper value for the colormap
             => If the ccd has been given this will affect the ccd image.
             => If not this will affect the projected cube.
-            
+
             3 Formats are available:
             - float: Value in data unit
             - string: percentile. Give a float (between 0 and 100) in string format.
@@ -1872,17 +1878,17 @@ class SEDMCube( Cube ):
             (NB: vmin and vmax are independent, i.e. one can be None and the other '98' for instance)
 
         show_meanspectrum: [bool] -optional-
-            If True both a wavelength integrated cube (imshow) and the average spectrum 
+            If True both a wavelength integrated cube (imshow) and the average spectrum
             will be displayed. If not, only the wavelength integrated cube (imshow) will.
 
         ax: [matplotlib.Axes] -optional-
-            Provide the axes where the spectrum and/or the wavelength integrated 
-            cube  will be drawn. 
+            Provide the axes where the spectrum and/or the wavelength integrated
+            cube  will be drawn.
             See show_meanspectrum:
                - If True, 2 axes are requested so axspec, aximshow=ax
-               - If False, 1 axes is needed, aximshow=ax 
+               - If False, 1 axes is needed, aximshow=ax
             If None this will create a new axes inside a new figure
-            
+
         savefile: [string/None] -optional-
             Would you like to save the data? If so give the name of this
             file where the plot will be saved.
@@ -1891,14 +1897,14 @@ class SEDMCube( Cube ):
 
         show: [bool] -optional-
             If you do not save the data (see savefile), shall the plot be shown?
-        
+
         notebook: [bool or None] -optional-
-            Is this running from a notebook? 
+            Is this running from a notebook?
             If True, the plot will be made using fig.show() if not with mpl.show()
             If None, this will try to guess.
 
 
-        **kwargs goes to matplotlib's imshow 
+        **kwargs goes to matplotlib's imshow
 
         Returns
         -------
@@ -1942,11 +1948,11 @@ class ApertureSpectrum( Spectrum ):
             self._properties['background'] = get_spectrum(self.lbda, background)
         else:
             self._properties['background'] = background
-            
+
     # ------- #
     # GETTER  #
     # ------- #
-    
+
     # ------- #
     # PLOTTER #
     # ------- #
@@ -1954,12 +1960,12 @@ class ApertureSpectrum( Spectrum ):
                  show_background=True,
                  bcolor="0.7", **kwargs):
         """ Display the spectrum.
-        
+
         Parameters
         ----------
         toshow: [string] -optional-
-            Variable you want to display. anything accessible as self.`toshow` that 
-            has the same size as the wavelength. 
+            Variable you want to display. anything accessible as self.`toshow` that
+            has the same size as the wavelength.
             If toshow is data or rawdata, the variance will automatically be added
             if it exists.
             Do not change this is you have a doubt.
@@ -1967,7 +1973,7 @@ class ApertureSpectrum( Spectrum ):
         ax: [matplotlib.Axes] -optional-
             Provide the axes where the spectrum will be drawn.
             If None this will create a new one inside a new figure
-            
+
         savefile: [string/None] -optional-
             Would you like to save the data? If so give the name of this
             file where the plot will be saved.
@@ -1992,27 +1998,27 @@ class ApertureSpectrum( Spectrum ):
             super(ApertureSpectrum, self).show(toshow="rawdata", ax=ax,
                                                    savefile=None, show=False, alpha=alpha, **kwargs)
             self.background.show(ax=ax, savefile=None, show=False, alpha=alpha, color=bcolor, **kwargs)
-            
+
         fig.figout(savefile=savefile, show=show)
 
     def scale_by(self, coef):
-        """ divide the data by the given scaling factor 
+        """ divide the data by the given scaling factor
         If this object has a variance attached, the variance will be divided by the square of `coef`.
         Parameters
         ----------
         coef: [float or array of]
-            scaling factor for the data 
+            scaling factor for the data
 
         Returns
         -------
         Void, affect the object (data, variance)
         """
         if not is_arraylike(coef) or len(coef)==1 or np.shape(coef)==self.data.shape:
-            
+
             self._properties["rawdata"]  = self.rawdata / coef
             if self.has_variance():
                 self._properties["variance"]  = self.variance / coef**2
-                
+
         elif len(coef) == self.data.shape[0]:
             self._properties["rawdata"]  = np.asarray(self.rawdata.T / coef).T
             if self.has_variance():
@@ -2024,7 +2030,7 @@ class ApertureSpectrum( Spectrum ):
         if self.has_background():
             self.background.scale_by(coef)
 
-            
+
     # -------- #
     #  I/O     #
     # -------- #
@@ -2033,7 +2039,7 @@ class ApertureSpectrum( Spectrum ):
 
         Parameters
         ----------
-        saveerror:  [bool] -optional- 
+        saveerror:  [bool] -optional-
             Set this to True if you wish to record the error and not the variance
             in you first hdu-table. if False, the table will be called
             VARIANCE and have self.v; if True, the table will be called
@@ -2061,37 +2067,37 @@ class ApertureSpectrum( Spectrum ):
             hdul.append(hduBkgdVar)
             hduApBkgd   = ImageHDU(self.background.apweight, name='BKGDAPW')
             hdul.append(hduApBkgd)
-            
+
         return hdul
 
     def load(self, filename, dataindex=0, varianceindex=1, headerindex=None):
-        """ 
+        """
 
         lbda - If an hdu column of the fits file is name:
                "LBDA" or "LAMBDA" or "WAVE" or "WAVELENGTH" or "WAVELENGTHS",
                the column will the used as lbda
-        
+
         """
         super(ApertureSpectrum, self).load(filename, dataindex=dataindex, varianceindex=varianceindex,
                                                headerindex=headerindex)
-        
+
         # Get the LBDA if any
         apweight_ = [f.data for f in self.fits if f.name.upper() in ["APWEIGHT"]]
         self._properties["apweight"] = None if len(apweight_)==0 else apweight_[0]
-        
+
         # Get the LBDA if any
         background_ = [f.data for f in self.fits if f.name.upper() in ["BKGD","BACKGROUND"]]
         bapweight_ = [f.data for f in self.fits if f.name.upper() in ["APWBKGD","BKGDAPW"]]
         bvar_ = [f.data for f in self.fits if f.name.upper() in ["BKGDVAR"]]
         if len(background_)==1:
-            
+
             bck = ApertureSpectrum(self.lbda, background_[0],
                                        variance=None if len(bvar_)==0 else bvar_[0],
                                        apweight=None if len(bapweight_)==0 else bapweight_[0],
                                        header=None)
             self._properties['rawdata'] = self.rawdata + bck.data
             self.set_background(bck)
-        
+
     # ================ #
     #  Properties      #
     # ================ #
@@ -2099,7 +2105,7 @@ class ApertureSpectrum( Spectrum ):
     def data(self):
         """ """
         return self.rawdata - self._backgrounddata
-    
+
     @property
     def apweight(self):
         """ """
@@ -2111,10 +2117,10 @@ class ApertureSpectrum( Spectrum ):
     def background(self):
         """ """
         return self._properties['background']
-    
+
     def has_background(self):
         return self._properties['background'] is not None
-    
+
     @property
     def _backgrounddata(self):
         """ """

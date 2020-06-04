@@ -349,7 +349,7 @@ if  __name__ == "__main__":
                     ax.set_yticks(np.arange(-20,20, 5))
                     ax.grid(color='0.6', linestyle='-', linewidth=0.5, alpha=0.5)
                     
-                    ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".pdf"))
+                    # ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".pdf"))
                     ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".png"), dpi=150)
                     
             # ----------------------- #                    
@@ -558,16 +558,16 @@ if  __name__ == "__main__":
 
                     ax.grid(color='0.6', linestyle='-', linewidth=0.5, alpha=0.5)
                     
-                    ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".pdf"))
+                    # ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".pdf"))
                     ax.figure.savefig(spec.filename.replace("spec","ifu_spaxels_source").replace(".fits",".png"), dpi=150)
                     
                     if psffit is not None:
                         x,y = np.asarray(cube_to_fit.index_to_xy(cube_to_fit.indexes)).T
                         # SHOWING ADR
-                        psffit.show_adr(savefile=spec.filename.replace("spec","adr_fit").replace(".fits",".pdf") )
+                        # psffit.show_adr(savefile=spec.filename.replace("spec","adr_fit").replace(".fits",".pdf") )
                         psffit.show_adr(savefile=spec.filename.replace("spec","adr_fit").replace(".fits",".png") )
                         # SHOWING PSFPROFILE (metaslice)
-                        psffit.slices[2]["slpsf"].show(savefile=spec.filename.replace("spec","psfprofile").replace(".fits",".pdf"))
+                        # psffit.slices[2]["slpsf"].show(savefile=spec.filename.replace("spec","psfprofile").replace(".fits",".pdf"))
                         psffit.slices[2]["slpsf"].show(savefile=spec.filename.replace("spec","psfprofile").replace(".fits",".png"))
                         
                         # SHOWING SPAXEL (IFU)
@@ -580,13 +580,13 @@ if  __name__ == "__main__":
                         ax.set_yticks(np.arange(-20,20, 5))
                         ax.grid(color='0.6', linestyle='-', linewidth=0.5, alpha=0.5)
                     
-                        ax.figure.savefig(spec.filename.replace("spec","spaxels_source").replace(".fits",".pdf"))
+                        # ax.figure.savefig(spec.filename.replace("spec","spaxels_source").replace(".fits",".pdf"))
                     
                     
                     # Special Standard
                     if cube.header['IMGTYPE'].lower() in ['standard'] and flux_calibrated:
                         from pysedm.fluxcalibration import show_fluxcalibrated_standard
-                        show_fluxcalibrated_standard(spec, savefile=spec.filename.replace("spec","calibcheck_spec").replace(".fits",".pdf"))
+                        # show_fluxcalibrated_standard(spec, savefile=spec.filename.replace("spec","calibcheck_spec").replace(".fits",".pdf"))
                         show_fluxcalibrated_standard(spec, savefile=spec.filename.replace("spec","calibcheck_spec").replace(".fits",".png"))
                         
                 # -----------------
@@ -616,10 +616,10 @@ if  __name__ == "__main__":
                             speccal._side_properties['filename'] = filename_inv
                             speccal.writeto(filename_inv)
                             if not args.nofig:
-                                fl.show(
-                                    savefile=speccal.filename.replace(".fits",
-                                                                      ".pdf"),
-                                    show=False)
+                                # fl.show(
+                                #     savefile=speccal.filename.replace(".fits",
+                                #                                       ".pdf"),
+                                #     show=False)
                                 fl.show(
                                     savefile=speccal.filename.replace(".fits",
                                                                       ".png"),

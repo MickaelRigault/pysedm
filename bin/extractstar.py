@@ -239,7 +239,7 @@ if  __name__ == "__main__":
                 if not args.nofig:
                     print(" Saving figures ".center(50, "-"))
                     es_object.show_adr(            savefile=es_object.basename.replace("{placeholder}","adr_fit" + plot_tag))
-                    es_object.show_metaslices(     savefile=es_object.basename.replace("{placeholder}","metaslices" + plot_tag))
+                    #es_object.show_metaslices(     savefile=es_object.basename.replace("{placeholder}","metaslices" + plot_tag))
                     es_object.show_extracted_spec( savefile=es_object.basename.replace("{placeholder}","extracted_spec" + plot_tag))
                     es_object.show_mla(            savefile=es_object.basename.replace("{placeholder}","ifu_spaxels_source" + plot_tag))
                     es_object.show_psf(            savefile=es_object.basename.replace("{placeholder}","psfprofile" + plot_tag), sliceid=2)
@@ -265,10 +265,10 @@ if  __name__ == "__main__":
                     if not args.nofig:
                         if cube.header['IMGTYPE'].lower() in ['standard'] and es_object.is_spectrum_fluxcalibrated():
                             from pysedm.fluxcalibration import show_fluxcalibrated_standard
-                            show_fluxcalibrated_standard(es_object.spectrum, savefile=es_object.basename.replace("{placeholder}","calibcheck_spec" + plot_tag)+".pdf")
+                            # show_fluxcalibrated_standard(es_object.spectrum, savefile=es_object.basename.replace("{placeholder}","calibcheck_spec" + plot_tag)+".pdf")
                             show_fluxcalibrated_standard(es_object.spectrum, savefile=es_object.basename.replace("{placeholder}","calibcheck_spec" + plot_tag)+".png")
                         if fl is not None:
-                            fl.show(savefile=speccal.filename.replace(".fits",".pdf"),
-                                        show=False)
+                            # fl.show(savefile=speccal.filename.replace(".fits",".pdf"),
+                            #            show=False)
                             fl.show(savefile=speccal.filename.replace(".fits",".png"),
                                         show=False)

@@ -444,8 +444,8 @@ def _saveout_forcepsf_(filecube, cube, cuberes=None, cubemodel=None,
             spec_to_plot = get_spectrum(spec.lbda, spec.data,
                                         variance=spec.variance if spec.has_variance() else None,
                                         header=spec.header)
-            spec_to_plot.show(savefile=spec.filename.replace(".fits", ".pdf"),
-                              show_zero=fluxcal, show=False)
+            # spec_to_plot.show(savefile=spec.filename.replace(".fits", ".pdf"),
+            #                   show_zero=fluxcal, show=False)
             spec_to_plot.show(savefile=spec.filename.replace(".fits", ".png"),
                               show_zero=fluxcal, show=False)
         

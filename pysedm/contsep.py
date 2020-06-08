@@ -3,6 +3,9 @@
 
 """
 This module is to get target or host spaxels in SEDM cube data.
+-v.20200608: From 20200604_ZTF20abaszgh,
+             1. add '_ifucounts_cleaned'.
+             2. For counting method, add 'if poly_.area < 100:'.
 -v.20200427-28: 1.show_ifudata: add showing 'offset', 'contsep_mag' and 'fake_mag'.
              2. add 'fake_mag' (affects target) and 'forced_mag' (affects host) option.
 -v.20200420: 'offset' option.
@@ -130,7 +133,7 @@ class SEDM_CONTOUR():
 
     def set_fake_target_in_ref(self, fake_mag):
         """ get a fake target with magnitude of "fake_mag" in the reference PS imaga to make a contour for IFU data. """
-        return self.iref.photoref.build_pointsource_image(fake_mag)
+        self.iref.photoref.build_pointsource_image(fake_mag)
 
     def set_ref_iso_contours(self):
         """ get iso mag contours in reference PS data ("refcounts"). """
@@ -139,8 +142,15 @@ class SEDM_CONTOUR():
 
     def set_ifu_iso_contours(self):
         """ get iso mag contours in IFU data ("ifucounts"). """
+        __ifucounts = self.iref.get_iso_contours(where="ifu", isomag=self.isomag )
 
-        self._ifucounts = self.iref.get_iso_contours(where="ifu", isomag=self.isomag )
+        _ifucounts = {}
+        for k, v in __ifucounts.items():
+            _ifucounts[k] = [t_ for t_ in v if len(t_)>4 ]
+
+        self._ifucounts_cleaned = {}
+        for k, v in _ifucounts.items():
+            self._ifucounts_cleaned[k] = [t_ for t_ in v if geometry.Polygon(t_).area>1]
 
     def set_target_contour_location(self):
         """
@@ -199,7 +209,7 @@ class SEDM_CONTOUR():
         mag_step_diff = len(self.ifucounts) - len(self.target_polygon_loc)
 
         for i in range(1, len(self.target_polygon_loc)+mag_step_diff):
-            poly_ref = geometry.Polygon( self.ifucounts[ self.target_polygon_loc[len(self.target_polygon_loc) - i ][1] ][int(self.target_polygon_loc[len(self.target_polygon_loc)- i ][3])] )
+            poly_ref = geometry.Polygon( self.ifucounts[self.target_polygon_loc[len(self.target_polygon_loc) - i ][1] ][int(self.target_polygon_loc[len(self.target_polygon_loc)- i ][3])] )
 
             i_comp = i + 1
             poly_comp = geometry.Polygon( self.ifucounts[ self.target_polygon_loc[len(self.target_polygon_loc) - i_comp ][1] ][int(self.target_polygon_loc[len(self.target_polygon_loc) - i_comp ][3])] )
@@ -208,12 +218,12 @@ class SEDM_CONTOUR():
                 continue
 
             elif poly_ref.area<10:
-                return self.isomag[ len(self.target_polygon_loc) - i + mag_step_diff ]
+                return self.target_polygon_loc[ len(self.target_polygon_loc) - i + mag_step_diff ][0]
 
             else:
                 poly_criteria = np.abs(poly_ref.area - poly_comp.area)
                 if poly_criteria > 40:
-                    return self.isomag[ len(self.target_polygon_loc) - i_comp + mag_step_diff ]
+                    return self.target_polygon_loc[ len(self.target_polygon_loc) - i_comp + mag_step_diff ][0]
 
     def get_target_faintest_contour_w_counting_method(self):
         """
@@ -225,6 +235,7 @@ class SEDM_CONTOUR():
         """
 
         mag_step_diff = len(self.ifucounts) - len(self.target_polygon_loc)
+        target_faintest_isomag_key = self.target_polygon_loc[len(self.target_polygon_loc)-1][1]
 
         refimag_coords_in_ifu = self.get_refimage_coords_in_ifu()
 
@@ -235,12 +246,13 @@ class SEDM_CONTOUR():
         for i in range(1, len(self.target_polygon_loc)+mag_step_diff):
             poly_ = geometry.Polygon( self.ifucounts[ self.target_polygon_loc[len(self.target_polygon_loc)-i][1] ][int(self.target_polygon_loc[len(self.target_polygon_loc)-i][3])] )
 
-            chk_poly_contain_src = []
-            for src_num in range(0, len(refimag_x)):
-                chk_poly_contain_src.append(poly_.contains( geometry.Point([refimag_x[src_num], refimag_y[src_num]]) ))
+            if poly_.area < 100:
+                chk_poly_contain_src = []
+                for src_num in range(0, len(refimag_x)):
+                    chk_poly_contain_src.append(poly_.contains( geometry.Point([refimag_x[src_num], refimag_y[src_num]]) ))
 
-            if any(chk_poly_contain_src) is False:
-                return self.isomag[ len(self.ifucounts) - i ]
+                if any(chk_poly_contain_src) is False:
+                    return self.target_polygon_loc[len(self.target_polygon_loc)-i][0]
 
     def get_target_faintest_contour(self, method="both"):
         """
@@ -303,7 +315,6 @@ class SEDM_CONTOUR():
     #
 
     def show_ref_ifu(self, offset=[0.0, 0.0], savefile=None):
-    #def show_ref_ifu(self, savefile=None):
         """
         !!! offset will be given by hand after a visual check !!!
         """
@@ -367,8 +378,6 @@ class SEDM_CONTOUR():
                 spaxel_patches[i].set_edgecolor("red")
                 spaxel_patches[i].set_linewidth(1)
                 spaxel_patches[i].set_zorder(10)
-            ax.set_xlim(-20,19)
-            ax.set_ylim(-24,22)
 
         if wotherspaxel:
             others_ids_from_contsep = self.get_others_spaxels()
@@ -378,11 +387,12 @@ class SEDM_CONTOUR():
                 spaxel_patches[i].set_edgecolor("k")
                 spaxel_patches[i].set_linewidth(1)
                 spaxel_patches[i].set_zorder(9)
-            ax.set_xlim(-20,19)
-            ax.set_ylim(-24,22)
 
         t1 = "offset=(%.1f, %.1f), contsep_mag for target=%.1f mag (host=%.1f mag)" % (self.offset[0], self.offset[1], self.target_contsep_mag-self.forced_addcontsep_mag, self.target_contsep_mag)
         t2 = "fake_mag=%.1f mag, forced_mag=%.1f mag" % (self.fake_mag, self.forced_addcontsep_mag)
+
+        ax.set_xlim(-20,19)
+        ax.set_ylim(-24,22)
 
         ax.text(-20, 24.5, t1, fontsize=10)
         ax.text(-20, 22.5, t2, fontsize=10)
@@ -501,10 +511,10 @@ class SEDM_CONTOUR():
         IFU iso contours.
         If an offset has changed, re-set ifucounts considering the offset.
          """
-        if (not hasattr(self, "_ifucounts")) | any( (self.offset != self.iref.ifu_offset) ) :
+        if (not hasattr(self, "_ifucounts_cleaned")) | any( (self.offset != self.iref.ifu_offset) ) :
             self.set_ifu_iso_contours()
 
-        return self._ifucounts
+        return self._ifucounts_cleaned
 
     @property
     def target_polygon_loc(self):

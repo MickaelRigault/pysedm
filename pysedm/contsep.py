@@ -3,7 +3,10 @@
 
 """
 This module is to get target or host spaxels in SEDM cube data.
--v.20200608: From 20200604_ZTF20abaszgh,
+-v.20200609: From 20200609_ZTF20abahhml, which has 'nan' in contour arrays,
+             1. add "not np.isnan(t_).any()" and change "geometry.Polygon(t_).area>2 (before 1)"
+                for '_ifucounts_cleaned'.
+-v.20200608: From 20200604_ZTF20abaszgh, which has lots of segemented small polygons,
              1. add '_ifucounts_cleaned'.
              2. For counting method, add 'if poly_.area < 100:'.
 -v.20200427-28: 1.show_ifudata: add showing 'offset', 'contsep_mag' and 'fake_mag'.
@@ -142,15 +145,11 @@ class SEDM_CONTOUR():
 
     def set_ifu_iso_contours(self):
         """ get iso mag contours in IFU data ("ifucounts"). """
-        __ifucounts = self.iref.get_iso_contours(where="ifu", isomag=self.isomag )
-
-        _ifucounts = {}
-        for k, v in __ifucounts.items():
-            _ifucounts[k] = [t_ for t_ in v if len(t_)>4 ]
+        _ifucounts = self.iref.get_iso_contours(where="ifu", isomag=self.isomag )
 
         self._ifucounts_cleaned = {}
         for k, v in _ifucounts.items():
-            self._ifucounts_cleaned[k] = [t_ for t_ in v if geometry.Polygon(t_).area>1]
+            self._ifucounts_cleaned[k] = [t_ for t_ in v if (len(t_)>4) and (not np.isnan(t_).any()) and (geometry.Polygon(t_).area>2) ]
 
     def set_target_contour_location(self):
         """

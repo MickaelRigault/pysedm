@@ -3,6 +3,8 @@
 
 """
 This module is to get target or host spaxels in SEDM cube data.
+-v.20200612: From 20200611_ZTF18aaiykoz, which show mostly overlappbed coordinates b/w the target and ref sources.
+             1. add criteria such that 'np.nanmin(target_ref_dist) > 2'. '2' is from minimum size of polygon diameter.
 -v.20200609: From 20200609_ZTF20abahhml, which has 'nan' in contour arrays,
              1. add "not np.isnan(t_).any()" and change "geometry.Polygon(t_).area>2 (before 1)"
                 for '_ifucounts_cleaned'.
@@ -259,35 +261,48 @@ class SEDM_CONTOUR():
               counting method always returns the faintest defined isomag, e.g., here 26.0 mag.
               This case, let's try only with 'area' method: "get_target_faintest_contour(method='area')."
         """
+        target_coords_in_ifu = self.iref.get_target_coordinate(where="ifu")
+        refimag_coords_in_ifu = self.get_refimage_coords_in_ifu()
 
-        if method is "both":
-            area_method = self.get_target_faintest_contour_w_area_method()
-            counting_method = self.get_target_faintest_contour_w_counting_method()
+        for i in range(0, len(refimag_coords_in_ifu[0])):
+            target_ref_dist = np.sqrt((target_coords_in_ifu[0] - refimag_coords_in_ifu[: ,i][0])**2 +
+                                      (target_coords_in_ifu[1] - refimag_coords_in_ifu[: ,i][1])**2 )
 
-            if area_method == counting_method:
-                target_consep_mag_ = area_method
-                return target_consep_mag_
+        if np.nanmin(target_ref_dist) > 2.0:
+            if method is "both":
+                area_method = self.get_target_faintest_contour_w_area_method()
+                counting_method = self.get_target_faintest_contour_w_counting_method()
 
-            else:
-                #raise ValueError("Check the number of sources in the cube. If 1, use method='area'.")
+                if area_method == counting_method:
+                    target_consep_mag_ = area_method
+                    return target_consep_mag_
+
+                else:
+                    #raise ValueError("Check the number of sources in the cube. If 1, use method='area'.")
+                    target_consep_mag_ = counting_method
+                    return target_consep_mag_
+
+            elif method is "area":
+                area_method = self.get_target_faintest_contour_w_area_method()
+                counting_method = "Not used."
+
+                target_contsep_mag_ = area_method
+
+                return target_contsep_mag_
+
+            elif method is "counting":
+                counting_method = self.get_target_faintest_contour_w_counting_method()
+                area_method = "Not used."
+
                 target_consep_mag_ = counting_method
+
                 return target_consep_mag_
 
-        elif method is "area":
-            area_method = self.get_target_faintest_contour_w_area_method()
-            counting_method = "Not used."
-
-            target_contsep_mag_ = area_method
-
-            return target_contsep_mag_
-
-        elif method is "counting":
-            counting_method = self.get_target_faintest_contour_w_counting_method()
-            area_method = "Not used."
-
-            target_consep_mag_ = counting_method
+        else:
+            target_consep_mag_ = self.isomag[0]
 
             return target_consep_mag_
+
 
     def get_target_contsep_information(self, forced_addcontsep=False):
         """
@@ -418,9 +433,20 @@ class SEDM_CONTOUR():
         Return spaxel ids or indexes in numpy array.
         """
 
+        target_coords_in_ifu = self.iref.get_target_coordinate(where="ifu")
+        refimag_coords_in_ifu = self.get_refimage_coords_in_ifu()
+
+        for i in range(0, len(refimag_coords_in_ifu[0])):
+            target_ref_dist = np.sqrt((target_coords_in_ifu[0] - refimag_coords_in_ifu[: ,i][0])**2 +
+                                      (target_coords_in_ifu[1] - refimag_coords_in_ifu[: ,i][1])**2 )
+
         target_contsep_mag_index, target_contsep_array_index = self.get_target_contsep_information()
 
-        target_contsep_poly = geometry.Polygon(self.ifucounts[ list(self.ifucounts.keys())[target_contsep_mag_index] ][target_contsep_array_index] )
+        if np.nanmin(target_ref_dist) > 2.0:
+            target_contsep_poly = geometry.Polygon(self.ifucounts[ list(self.ifucounts.keys())[target_contsep_mag_index] ][target_contsep_array_index] )
+
+        else:
+            target_contsep_poly = geometry.Polygon(self.ifucounts[ list(self.ifucounts.keys())[0] ][0] )
 
         target_contsep_spaxel_index = self.cube.get_spaxels_within_polygon(target_contsep_poly) #spaxel index
 
@@ -429,6 +455,7 @@ class SEDM_CONTOUR():
             return target_contsep_spaxel_ids
         else:
             return np.array(target_contsep_spaxel_index)
+
 
     def get_others_spaxels(self, spaxels_id=True):
         """
@@ -449,55 +476,68 @@ class SEDM_CONTOUR():
         -------
         Return spaxel ids or indexes in numpy array.
         """
+        #Check the separation b/w target and the ref sources. If the separation < 2, return empty array.
 
-        _target_contsep_spaxel_index = self.get_target_spaxels(spaxels_id=False)
+        target_coords_in_ifu = self.iref.get_target_coordinate(where="ifu")
+        refimag_coords_in_ifu = self.get_refimage_coords_in_ifu()
 
-        #if len(_target_contsep_spaxel_index) < 11: # when SN is exploded close to the bright center.
-        contsep_mag = self.get_target_faintest_contour()
-        if (self.forced_addcontsep_mag > 0.0) & (self.get_target_faintest_contour() < 26.0): # TO BE CAHGNED
+        for i in range(0, len(refimag_coords_in_ifu[0])):
+            target_ref_dist = np.sqrt((target_coords_in_ifu[0] - refimag_coords_in_ifu[: ,i][0])**2 +
+                                      (target_coords_in_ifu[1] - refimag_coords_in_ifu[: ,i][1])**2 )
 
-            target_contsep_mag_index, target_contsep_array_index = self.get_target_contsep_information(forced_addcontsep=True)
-            others_contsep_mag_index = target_contsep_mag_index
-            others_contsep_array_index = [i for i in range(0,len( self.ifucounts[ list(self.ifucounts.keys())[others_contsep_mag_index] ] )) ]
+        if np.nanmin(target_ref_dist) > 2.0:
+            _target_contsep_spaxel_index = self.get_target_spaxels(spaxels_id=False)
 
-            __others_contsep_spaxel_ids = []
-            _others_contsep_spaxel_index = []
+            #if len(_target_contsep_spaxel_index) < 11: # when SN is exploded close to the bright center.
 
-            for i in range(0, len(others_contsep_array_index)):
-                others_contsep_polys = geometry.Polygon(self.ifucounts[ list(self.ifucounts.keys())[others_contsep_mag_index] ][others_contsep_array_index[i]] )
+            if (self.forced_addcontsep_mag > 0.0) & (self.get_target_faintest_contour() < 26.0): # TO BE CAHGNED
 
-                __others_contsep_spaxel_index = self.cube.get_spaxels_within_polygon(others_contsep_polys) #spaxel index
-                if len(__others_contsep_spaxel_index) > 0:
-                    _others_contsep_spaxel_index += __others_contsep_spaxel_index
+                 target_contsep_mag_index, target_contsep_array_index = self.get_target_contsep_information(forced_addcontsep=True)
+                 others_contsep_mag_index = target_contsep_mag_index
+                 others_contsep_array_index = [i for i in range(0,len( self.ifucounts[ list(self.ifucounts.keys())[others_contsep_mag_index] ] )) ]
 
-            others_contsep_spaxel_index = np.unique(_others_contsep_spaxel_index) #spaxel index
+                 __others_contsep_spaxel_ids = []
+                 _others_contsep_spaxel_index = []
 
-            # remove target spaxel
-            for spax_ in _target_contsep_spaxel_index:
-                others_contsep_spaxel_index = others_contsep_spaxel_index[others_contsep_spaxel_index != spax_]
+                 for i in range(0, len(others_contsep_array_index)):
+                     others_contsep_polys = geometry.Polygon(self.ifucounts[ list(self.ifucounts.keys())[others_contsep_mag_index] ][others_contsep_array_index[i]] )
+
+                     __others_contsep_spaxel_index = self.cube.get_spaxels_within_polygon(others_contsep_polys) #spaxel index
+                     if len(__others_contsep_spaxel_index) > 0:
+                         _others_contsep_spaxel_index += __others_contsep_spaxel_index
+
+                 others_contsep_spaxel_index = np.unique(_others_contsep_spaxel_index) #spaxel index
+
+                # remove target spaxel
+                 for spax_ in _target_contsep_spaxel_index:
+                     others_contsep_spaxel_index = others_contsep_spaxel_index[others_contsep_spaxel_index != spax_]
+
+            else:
+                self.forced_addcontsep_mag = 0.0
+                target_contsep_mag_index, target_contsep_array_index = self.get_target_contsep_information(forced_addcontsep=False)
+                others_contsep_mag_index = target_contsep_mag_index
+                others_contsep_array_index = [i for i in range(0,len( self.ifucounts[ list(self.ifucounts.keys())[others_contsep_mag_index] ] )) if i != target_contsep_array_index]
+
+                __others_contsep_spaxel_ids = []
+                _others_contsep_spaxel_index = []
+
+                for i in range(0, len(others_contsep_array_index)):
+                    others_contsep_polys = geometry.Polygon(self.ifucounts[ list(self.ifucounts.keys())[others_contsep_mag_index] ][others_contsep_array_index[i]] )
+
+                    __others_contsep_spaxel_index = self.cube.get_spaxels_within_polygon(others_contsep_polys) #spaxel index
+                    if len(__others_contsep_spaxel_index) > 0:
+                        _others_contsep_spaxel_index += __others_contsep_spaxel_index
+
+                others_contsep_spaxel_index = np.unique(_others_contsep_spaxel_index) #spaxel index
+
+            if spaxels_id:
+                others_contsep_spaxel_ids = np.arange(self.cube.nspaxels)[np.isin(self.cube.indexes, others_contsep_spaxel_index)] #spaxel index to id for drawing.
+                return others_contsep_spaxel_ids
+            else:
+                return others_contsep_spaxel_index
 
         else:
-            self.forced_addcontsep_mag = 0.0
-            target_contsep_mag_index, target_contsep_array_index = self.get_target_contsep_information(forced_addcontsep=False)
-            others_contsep_mag_index = target_contsep_mag_index
-            others_contsep_array_index = [i for i in range(0,len( self.ifucounts[ list(self.ifucounts.keys())[others_contsep_mag_index] ] )) if i != target_contsep_array_index]
-
-            __others_contsep_spaxel_ids = []
-            _others_contsep_spaxel_index = []
-
-            for i in range(0, len(others_contsep_array_index)):
-                others_contsep_polys = geometry.Polygon(self.ifucounts[ list(self.ifucounts.keys())[others_contsep_mag_index] ][others_contsep_array_index[i]] )
-
-                __others_contsep_spaxel_index = self.cube.get_spaxels_within_polygon(others_contsep_polys) #spaxel index
-                if len(__others_contsep_spaxel_index) > 0:
-                    _others_contsep_spaxel_index += __others_contsep_spaxel_index
-
-            others_contsep_spaxel_index = np.unique(_others_contsep_spaxel_index) #spaxel index
-
-        if spaxels_id:
-            others_contsep_spaxel_ids = np.arange(self.cube.nspaxels)[np.isin(self.cube.indexes, others_contsep_spaxel_index)] #spaxel index to id for drawing.
-            return others_contsep_spaxel_ids
-        else:
+            others_contsep_spaxel_index = np.empty(0)
             return others_contsep_spaxel_index
 
     ###################

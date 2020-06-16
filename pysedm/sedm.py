@@ -1665,7 +1665,7 @@ class SEDMCube( Cube ):
             self.extractstar.update_from_humain_input()
         elif spaxels_to_use is not None: # You fixed which you want
             if len(spaxels_to_use)<4:
-                print("WARNING, you provided less than 4 spaxel to be f")
+                print("WARNING, you provided less than 4 spaxel to be fitted")
             self.extractstar.set_fitted_spaxels(spaxels_to_use)
 
         if self.extractstar.fitted_spaxels is None: # Automatic selections (with or without spaxels)

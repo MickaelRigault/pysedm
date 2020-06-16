@@ -250,6 +250,9 @@ if  __name__ == "__main__":
                 # -> The output object
                 es_object = cube.extractstar
 
+                if args.contsep:
+                    es_object.raw_spectrum.header.set("NCONTSPX", len(es_options["spaxels_to_avoid"]), "number of spaxels excluded by contsep")
+
                 # -
                 # - SAVING
                 # -

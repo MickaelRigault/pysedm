@@ -252,7 +252,7 @@ if  __name__ == "__main__":
 
                 if args.contsep:
                     es_object.raw_spectrum.header.set("CONTMAG", cont.target_contsep_mag, "contsep splitting magnitude")
-                    es_object.raw_spectrum.header.set("NCONTSPX", len(es_options["spaxels_to_avoid"]), "number of spaxels excluded by contsep")
+                    es_object.raw_spectrum.header.set("NCONTSPX", len(es_options["spaxels_to_avoid"]), "‘total number of non-target spaxels found by contsep")
 
                 # -
                 # - SAVING

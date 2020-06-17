@@ -227,7 +227,7 @@ if  __name__ == "__main__":
                                                              fake_mag=args.contsep_fakemag,
                                                              forced_mag=args.contsep_forcedmag)
                     es_options["spaxels_to_avoid"] =  list( cont.get_others_spaxels(spaxels_id=False) )
-                    
+
                 # ===================== #
                 # SOURCE EXTRACTION     #
                 # ===================== #
@@ -251,6 +251,7 @@ if  __name__ == "__main__":
                 es_object = cube.extractstar
 
                 if args.contsep:
+                    es_object.raw_spectrum.header.set("CONTMAG", cont.target_contsep_mag, "contsep splitting magnitude")
                     es_object.raw_spectrum.header.set("NCONTSPX", len(es_options["spaxels_to_avoid"]), "number of spaxels excluded by contsep")
 
                 # -

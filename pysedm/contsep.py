@@ -3,8 +3,10 @@
 
 """
 This module is to get target or host spaxels in SEDM cube data.
+-v.20200618: consider 'np.nanmin(target_ref_dist) > 2' when 'refimg_coords_in_ifu.size' == 0.
 -v.20200612: From 20200611_ZTF18aaiykoz, which show mostly overlappbed coordinates b/w the target and ref sources.
              1. add criteria such that 'np.nanmin(target_ref_dist) > 2'. '2' is from minimum size of polygon diameter.
+             > for that case, "self.target_contsep_mag = -99.0".
 -v.20200609: From 20200609_ZTF20abahhml, which has 'nan' in contour arrays,
              1. add "not np.isnan(t_).any()" and change "geometry.Polygon(t_).area>2 (before 1)"
                 for '_ifucounts_cleaned'.
@@ -300,9 +302,12 @@ class SEDM_CONTOUR():
         target_coords_in_ifu = self.iref.get_target_coordinate(where="ifu")
         refimg_coords_in_ifu = self.get_refimage_coords_in_ifu()
 
-        for i in range(0, len(refimg_coords_in_ifu[0])):
-            target_ref_dist = np.sqrt((target_coords_in_ifu[0] - refimg_coords_in_ifu[: ,i][0])**2 +
-                                      (target_coords_in_ifu[1] - refimg_coords_in_ifu[: ,i][1])**2 )
+        if refimg_coords_in_ifu.size > 0:
+            for i in range(0, len(refimg_coords_in_ifu[0])):
+                target_ref_dist = np.sqrt((target_coords_in_ifu[0] - refimg_coords_in_ifu[: ,i][0])**2 +
+                                          (target_coords_in_ifu[1] - refimg_coords_in_ifu[: ,i][1])**2 )
+        else:
+            target_ref_dist = 20
 
         if np.nanmin(target_ref_dist) > 2.0:
 
@@ -441,9 +446,12 @@ class SEDM_CONTOUR():
         target_coords_in_ifu = self.iref.get_target_coordinate(where="ifu")
         refimg_coords_in_ifu = self.get_refimage_coords_in_ifu()
 
-        for i in range(0, len(refimg_coords_in_ifu[0])):
-            target_ref_dist = np.sqrt((target_coords_in_ifu[0] - refimg_coords_in_ifu[: ,i][0])**2 +
-                                      (target_coords_in_ifu[1] - refimg_coords_in_ifu[: ,i][1])**2 )
+        if refimg_coords_in_ifu.size > 0:
+            for i in range(0, len(refimg_coords_in_ifu[0])):
+                target_ref_dist = np.sqrt((target_coords_in_ifu[0] - refimg_coords_in_ifu[: ,i][0])**2 +
+                                          (target_coords_in_ifu[1] - refimg_coords_in_ifu[: ,i][1])**2 )
+        else:
+            target_ref_dist = 20
 
         target_contsep_mag_index, target_contsep_array_index = self.get_target_contsep_information()
 
@@ -486,9 +494,12 @@ class SEDM_CONTOUR():
         target_coords_in_ifu = self.iref.get_target_coordinate(where="ifu")
         refimg_coords_in_ifu = self.get_refimage_coords_in_ifu()
 
-        for i in range(0, len(refimg_coords_in_ifu[0])):
-            target_ref_dist = np.sqrt((target_coords_in_ifu[0] - refimg_coords_in_ifu[: ,i][0])**2 +
-                                      (target_coords_in_ifu[1] - refimg_coords_in_ifu[: ,i][1])**2 )
+        if refimg_coords_in_ifu.size > 0:
+            for i in range(0, len(refimg_coords_in_ifu[0])):
+                target_ref_dist = np.sqrt((target_coords_in_ifu[0] - refimg_coords_in_ifu[: ,i][0])**2 +
+                                          (target_coords_in_ifu[1] - refimg_coords_in_ifu[: ,i][1])**2 )
+        else:
+            target_ref_dist = 20
 
         if np.nanmin(target_ref_dist) > 2.0:
             _target_contsep_spaxel_index = self.get_target_spaxels(spaxels_id=False)

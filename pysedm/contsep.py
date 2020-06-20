@@ -3,6 +3,7 @@
 
 """
 This module is to get target or host spaxels in SEDM cube data.
+-v.20200619: consider 'target_ref_dist' for multiple ref sources.
 -v.20200618: consider 'np.nanmin(target_ref_dist) > 2' when 'refimg_coords_in_ifu.size' == 0.
 -v.20200612: From 20200611_ZTF18aaiykoz, which show mostly overlappbed coordinates b/w the target and ref sources.
              1. add criteria such that 'np.nanmin(target_ref_dist) > 2'. '2' is from minimum size of polygon diameter.
@@ -125,9 +126,17 @@ class SEDM_CONTOUR():
         """ """
         self.astro = astrometry.Astrometry(astromfile)
 
+    def set_target_coords_in_ifu(self):
+        """ """
+        self._target_coords_in_ifu = self.iref.get_target_coordinate(where="ifu")
+
     def set_ps_reference(self):
         """ download PS BytesIO data (it takes time.). """
         self.iref = astrometry.IFUReference.from_astrometry(self.astro)
+
+    def set_refimg_coords_in_ifu(self):
+        """ """
+        self._refimg_coords_in_ifu = self.iref.get_refimage_sources_coordinates("ifu", inifu=True)
 
     def set_offset(self, offset):
         """ set astrometry offset between reference image and cube image. """
@@ -299,20 +308,19 @@ class SEDM_CONTOUR():
         get target faintes contour information, like faintes contour magnitude and its location in the target polygon.
         """
 
-        target_coords_in_ifu = self.iref.get_target_coordinate(where="ifu")
-        refimg_coords_in_ifu = self.get_refimage_coords_in_ifu()
-
-        if refimg_coords_in_ifu.size > 0:
-            for i in range(0, len(refimg_coords_in_ifu[0])):
-                target_ref_dist = np.sqrt((target_coords_in_ifu[0] - refimg_coords_in_ifu[: ,i][0])**2 +
-                                          (target_coords_in_ifu[1] - refimg_coords_in_ifu[: ,i][1])**2 )
+        target_ref_dist = []
+        if self.refimg_coords_in_ifu.size > 0:
+            for i in range(0, len(self.refimg_coords_in_ifu[0])):
+                target_ref_dist_ = np.sqrt((self.target_coords_in_ifu[0] - self.refimg_coords_in_ifu[: ,i][0])**2 +
+                                          (self.target_coords_in_ifu[1] - self.refimg_coords_in_ifu[: ,i][1])**2 )
+                target_ref_dist.append(target_ref_dist_)
         else:
             target_ref_dist = 20
 
         if np.nanmin(target_ref_dist) > 2.0:
 
             ## When there is only 1 marked target in the cube, use 'area' method.
-            if refimg_coords_in_ifu.size == 0:
+            if self.refimg_coords_in_ifu.size == 0:
                 self.target_contsep_mag = self.get_target_faintest_contour(method="area")
             else:
                 self.target_contsep_mag  = self.get_target_faintest_contour()
@@ -443,13 +451,12 @@ class SEDM_CONTOUR():
         Return spaxel ids or indexes in numpy array.
         """
 
-        target_coords_in_ifu = self.iref.get_target_coordinate(where="ifu")
-        refimg_coords_in_ifu = self.get_refimage_coords_in_ifu()
-
-        if refimg_coords_in_ifu.size > 0:
-            for i in range(0, len(refimg_coords_in_ifu[0])):
-                target_ref_dist = np.sqrt((target_coords_in_ifu[0] - refimg_coords_in_ifu[: ,i][0])**2 +
-                                          (target_coords_in_ifu[1] - refimg_coords_in_ifu[: ,i][1])**2 )
+        target_ref_dist = []
+        if self.refimg_coords_in_ifu.size > 0:
+            for i in range(0, len(self.refimg_coords_in_ifu[0])):
+                target_ref_dist_ = np.sqrt((self.target_coords_in_ifu[0] - self.refimg_coords_in_ifu[: ,i][0])**2 +
+                                          (self.target_coords_in_ifu[1] - self.refimg_coords_in_ifu[: ,i][1])**2 )
+                target_ref_dist.append(target_ref_dist_)
         else:
             target_ref_dist = 20
 
@@ -491,13 +498,12 @@ class SEDM_CONTOUR():
         """
         #Check the separation b/w target and the ref sources. If the separation < 2, return empty array.
 
-        target_coords_in_ifu = self.iref.get_target_coordinate(where="ifu")
-        refimg_coords_in_ifu = self.get_refimage_coords_in_ifu()
-
-        if refimg_coords_in_ifu.size > 0:
-            for i in range(0, len(refimg_coords_in_ifu[0])):
-                target_ref_dist = np.sqrt((target_coords_in_ifu[0] - refimg_coords_in_ifu[: ,i][0])**2 +
-                                          (target_coords_in_ifu[1] - refimg_coords_in_ifu[: ,i][1])**2 )
+        target_ref_dist = []
+        if self.refimg_coords_in_ifu.size > 0:
+            for i in range(0, len(self.refimg_coords_in_ifu[0])):
+                target_ref_dist_ = np.sqrt((self.target_coords_in_ifu[0] - self.refimg_coords_in_ifu[: ,i][0])**2 +
+                                          (self.target_coords_in_ifu[1] - self.refimg_coords_in_ifu[: ,i][1])**2 )
+                target_ref_dist.append(target_ref_dist_)
         else:
             target_ref_dist = 20
 
@@ -581,3 +587,21 @@ class SEDM_CONTOUR():
             self.set_target_contour_location()
 
         return self._target_polygon_loc
+
+    @property
+    def target_coords_in_ifu(self):
+        """
+        """
+        if not hasattr(self, "_target_coords_in_ifu"):
+            self.set_target_coords_in_ifu()
+
+        return self._target_coords_in_ifu
+
+    @property
+    def refimg_coords_in_ifu(self):
+        """
+        """
+        if not hasattr(self, "_refimg_coords_in_ifu"):
+            self.set_refimg_coords_in_ifu()
+
+        return self._refimg_coords_in_ifu

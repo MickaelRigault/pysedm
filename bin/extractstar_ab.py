@@ -190,7 +190,7 @@ if __name__ == "__main__":
                 # Extract B observation first
                 #
                 abdata = cube.data
-                cube._derived_properties['data'] = 0. - abdata
+                cube._derived_properties['data'] = 2000. - abdata
                 #
                 # OPTIONS
                 #
@@ -244,7 +244,7 @@ if __name__ == "__main__":
                 #
                 # Extract A observation next
                 #
-                cube._derived_properties['data'] = abdata
+                cube._derived_properties['data'] = 2000. + abdata
                 #
                 # OPTIONS
                 #
@@ -322,7 +322,8 @@ if __name__ == "__main__":
                             "{placeholder}", "extracted_spec" + plot_tag))
                     es_object.show_mla(
                         savefile=es_object.basename.replace(
-                            "{placeholder}", "ifu_spaxels_source" + plot_tag))
+                            "{placeholder}", "ifu_spaxels_source" + plot_tag),
+                        bcoords=(spec_B.header['XPOS'], spec_B.header['YPOS']))
                     es_object.show_psf(
                         savefile=es_object.basename.replace(
                             "{placeholder}", "psfprofile" + plot_tag),

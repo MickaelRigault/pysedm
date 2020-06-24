@@ -3,8 +3,12 @@
 
 """
 This module is to get target or host spaxels in SEDM cube data.
+-v.20200622: consider when no other spaxels in contsep mag, e.g. 20200620_ZTF20abffaxl.
+-v.20200619: consider 'target_others_dist' for multiple ref sources.
+-v.20200618: consider 'np.nanmin(target_others_dist) > 2' when 'refimg_coords_in_ifu.size' == 0.
 -v.20200612: From 20200611_ZTF18aaiykoz, which show mostly overlappbed coordinates b/w the target and ref sources.
-             1. add criteria such that 'np.nanmin(target_ref_dist) > 2'. '2' is from minimum size of polygon diameter.
+             1. add criteria such that 'np.nanmin(target_others_dist) > 2'. '2' is from minimum size of polygon diameter.
+             > for that case, "self.target_contsep_mag = -99.0".
 -v.20200609: From 20200609_ZTF20abahhml, which has 'nan' in contour arrays,
              1. add "not np.isnan(t_).any()" and change "geometry.Polygon(t_).area>2 (before 1)"
                 for '_ifucounts_cleaned'.
@@ -123,9 +127,29 @@ class SEDM_CONTOUR():
         """ """
         self.astro = astrometry.Astrometry(astromfile)
 
+    def set_target_coords_in_ifu(self):
+        """ """
+        self._target_coords_in_ifu = self.iref.get_target_coordinate(where="ifu")
+
     def set_ps_reference(self):
         """ download PS BytesIO data (it takes time.). """
         self.iref = astrometry.IFUReference.from_astrometry(self.astro)
+
+    def set_refimg_coords_in_ifu(self):
+        """ """
+        self._refimg_coords_in_ifu = self.iref.get_refimage_sources_coordinates("ifu", inifu=True)
+
+    def set_target_others_dist(self):
+        self._target_others_dist = []
+
+        if self.refimg_coords_in_ifu.size > 0:
+            for i in range(0, len(self.refimg_coords_in_ifu[0])):
+                __target_others_dist = np.sqrt((self.target_coords_in_ifu[0] - self.refimg_coords_in_ifu[: ,i][0])**2 +
+                                               (self.target_coords_in_ifu[1] - self.refimg_coords_in_ifu[: ,i][1])**2 )
+                self._target_others_dist.append(__target_others_dist)
+        else:
+            # if there is no others in the cube, return half of cube size.
+            self._target_others_dist = 20
 
     def set_offset(self, offset):
         """ set astrometry offset between reference image and cube image. """
@@ -238,10 +262,10 @@ class SEDM_CONTOUR():
         mag_step_diff = len(self.ifucounts) - len(self.target_polygon_loc)
         target_faintest_isomag_key = self.target_polygon_loc[len(self.target_polygon_loc)-1][1]
 
-        refimag_coords_in_ifu = self.get_refimage_coords_in_ifu()
+        refimg_coords_in_ifu = self.get_refimage_coords_in_ifu()
 
-        refimag_x = refimag_coords_in_ifu[0]
-        refimag_y = refimag_coords_in_ifu[1]
+        refimg_x = refimg_coords_in_ifu[0]
+        refimg_y = refimg_coords_in_ifu[1]
 
         # starts from the faintest in target_polygon_loc
         for i in range(1, len(self.target_polygon_loc)+mag_step_diff):
@@ -249,8 +273,8 @@ class SEDM_CONTOUR():
 
             if poly_.area < 100:
                 chk_poly_contain_src = []
-                for src_num in range(0, len(refimag_x)):
-                    chk_poly_contain_src.append(poly_.contains( geometry.Point([refimag_x[src_num], refimag_y[src_num]]) ))
+                for src_num in range(0, len(refimg_x)):
+                    chk_poly_contain_src.append(poly_.contains( geometry.Point([refimg_x[src_num], refimg_y[src_num]]) ))
 
                 if any(chk_poly_contain_src) is False:
                     return self.target_polygon_loc[len(self.target_polygon_loc)-i][0]
@@ -261,45 +285,33 @@ class SEDM_CONTOUR():
               counting method always returns the faintest defined isomag, e.g., here 26.0 mag.
               This case, let's try only with 'area' method: "get_target_faintest_contour(method='area')."
         """
-        target_coords_in_ifu = self.iref.get_target_coordinate(where="ifu")
-        refimag_coords_in_ifu = self.get_refimage_coords_in_ifu()
 
-        for i in range(0, len(refimag_coords_in_ifu[0])):
-            target_ref_dist = np.sqrt((target_coords_in_ifu[0] - refimag_coords_in_ifu[: ,i][0])**2 +
-                                      (target_coords_in_ifu[1] - refimag_coords_in_ifu[: ,i][1])**2 )
+        if method is "both":
+            area_method = self.get_target_faintest_contour_w_area_method()
+            counting_method = self.get_target_faintest_contour_w_counting_method()
 
-        if np.nanmin(target_ref_dist) > 2.0:
-            if method is "both":
-                area_method = self.get_target_faintest_contour_w_area_method()
-                counting_method = self.get_target_faintest_contour_w_counting_method()
-
-                if area_method == counting_method:
-                    target_consep_mag_ = area_method
-                    return target_consep_mag_
-
-                else:
-                    #raise ValueError("Check the number of sources in the cube. If 1, use method='area'.")
-                    target_consep_mag_ = counting_method
-                    return target_consep_mag_
-
-            elif method is "area":
-                area_method = self.get_target_faintest_contour_w_area_method()
-                counting_method = "Not used."
-
-                target_contsep_mag_ = area_method
-
-                return target_contsep_mag_
-
-            elif method is "counting":
-                counting_method = self.get_target_faintest_contour_w_counting_method()
-                area_method = "Not used."
-
-                target_consep_mag_ = counting_method
-
+            if area_method == counting_method:
+                target_consep_mag_ = area_method
                 return target_consep_mag_
 
-        else:
-            target_consep_mag_ = self.isomag[0]
+            else:
+                #raise ValueError("Check the number of sources in the cube. If 1, use method='area'.")
+                target_consep_mag_ = counting_method
+                return target_consep_mag_
+
+        elif method is "area":
+            area_method = self.get_target_faintest_contour_w_area_method()
+            counting_method = "Not used."
+
+            target_contsep_mag_ = area_method
+
+            return target_contsep_mag_
+
+        elif method is "counting":
+            counting_method = self.get_target_faintest_contour_w_counting_method()
+            area_method = "Not used."
+
+            target_consep_mag_ = counting_method
 
             return target_consep_mag_
 
@@ -308,21 +320,31 @@ class SEDM_CONTOUR():
         """
         get target faintes contour information, like faintes contour magnitude and its location in the target polygon.
         """
-        refimage_coords_in_ifu = self.get_refimage_coords_in_ifu()
 
-        ## When there is only 1 marked target in the cube, use 'area' method.
-        if refimage_coords_in_ifu.size == 0:
-            self.target_contsep_mag = self.get_target_faintest_contour(method="area")
+        if np.nanmin(self.target_others_dist) > 2.0:
+
+            ## When there is only 1 marked target in the cube, use 'area' method.
+            if self.refimg_coords_in_ifu.size == 0:
+                self.target_contsep_mag = self.get_target_faintest_contour(method="area")
+            else:
+                self.target_contsep_mag  = self.get_target_faintest_contour()
+
+            if forced_addcontsep:
+                self.target_contsep_mag = self.target_contsep_mag + self.forced_addcontsep_mag
+
+            target_contsep_mag_index_ = int( self.target_polygon_loc[self.target_polygon_loc[:,0] == self.target_contsep_mag][0][2] )
+            target_contsep_array_index_  = int( self.target_polygon_loc[self.target_polygon_loc[:,0] == self.target_contsep_mag][0][3] )
+
+            return target_contsep_mag_index_, target_contsep_array_index_
+
         else:
-            self.target_contsep_mag  = self.get_target_faintest_contour()
+            self.target_contsep_mag = -99.0
 
-        if forced_addcontsep:
-            self.target_contsep_mag = self.target_contsep_mag + self.forced_addcontsep_mag
+            target_contsep_mag_index_ = np.nan
+            target_contsep_array_index_  = np.nan
 
-        target_contsep_mag_index_ = int( self.target_polygon_loc[self.target_polygon_loc[:,0] == self.target_contsep_mag][0][2] )
-        target_contsep_array_index_  = int( self.target_polygon_loc[self.target_polygon_loc[:,0] == self.target_contsep_mag][0][3] )
+            return target_contsep_mag_index_, target_contsep_array_index_
 
-        return target_contsep_mag_index_, target_contsep_array_index_
 
     #
     # SHOW
@@ -433,16 +455,9 @@ class SEDM_CONTOUR():
         Return spaxel ids or indexes in numpy array.
         """
 
-        target_coords_in_ifu = self.iref.get_target_coordinate(where="ifu")
-        refimag_coords_in_ifu = self.get_refimage_coords_in_ifu()
-
-        for i in range(0, len(refimag_coords_in_ifu[0])):
-            target_ref_dist = np.sqrt((target_coords_in_ifu[0] - refimag_coords_in_ifu[: ,i][0])**2 +
-                                      (target_coords_in_ifu[1] - refimag_coords_in_ifu[: ,i][1])**2 )
-
         target_contsep_mag_index, target_contsep_array_index = self.get_target_contsep_information()
 
-        if np.nanmin(target_ref_dist) > 2.0:
+        if np.nanmin(self.target_others_dist) > 2.0:
             target_contsep_poly = geometry.Polygon(self.ifucounts[ list(self.ifucounts.keys())[target_contsep_mag_index] ][target_contsep_array_index] )
 
         else:
@@ -478,20 +493,12 @@ class SEDM_CONTOUR():
         """
         #Check the separation b/w target and the ref sources. If the separation < 2, return empty array.
 
-        target_coords_in_ifu = self.iref.get_target_coordinate(where="ifu")
-        refimag_coords_in_ifu = self.get_refimage_coords_in_ifu()
-
-        for i in range(0, len(refimag_coords_in_ifu[0])):
-            target_ref_dist = np.sqrt((target_coords_in_ifu[0] - refimag_coords_in_ifu[: ,i][0])**2 +
-                                      (target_coords_in_ifu[1] - refimag_coords_in_ifu[: ,i][1])**2 )
-
-        if np.nanmin(target_ref_dist) > 2.0:
+        if np.nanmin(self.target_others_dist) > 2.0:
             _target_contsep_spaxel_index = self.get_target_spaxels(spaxels_id=False)
 
             #if len(_target_contsep_spaxel_index) < 11: # when SN is exploded close to the bright center.
 
-            if (self.forced_addcontsep_mag > 0.0) & (self.get_target_faintest_contour() < 26.0): # TO BE CAHGNED
-
+            if (self.forced_addcontsep_mag > 0.0) and (self.get_target_faintest_contour() < 26.0): # TO BE CAHGNED
                  target_contsep_mag_index, target_contsep_array_index = self.get_target_contsep_information(forced_addcontsep=True)
                  others_contsep_mag_index = target_contsep_mag_index
                  others_contsep_array_index = [i for i in range(0,len( self.ifucounts[ list(self.ifucounts.keys())[others_contsep_mag_index] ] )) ]
@@ -513,7 +520,6 @@ class SEDM_CONTOUR():
                      others_contsep_spaxel_index = others_contsep_spaxel_index[others_contsep_spaxel_index != spax_]
 
             else:
-                self.forced_addcontsep_mag = 0.0
                 target_contsep_mag_index, target_contsep_array_index = self.get_target_contsep_information(forced_addcontsep=False)
                 others_contsep_mag_index = target_contsep_mag_index
                 others_contsep_array_index = [i for i in range(0,len( self.ifucounts[ list(self.ifucounts.keys())[others_contsep_mag_index] ] )) if i != target_contsep_array_index]
@@ -530,6 +536,10 @@ class SEDM_CONTOUR():
 
                 others_contsep_spaxel_index = np.unique(_others_contsep_spaxel_index) #spaxel index
 
+            if (others_contsep_spaxel_index.size < 10) and (self.forced_addcontsep_mag < 1.6):
+                self.forced_addcontsep_mag += 0.5
+                return self.get_others_spaxels()
+
             if spaxels_id:
                 others_contsep_spaxel_ids = np.arange(self.cube.nspaxels)[np.isin(self.cube.indexes, others_contsep_spaxel_index)] #spaxel index to id for drawing.
                 return others_contsep_spaxel_ids
@@ -537,6 +547,8 @@ class SEDM_CONTOUR():
                 return others_contsep_spaxel_index
 
         else:
+            self.target_contsep_mag = -99.0
+
             others_contsep_spaxel_index = np.empty(0)
             return others_contsep_spaxel_index
 
@@ -563,3 +575,30 @@ class SEDM_CONTOUR():
             self.set_target_contour_location()
 
         return self._target_polygon_loc
+
+    @property
+    def target_coords_in_ifu(self):
+        """
+        """
+        if not hasattr(self, "_target_coords_in_ifu"):
+            self.set_target_coords_in_ifu()
+
+        return self._target_coords_in_ifu
+
+    @property
+    def refimg_coords_in_ifu(self):
+        """
+        """
+        if not hasattr(self, "_refimg_coords_in_ifu"):
+            self.set_refimg_coords_in_ifu()
+
+        return self._refimg_coords_in_ifu
+
+    @property
+    def target_others_dist(self):
+        """
+        """
+        if not hasattr(self, "_target_others_dist"):
+            self.set_target_others_dist()
+
+        return self._target_others_dist

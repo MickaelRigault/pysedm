@@ -1385,7 +1385,7 @@ class SEDMExtractStar( BaseObject ):
 
         return fig
 
-    def show_mla(self, ax=None, savefile=None, vmin="2", vmax="98", lbdalim=[6000,9000] ):
+    def show_mla(self, ax=None, savefile=None, vmin="2", vmax="98", lbdalim=[6000,9000], bcoords=None):
         """ Show the MLA, highlighting centroid and used spaxels.
 
         Parameters
@@ -1423,6 +1423,10 @@ class SEDMExtractStar( BaseObject ):
             x,y = np.asarray(self.fitted_cube.index_to_xy(self.fitted_cube.indexes)).T
             ax.plot(x, y, marker=".", ls="None", ms=1, color="k")
             ax.scatter(*self.centroid, **self._centroiddisplay)
+            if bcoords:
+                bx = bcoords[0]
+                by = bcoords[1]
+                ax.plot(bx, by, marker="+", ms=10, color="red")
         else:
             ax.text(0.5,0.95, "Target outside the MLA \n [%.1f, %.1f] (in spaxels)"%(self.centroid[0],self.centroid[1]),
                                     fontsize="large", color="k",backgroundcolor=mpl.cm.binary(0.1,0.4),

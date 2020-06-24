@@ -50,7 +50,7 @@ class Mapper( BaseObject ):
         self._derived_properties["spaxel_slice"] = \
           pyifu.get_slice( self.traceindexes, xy, spaxel_vertices= np.dot( self.hexagrid.grid_rotmatrix, SPAXEL_SHAPE.T ).T )
           
-        self._derived_properties["spaxel_polygon"] = {i:p_ for i,p_ in zip(traceindexes,self.spaxel_slice.get_spaxel_polygon()) }
+        self._derived_properties["spaxel_polygon"] = {i:p_ for i,p_ in zip(traceindexes,self.spaxel_slice.get_spaxel_polygon(remove_nan=True)) }
     # ================= #
     #  Methods          #
     # ================= #

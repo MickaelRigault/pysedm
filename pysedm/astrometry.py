@@ -338,7 +338,13 @@ class Astrometry():
     def _load_parameters_(self, date):
         """ """
         self.date = date
-        if Time(date) > Time("2019-09-06"):
+        if Time(date) >= Time("2020-07-10"):
+            position = 1023.5, 958.5
+            scale=0.55
+            rotation=1
+            print("THIS ONE 2020-10-07")
+
+        elif Time(date) > Time("2019-09-06"):
             position = 1026.5, 976
             scale=0.55
             rotation=1

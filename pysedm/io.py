@@ -222,14 +222,14 @@ def fetch_guider(date, filename, astrom=True, extinction=".fits"):
     print("DEPRECATED fetch_guider(date, filename) -> filename_to_guider(filename)")
     return filename_to_guider(filename, astrom=astrom, extinction=extinction)
 
-def filename_to_guider(filename, astrom=True, extinction=".fits"):
+def filename_to_guider(filename, astrom=True, extinction=".fits", nomd5=True):
     """ """
     date = filename_to_date(filename)
     id_  = filename_to_id(filename)
     guiders =  [l for l in os.listdir( get_datapath(date)) if id_ in l and "guider" in l 
-               and extinction in l ]
+               and extinction in l and (not nomd5 or not l.endswith(".md5"))]
     if astrom:
-        return [get_datapath(date)+"/"+l for l in guiders if "astrom" in l]
+        return [get_datapath(date)+"/"+l for l in guiders if "astrom" in l and (not nomd5 or not l.endswith(".md5"))]
     return guiders
     
 

@@ -3,6 +3,7 @@
 
 """
 This module is to get target or host spaxels in SEDM cube data.
+-v.20201113: add 'convex_hull' option, such as geometry.Polygon.convex_hull, after investigating 20201111_03_36__55_ZTFacdqjeq.
 -v.20200702: 'get_others_spaxels': fix 'spaxel_id' option, when 'forced_addcontsep_mag' works automatically.
 -v.20200622: consider when no other spaxels in contsep mag, e.g. 20200620_ZTF20abffaxl.
 -v.20200619: consider 'target_others_dist' for multiple ref sources.
@@ -26,15 +27,9 @@ import numpy as np
 import matplotlib.pyplot as mpl
 from shapely import geometry
 
-from . import io
-from . import astrometry
-from . import sedm
-
-####################
-#                  #
-#   CLASS          #
-#                  #
-####################
+from pysedm import io
+from pysedm import astrometry
+from pysedm import sedm
 
 def get_spaxels_from_constsep(date, targetid, offset=None, fake_mag=None, forced_mag=None, isomag=None):
     """
@@ -68,6 +63,11 @@ def get_spaxels_from_constsep(date, targetid, offset=None, fake_mag=None, forced
 
     return SEDM_CONTOUR.from_sedmid(date, targetid, offset, fake_mag, forced_mag, isomag)
 
+####################
+#                  #
+#   CLASS          #
+#                  #
+####################
 
 class SEDM_CONTOUR():
 
@@ -359,11 +359,14 @@ class SEDM_CONTOUR():
     def set_host_coords_in_ifu(self):
         """ host identification and get its coordnates in pixel from PS wcs """
 
-        if self.refimg_coords_in_ifu.size == 0:
-            self._host_coords_in_ifu = self.iref.get_refimage_sources_coordinates(inifu=False, where='ifu')
-            #self._host_coords_in_ifu = (-99.0, -99.0)
-        else:
+        if self.refimg_coords_in_ifu.size == 0: # if there is no other source in the cube
+            #self._host_coords_in_ifu = self.iref.get_refimage_sources_coordinates(inifu=False, where='ifu')
+            self._host_coords_in_ifu = ()
 
+        elif self.refimg_coords_in_ifu.size == 2: # if there is only one other souce in the cube (size=2, x and y), that is the host
+            self._host_coords_in_ifu = (float(self.refimg_coords_in_ifu[0]), float(self.refimg_coords_in_ifu[1]))
+
+        else:
             host_coords_in_pspixel = self.iref.photoref.get_host_coords(inpixels=True)
             host_candi_coords_in_rcpixel = self.iref.get_refimage_sources_coordinates(inifu=True, where='ref')
 
@@ -502,8 +505,12 @@ class SEDM_CONTOUR():
                 spaxel_patches[i].set_linewidth(1)
                 spaxel_patches[i].set_zorder(9)
 
-        t1 = "offset=(%.1f, %.1f), contsep_mag for target=%.1f mag (other=%.1f mag)" % (self.offset[0], self.offset[1], self.target_contsep_mag-self.forced_addcontsep_mag, self.target_contsep_mag)
-        t2 = "fake_mag=%.1f mag, forced_mag=%.1f mag" % (self.fake_mag, self.forced_addcontsep_mag)
+        if whostspaxel:
+            t1 = "offset=(%.1f, %.1f), contsep_mag for target=%.1f mag (host=%.1f mag)" % (self.offset[0], self.offset[1], self.target_contsep_mag-self.forced_addcontsep_mag, self.host_contsep_mag)
+            t2 = "fake_mag=%.1f mag, forced_mag=%.1f mag" % (self.fake_mag, self.forced_addcontsep_mag)
+        else:
+            t1 = "offset=(%.1f, %.1f), contsep_mag for target=%.1f mag (other=%.1f mag)" % (self.offset[0], self.offset[1], self.target_contsep_mag-self.forced_addcontsep_mag, self.target_contsep_mag)
+            t2 = "fake_mag=%.1f mag, forced_mag=%.1f mag" % (self.fake_mag, self.forced_addcontsep_mag)
 
         ax.set_xlim(-20,19)
         ax.set_ylim(-24,22)
@@ -541,7 +548,7 @@ class SEDM_CONTOUR():
         else:
             target_contsep_poly = geometry.Polygon(self.ifucounts[ list(self.ifucounts.keys())[0] ][0] )
 
-        target_contsep_spaxel_index = self.cube.get_spaxels_within_polygon(target_contsep_poly) #spaxel index
+        target_contsep_spaxel_index = self.cube.get_spaxels_within_polygon(target_contsep_poly.convex_hull) #spaxel index
 
         if spaxels_id:
             target_contsep_spaxel_ids = np.arange(self.cube.nspaxels)[np.isin(self.cube.indexes,target_contsep_spaxel_index)] #spaxel index to id for drawing.
@@ -587,7 +594,7 @@ class SEDM_CONTOUR():
                  for i in range(0, len(others_contsep_array_index)):
                      others_contsep_polys = geometry.Polygon(self.ifucounts[ list(self.ifucounts.keys())[others_contsep_mag_index] ][others_contsep_array_index[i]] )
 
-                     __others_contsep_spaxel_index = self.cube.get_spaxels_within_polygon(others_contsep_polys) #spaxel index
+                     __others_contsep_spaxel_index = self.cube.get_spaxels_within_polygon(others_contsep_polys.convex_hull) #spaxel index
                      if len(__others_contsep_spaxel_index) > 0:
                          _others_contsep_spaxel_index += __others_contsep_spaxel_index
 
@@ -597,7 +604,7 @@ class SEDM_CONTOUR():
                  for spax_ in _target_contsep_spaxel_index:
                      others_contsep_spaxel_index = others_contsep_spaxel_index[others_contsep_spaxel_index != spax_]
 
-            else:
+            else: # default
                 target_contsep_mag_index, target_contsep_array_index, target_contsep_key = self.get_target_contsep_information(forced_addcontsep=False)
                 others_contsep_mag_index = target_contsep_mag_index
                 others_contsep_array_index = [i for i in range(0,len( self.ifucounts[ list(self.ifucounts.keys())[others_contsep_mag_index] ] )) if i != target_contsep_array_index]
@@ -608,7 +615,7 @@ class SEDM_CONTOUR():
                 for i in range(0, len(others_contsep_array_index)):
                     others_contsep_polys = geometry.Polygon(self.ifucounts[ list(self.ifucounts.keys())[others_contsep_mag_index] ][others_contsep_array_index[i]] )
 
-                    __others_contsep_spaxel_index = self.cube.get_spaxels_within_polygon(others_contsep_polys) #spaxel index
+                    __others_contsep_spaxel_index = self.cube.get_spaxels_within_polygon(others_contsep_polys.convex_hull) #spaxel index
                     if len(__others_contsep_spaxel_index) > 0:
                         _others_contsep_spaxel_index += __others_contsep_spaxel_index
 
@@ -631,7 +638,7 @@ class SEDM_CONTOUR():
             return others_contsep_spaxel_index
 
 
-    def get_host_spaxels(self, spaxels_id=True, update=False):
+    def get_host_spaxels(self, spaxels_id=True, updated=False):
         """
         get host spaxels from the faintest consep (or + forced_addcontsep_mag).
 
@@ -640,29 +647,55 @@ class SEDM_CONTOUR():
         spaxels_id: bool -optional-
             Deafult is return spaxel id (not index).
             If True, return spaxels idenx (for using pysedm).
+        updated: If True, it means 'host_contsep_information' is updated, because of other sources in 'host_contsep_poly'.
 
         Returns
         -------
-        Return spaxel ids or indexes in numpy array.
+        Return host spaxel ids or indexes in numpy array.
         """
 
         _spaxels_id = spaxels_id
 
-        if len(self.host_coords_in_ifu) > 0:
+        if np.nanmin(self.target_others_dist) > 2.0:
+
+            if (self.refimg_coords_in_ifu.size == 0) or (self.refimg_coords_in_ifu.size == 2):
+                self.host_contsep_mag = self.target_contsep_mag
+                return self.get_others_spaxels(spaxels_id=_spaxels_id)
+            else:
+
             #if (self.forced_addcontsep_mag > 0.0) and (self.get_target_faintest_contour() < 26.0):
-        #if np.nanmin(self.target_others_dist) > 2.0:
 
-            if update is False:
-                self._set_host_contsep_information(again=False)
+                if updated is False:
+                    self._set_host_contsep_information(update=False)
 
-            only_host_check = self._host_polygon_check(self.host_contsep_poly)
+                only_host_check = self._host_polygon_check(self.host_contsep_poly)
 
-            if only_host_check is not 1:
-                # means there are host+other src.
-                self._set_host_contsep_information(again=True)
-                self.get_host_spaxels(spaxels_id=_spaxels_id, update=True)
+                if only_host_check is not 1:
+                    # means there are host+other src.
+                    self._set_host_contsep_information(update=True)
+                    self.get_host_spaxels(spaxels_id=_spaxels_id, updated=True)
 
-            host_contsep_spaxel_index = self.cube.get_spaxels_within_polygon(self.host_contsep_poly) #spaxel index
+                host_contsep_spaxel_index = self.cube.get_spaxels_within_polygon(self.host_contsep_poly) #spaxel index
+
+                if spaxels_id:
+                    host_contsep_spaxel_ids = np.arange(self.cube.nspaxels)[np.isin(self.cube.indexes, host_contsep_spaxel_index)] #spaxel index to id for drawing.
+                    return host_contsep_spaxel_ids
+                else:
+                    return np.array(host_contsep_spaxel_index)
+
+        else: # target_others_dist < 2.0
+            self.host_contsep_mag = self.isomag[12]
+
+            len_ = len(self.ifucounts[ list(self.ifucounts.keys())[12] ])
+            array_len = []
+
+            for i in range(0, len_):
+                array_len.append(len(self.ifucounts[ list(self.ifucounts.keys())[12] ][i]))
+
+            array_index = np.argmax(array_len)
+
+            host_contsep_poly = geometry.Polygon(self.ifucounts[ list(self.ifucounts.keys())[12] ][array_index] )
+            host_contsep_spaxel_index = self.cube.get_spaxels_within_polygon(host_contsep_poly.convex_hull) #spaxel index
 
             if spaxels_id:
                 host_contsep_spaxel_ids = np.arange(self.cube.nspaxels)[np.isin(self.cube.indexes, host_contsep_spaxel_index)] #spaxel index to id for drawing.
@@ -670,13 +703,19 @@ class SEDM_CONTOUR():
             else:
                 return np.array(host_contsep_spaxel_index)
 
-        #else:
-        #    host_contsep_poly = geometry.Polygon(self.ifucounts[ list(self.ifucounts.keys())[0] ][0] )
 
-    def _set_host_contsep_information(self, again=False):
+    def _set_host_contsep_information(self, update=False):
         """
+        set host contsep information, like host_contsep_mag, _index, _array_index,
+            and 'host_contsep_poly'gon.
+
+        Parameters
+        ----------
+        update: If True, 'host_contsep_poly' is re-selected with next 'host_contsep_mag_index', like applying forced_addcontsep_mag.
+                It will raised if there are other sources in the 'host_contsep_poly'.
+
         """
-        if again is False:
+        if update is False:
             target_contsep_mag_index, _, _ = self.get_target_contsep_information(forced_addcontsep=False)
             self.host_contsep_mag_index = target_contsep_mag_index
             self.host_contsep_array_index  = int( self.host_polygon_loc[self.host_polygon_loc[:,0] == self.target_contsep_mag][0][3] )
@@ -686,7 +725,7 @@ class SEDM_CONTOUR():
             self.host_contsep_array_index = int( self.host_polygon_loc[self.host_polygon_loc[:,2] == self.host_contsep_mag_index][0][3] )
             self.host_contsep_mag = self.host_polygon_loc[self.host_polygon_loc[:,2] == self.host_contsep_mag_index][0][0]
 
-        self.host_contsep_poly = geometry.Polygon(self.ifucounts[ list(self.ifucounts.keys())[self.host_contsep_mag_index] ][self.host_contsep_array_index] )
+        self.host_contsep_poly = geometry.Polygon(self.ifucounts[ list(self.ifucounts.keys())[self.host_contsep_mag_index] ][self.host_contsep_array_index] ).convex_hull
 
     def _host_polygon_check(self, host_contsep_poly):
         """

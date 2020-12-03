@@ -170,11 +170,18 @@ def get_sedmspec(ascii_data):
     """ """
     from pyifu import get_spectrum
     from astropy.io import fits
+    import ast
     header = fits.Header()
     for d in ascii_data:
         if not d.startswith("#"): continue
-        if "SNID" in d: continue
-        header.set(*d.replace("# ","").split(": "))
+        if "SNID" in d:
+            continue
+        key, value,*_ = d.replace("# ","").split(": ")
+        try:
+            value = ast.literal_eval(value)
+        except:
+            pass # I know
+        header.set(key, value)
 
     spec_data = np.asarray([d.split() for d in ascii_data if not d.startswith("#")], dtype="float").T
     return get_spectrum(*spec_data, header=header)
@@ -1278,8 +1285,8 @@ class SEDMExtractStar( BaseObject ):
         expt = self.spectrum.header['EXPTIME']
         for i,sl_ in enumerate(self.es_products["psffit"].slices.values()):
             color = colors[i]
-            ax.errorbar(np.mean(sl_["lbdarange"]), sl_["slpsf"].fitvalues["amplitude"]/expt,
-                                    yerr=sl_["slpsf"].fitvalues["amplitude.err"]/expt,
+            ax.errorbar(np.mean(sl_["lbdarange"]), sl_["slpsf"].fitvalues["amplitude"]*sl_["slpsf"].fitvalues["used_amplscale"]/expt,
+                                    yerr=sl_["slpsf"].fitvalues["amplitude.err"]*sl_["slpsf"].fitvalues["used_amplscale"]/expt,
                                     marker="o", ls="None",
                                     ecolor="0.7", mfc=color, mec="0.7", ms=10, zorder=5)
             ax.axvspan(*sl_["lbdarange"], color=color, alpha=0.2, zorder=1)
@@ -1625,7 +1632,6 @@ class SEDMCube( Cube ):
     """ SEDM Cube """
     DERIVED_PROPERTIES = ["sky"]
 
-
     def extract_pointsource(self, display=False, displayprop={},
                                 step1range=[4500,7000], step1bins=6,
                                 centroid="auto", prop_position={},
@@ -1654,6 +1660,7 @@ class SEDMCube( Cube ):
         #from . import astrometry
         from shapely import geometry
 
+        if verbose: print(f"* Starting ExtractStar using the '{psfmodel}' model")
         # input convertion
         self.extractstar = SEDMExtractStar(self)
         self.extractstar.set_lbdastep1(lbdarange=step1range, bins=step1bins)

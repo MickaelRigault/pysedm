@@ -66,9 +66,9 @@ def position_source(cube,
         
     # OPTION 2: Use astrometry of guider images for position, if possible
     elif centroid is None or centroid in ["None"]:
-        xcentroid, ycentroid = get_object_ifu_pos(cube)
+        xcentroid, ycentroid = guess_target_pos(cube.filename)
         
-        if np.isnan(xcentroid*ycentroid):
+        if xcentroid is None or ycentroid is None or np.isnan(xcentroid*ycentroid):
             # FAILS... go back to OPTION 1
             print("IFU target location based on CCD astrometry failed. "
                   "centroid guessed based on brightness used instead")
@@ -157,6 +157,8 @@ def guess_target_pos(filename, parameters=None, oldmethod=False):
         return oldversion_get_target_pos(filename, parameters=parameters)
     
     astro = Astrometry(filename)
+    if not astro.is_astrom_file_available():
+        return None, None
     return astro.get_target_coordinate()
 
 
@@ -342,37 +344,33 @@ class Astrometry():
             position = 1039.5,968.5
             scale=0.55
             rotation=1
-            print("THIS ONE 2020-08-28")
         
         elif Time(date) >= Time("2020-08-28"):
             position = 1027.5,950.5
             scale=0.55
             rotation=1
-            print("THIS ONE 2020-08-28")
 
         elif Time(date) >= Time("2020-07-10"):
             position = 1023.5, 958.5
             scale=0.55
             rotation=1
-            print("THIS ONE 2020-10-07")
 
         elif Time(date) > Time("2019-09-06"):
             position = 1026.5, 976
             scale=0.55
             rotation=1
-            print("THIS ONE 2019-09-06")
             
         elif Time(date) > Time("2019-05-14"):
             position = 1026.5, 975.3
             scale=0.55
             rotation=1
-            print("THIS ONE *2019-05-14*")
             
         elif Time(date) > Time("2019-04-23"):
-            print("WARNING TIME RANGE NOT DONE")
+            print("WARNING TIME RANGE NOT DONE '2019-04-23' ")
             position = 1027, 975
             scale=0.55
-            rotation=2            
+            rotation=2
+            
         elif Time(date) > Time("2019-04-18"):
             print("WARNING TIME RANGE NOT DONE")
             position = 1027, 975
@@ -499,6 +497,20 @@ class Astrometry():
         offset_spaxels = np.dot(rot, (np.asarray([spaxelx, spaxely]).T- self.ifu_offset).T) 
         return ((offset_spaxels.T* scaling) / units.deg.to("arcsec") + self.ifucentroid_radec).T
 
+    def is_astrom_file_available(self):
+        """ """
+        # Already has an astromfile loaded.
+        if hasattr(self,"_astromfile") and self._astromfile is not None:
+            return True
+        
+        fileastrom = io.filename_to_guider(self.filename)
+        if fileastrom is None or len(fileastrom)==0:
+            return False
+        return True
+        
+
+        
+        
     # -------- #
     # PLOTTER  #
     # -------- #
@@ -506,6 +518,8 @@ class Astrometry():
         """ """
         return self.guider.show(**{**dict(show_catalogue=True), **kwargs})
 
+    
+    
     # ================ #
     #  Properties      #
     # ================ #
@@ -516,7 +530,7 @@ class Astrometry():
             try:
                 self._astromfile = io.filename_to_guider(self.filename)[0]
             except:
-                raise IOError("No ")
+                raise IOError(f"No astrometric file for {self.filename}")
         return self._astromfile
     
     @property

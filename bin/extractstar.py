@@ -75,6 +75,19 @@ if  __name__ == "__main__":
     parser.add_argument('--contsep_forcedmag', type=float, default=0.0,
                         help="Addition to contsep_mag to select more host spaxels.")
 
+    # Cosmic ray removal with byecr.py
+    parser.add_argument('--byecr', action="store_true", default=False,
+                         help="Shall this run byecr to remove cosmic rays at a specific spaxel at a specific wavelengh.")
+
+    parser.add_argument('--byecr_lbda', type=float, default=None,
+                         help="To check cosmic rays at a given wavelength.")
+
+    parser.add_argument('--byecr_cut', type=float, default=5.0,
+                         help="Cut criteria for byecr module.")
+
+    parser.add_argument('--byecr_wspectral', action="store_true", default=False,
+                         help="Also use a spectral filtering for byecr.")
+
     # Centroid
     parser.add_argument('--centroid',  type=str, default="auto", nargs="+",
                         help='Where is the point source expected to be ?'+
@@ -227,6 +240,18 @@ if  __name__ == "__main__":
                                                              fake_mag=args.contsep_fakemag,
                                                              forced_mag=args.contsep_forcedmag)
                     es_options["spaxels_to_avoid"] =  list( cont.get_others_spaxels(spaxels_id=False) )
+
+                if args.byecr:
+                    from pysedm import byecr
+                    print(" Starting byecr cosmic ray removal ".center(50, "-"))
+                    targetid = io.filename_to_id(filecube)
+                    byecrclass = byecr.get_cr_spaxels_from_byecr(date, targetid)
+                    cr_df = byecrclass.get_cr_spaxel_info(lbda_index=args.byecr_lbda,
+                                                          cut_criteria=args.byecr_cut,
+                                                          wspectral=args.byecr_wspectral)
+
+                    cube.data[cr_df["cr_lbda_index"], cr_df["cr_spaxel_index"]] = np.nan
+
 
                 # ===================== #
                 # SOURCE EXTRACTION     #

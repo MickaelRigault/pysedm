@@ -27,9 +27,9 @@ import numpy as np
 import matplotlib.pyplot as mpl
 from shapely import geometry
 
-from pysedm import io
-from pysedm import astrometry
-from pysedm import sedm
+from . import io
+from . import astrometry
+from . import sedm
 
 def get_spaxels_from_constsep(date, targetid, offset=None, fake_mag=None, forced_mag=None, isomag=None):
     """

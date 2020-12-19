@@ -241,6 +241,7 @@ if  __name__ == "__main__":
                                                              forced_mag=args.contsep_forcedmag)
                     es_options["spaxels_to_avoid"] =  list( cont.get_others_spaxels(spaxels_id=False) )
 
+                # Remove cosmic ray at a specific spaxel at a given wavelength.
                 if args.byecr:
                     from pysedm import byecr
                     print(" Starting byecr cosmic ray removal ".center(50, "-"))
@@ -279,6 +280,10 @@ if  __name__ == "__main__":
                     es_object.raw_spectrum.header.set("CONTMAG", cont.target_contsep_mag, "contsep splitting magnitude")
                     es_object.raw_spectrum.header.set("NCONTSPX", len(es_options["spaxels_to_avoid"]), "total number of non-target spaxels from contsep")
 
+                if args.byecr:
+                    es_object.raw_spectrum.header.set("NCR", len(cr_df), "total number of detected cosmic-rays from byecr")
+                    es_object.raw_spectrum.header.set("NCRSPX", len(np.unique(cr_df["cr_spaxel_index"])), "total number of cosmic-ray affected spaxels")
+
                 # -
                 # - SAVING
                 # -
@@ -304,6 +309,9 @@ if  __name__ == "__main__":
                     if args.contsep:
                         cont.show_ifudata( wcontour=False, wtargetspaxel=True, wotherspaxel=True,
                         savefile=es_object.basename.replace("{placeholder}","contsep" + plot_tag) )
+                    if args.byecr:
+                        byecrclass.show_cr_spaxels( lbda_index=args.byecr_lbda, cut_criteria=args.byecr_cut, wspectral=args.byecr_wspectral,
+                        savefile=es_object.basename.replace("{placeholder}","byecr" + plot_tag) )
 
                 # -
                 # - Standard Specific

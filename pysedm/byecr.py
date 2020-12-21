@@ -3,7 +3,7 @@
 
 """
 This module is to remove cosmic ray spaxels in the SEDM datacube.
--v20201218: add "show_cr_spaxels".
+-v20201218-1221: add "show_cr_spaxels".
 -v20201110.
 """
 
@@ -335,7 +335,7 @@ class SEDM_BYECR():
     # SHOW
     #
 
-    def show_cr_spaxels(self, lbda_index=None, wspectral=False, cut_criteria=5, savefile=None):
+    def show_cr_spaxels(self, wcube=False, lbda_index=None, wspectral=False, cut_criteria=5, savefile=None):
         """ """
 
         cr_df = self.get_cr_spaxel_info(lbda_index=lbda_index, wspectral=wspectral, cut_criteria=cut_criteria)
@@ -343,15 +343,26 @@ class SEDM_BYECR():
         fig = mpl.figure(figsize=[5,5])
 
         ax = fig.add_subplot(111)
-        spaxel_patches = self.cube._display_im_(ax, vmin="5", vmax="99")
-
-        for i_cr in np.unique(cr_df["cr_spaxel_index"]):
-            spaxel_patches[i_cr].set_edgecolor("blue")
-            spaxel_patches[i_cr].set_linewidth(2)
-            spaxel_patches[i_cr].set_zorder(13)
 
         _text = "Number of detected cosmic rays = %i\nNumber of affected spaxels: %i" %( len(cr_df), len(np.unique(cr_df["cr_spaxel_index"])) )
-        ax.text(-20, 23.0, _text, fontsize=10)
+
+        if wcube:
+            spaxel_patches = self.cube._display_im_(ax, vmin="5", vmax="99")
+
+            for i_cr in np.unique(cr_df["cr_spaxel_index"]):
+                spaxel_patches[i_cr].set_edgecolor("blue")
+                spaxel_patches[i_cr].set_linewidth(2)
+                spaxel_patches[i_cr].set_zorder(13)
+
+            ax.text(-20, 23.0, _text, fontsize=10)
+        else: #only text
+            ax.set_xlim(0, 10)
+            ax.set_ylim(0, 10)
+            ax.xaxis.set_visible(False)
+            ax.yaxis.set_visible(False)
+
+            ax.text(0.2, 5, _text, fontsize=13)
+
 
         if savefile is not None:
             fig.savefig( savefile )

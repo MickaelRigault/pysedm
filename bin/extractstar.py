@@ -88,6 +88,12 @@ if  __name__ == "__main__":
     parser.add_argument('--byecr_wspectral', action="store_true", default=False,
                          help="Also use a spectral filtering for byecr.")
 
+    parser.add_argument('--byecr_noshowcube', action="store_true", default=False,
+                         help="Show no cube with detected cosmic rays.")
+
+    parser.add_argument('--byecr_showcube', dest="byecr_noshowcube", action="store_true", default=True,
+                         help="Show a cube with detected cosmic rays.")
+
     # Centroid
     parser.add_argument('--centroid',  type=str, default="auto", nargs="+",
                         help='Where is the point source expected to be ?'+
@@ -253,6 +259,9 @@ if  __name__ == "__main__":
 
                     cube.data[cr_df["cr_lbda_index"], cr_df["cr_spaxel_index"]] = np.nan
 
+                    print("Number of detected cosmic rays = %i" %len(cr_df))
+                    print("Number of cosmic ray affected spaxels = %i" %len(np.unique(cr_df["cr_spaxel_index"])))
+
 
                 # ===================== #
                 # SOURCE EXTRACTION     #
@@ -310,7 +319,7 @@ if  __name__ == "__main__":
                         cont.show_ifudata( wcontour=False, wtargetspaxel=True, wotherspaxel=True,
                         savefile=es_object.basename.replace("{placeholder}","contsep" + plot_tag) )
                     if args.byecr:
-                        byecrclass.show_cr_spaxels( lbda_index=args.byecr_lbda, cut_criteria=args.byecr_cut, wspectral=args.byecr_wspectral,
+                        byecrclass.show_cr_spaxels( wcube=args.byecr_noshowcube, lbda_index=args.byecr_lbda, cut_criteria=args.byecr_cut, wspectral=args.byecr_wspectral,
                         savefile=es_object.basename.replace("{placeholder}","byecr" + plot_tag) )
 
                 # -

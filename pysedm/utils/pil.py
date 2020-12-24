@@ -26,7 +26,7 @@ def get_image_row(images, interpolation=3, height="min"):
     return Image.fromarray(imgs_comn)
 
 def get_image_column(images, interpolation=3, width="min"):
-    """ combine PIL images in column from top to bottol  """
+    """ combine PIL images in column from top to bottom  """
     if type(width) is str:
         width   = getattr(np, width)([img_.size[0] for img_ in images])
     elif type(width) in [int, float]:

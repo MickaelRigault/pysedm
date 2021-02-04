@@ -68,7 +68,6 @@ if  __name__ == "__main__":
         for target in args.auto.split(","):
 
             filecubes = io.get_night_files(date, "cube.*", target=target.replace(".fits","")) if not args.inputcube else [target]
-            print(filecubes)
             print("cube file from which the cosmic-ray will be removed [auto]: "+ ", ".join(filecubes))
 
             # - loop over the file cube

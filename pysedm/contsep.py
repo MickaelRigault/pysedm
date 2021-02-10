@@ -3,6 +3,7 @@
 
 """
 This module is to get target or host spaxels in SEDM cube data.
+-v.20210209: add 'remove target spaxel' for default 'get_others_spaxels()', e.g., 20210204_ZTF21aagtqna.
 -v.20201113: add 'convex_hull' option, such as geometry.Polygon.convex_hull, after investigating 20201111_03_36__55_ZTFacdqjeq.
 -v.20200702: 'get_others_spaxels': fix 'spaxel_id' option, when 'forced_addcontsep_mag' works automatically.
 -v.20200622: consider when no other spaxels in contsep mag, e.g. 20200620_ZTF20abffaxl.
@@ -620,6 +621,10 @@ class SEDM_CONTOUR():
                         _others_contsep_spaxel_index += __others_contsep_spaxel_index
 
                 others_contsep_spaxel_index = np.unique(_others_contsep_spaxel_index) #spaxel index
+
+                # remove target spaxel
+                for spax_ in _target_contsep_spaxel_index:
+                    others_contsep_spaxel_index = others_contsep_spaxel_index[others_contsep_spaxel_index != spax_]
 
             if (others_contsep_spaxel_index.size < 10) and (self.forced_addcontsep_mag < 1.6):
                 self.forced_addcontsep_mag += 0.5

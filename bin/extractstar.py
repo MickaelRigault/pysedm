@@ -88,11 +88,9 @@ if  __name__ == "__main__":
     parser.add_argument('--byecr_wspectral', action="store_true", default=False,
                          help="Also use a spectral filtering for byecr.")
 
-    parser.add_argument('--byecr_noshowcube', action="store_true", default=False,
-                         help="Show no cube with detected cosmic rays.")
-
-    parser.add_argument('--byecr_showcube', dest="byecr_noshowcube", action="store_true", default=True,
+    parser.add_argument('--byecr_showcube', action="store_true", default=False,
                          help="Show a cube with detected cosmic rays.")
+
 
     # Centroid
     parser.add_argument('--centroid',  type=str, default="auto", nargs="+",
@@ -318,8 +316,8 @@ if  __name__ == "__main__":
                     if args.contsep:
                         cont.show_ifudata( wcontour=False, wtargetspaxel=True, wotherspaxel=True,
                         savefile=es_object.basename.replace("{placeholder}","contsep" + plot_tag) )
-                    if args.byecr:
-                        byecrclass.show_cr_spaxels( wcube=args.byecr_noshowcube, lbda_index=args.byecr_lbda, cut_criteria=args.byecr_cut, wspectral=args.byecr_wspectral,
+                    if args.byecr_showcube:
+                        byecrclass.show_cr_spaxels( wcube=args.byecr_showcube, lbda_index=args.byecr_lbda, cut_criteria=args.byecr_cut, wspectral=args.byecr_wspectral,
                         savefile=es_object.basename.replace("{placeholder}","byecr" + plot_tag) )
 
                 # -

@@ -27,11 +27,11 @@ LEGENDRE_GAUSS= False
 # ------------------ #
 def build_background(ccd,
                     smoothing=[0,5],
-                    start=2, jump=10, multiprocess=True, notebook=False,
+                    start=2, jump=10, multiprocess=True, 
                     savefile=None, ncore=None):
     """ """
     from .io import is_stdstars, filename_to_background_name
-    ccd.fit_background(start=start, jump=jump, multiprocess=multiprocess, notebook=notebook,
+    ccd.fit_background(start=start, jump=jump, multiprocess=multiprocess, 
                        set_it=False, is_std= is_stdstars(ccd.header), smoothing=smoothing,
                        ncore=ncore)
     
@@ -71,7 +71,7 @@ def get_contvalue_sdt(spec):
     return spec.contmodel.fitvalues
 
 def fit_background(ccd, start=2, jump=10, multiprocess=True,
-                       ncore=None, notebook=True, is_std=False):
+                       ncore=None, is_std=False):
     """ calling `get_contvalue` for each ccd column (xslice).
     This uses astropy's ProgressBar.map 
 
@@ -80,7 +80,6 @@ def fit_background(ccd, start=2, jump=10, multiprocess=True,
     dictionary 
     """
     # Running from ipython notebook
-    warnings.warn("DEPRECATION WARNING (background.fit_background()), the notebook key word is no longer used")
     notebook = tools.is_running_from_notebook()
     
     index_column = range(ccd.width)[start::jump]

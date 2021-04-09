@@ -172,7 +172,7 @@ if  __name__ == "__main__":
         for target in args.buildbkgd.split(","):
             build_backgrounds(date, target=target,
                             lamps=True, only_lamps=True, skip_calib=True, 
-                            notebook=False, ncore=args.ncore)
+                            ncore=args.ncore)
             
     # -----------
     # 
@@ -180,7 +180,7 @@ if  __name__ == "__main__":
     # - TraceMatch
     if args.tracematch or args.tracematchnomasks:
         build_tracematcher(date, save_masks= True if not args.tracematchnomasks else False,
-                           notebook=False, rebuild=args.rebuild, ncore=args.ncore)
+                           rebuild=args.rebuild, ncore=args.ncore)
         
     # - Hexagonal Grid        
     if args.hexagrid:

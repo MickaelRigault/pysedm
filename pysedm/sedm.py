@@ -1853,7 +1853,7 @@ class SEDMCube( Cube ):
                  interactive=False, ccd=None,
                  savefile=None, ax=None, show=True,
                  show_meanspectrum=True, cmap=None,
-                 vmin=None, vmax=None, notebook=None,
+                 vmin=None, vmax=None, 
                  **kwargs):
         """ Display the cube.
 
@@ -1909,11 +1909,6 @@ class SEDMCube( Cube ):
         show: [bool] -optional-
             If you do not save the data (see savefile), shall the plot be shown?
 
-        notebook: [bool or None] -optional-
-            Is this running from a notebook?
-            If True, the plot will be made using fig.show() if not with mpl.show()
-            If None, this will try to guess.
-
 
         **kwargs goes to matplotlib's imshow
 
@@ -1921,7 +1916,6 @@ class SEDMCube( Cube ):
         -------
         Void
         """
-        warnings.warn("DEPRECATION WARNING (sedm | show()), the notebook key word is no longer used")
         notebook = tools.is_running_from_notebook()
 
         if not interactive or ccd is None:

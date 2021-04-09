@@ -239,14 +239,12 @@ def verts_to_mask(verts):
     return maskfull.T
     
 
-def load_trace_masks(tmatch, trace_indexes=None, multiprocess=True,
-                         notebook=True, ncore=None):
+def load_trace_masks(tmatch, trace_indexes=None, multiprocess=True, ncore=None):
     """ """
     if trace_indexes is None:
         trace_indexes = tmatch.trace_indexes
     
     if multiprocess:
-        warnings.warn("DEPRECATION WARNING (spectralmatching.load_trace_masks()), the notebook key word is no longer used")
         notebook = tools.is_running_from_notebook()
 
         import multiprocessing

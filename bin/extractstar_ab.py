@@ -133,6 +133,19 @@ if __name__ == "__main__":
                         help='Set this to True to tell the program you want to '
                              'build a calibration spectrum from this object')
 
+    # Cosmic ray removal with byecr.py
+    parser.add_argument('--byecr', action="store_true", default=False,
+                         help="Shall this run byecr to remove cosmic rays at a specific spaxel at a specific wavelengh.")
+
+    parser.add_argument('--byecr_lbda', type=float, default=None,
+                         help="To check cosmic rays at a given wavelength.")
+
+    parser.add_argument('--byecr_cut', type=float, default=5.0,
+                         help="Cut criteria for byecr module.")
+
+    parser.add_argument('--byecr_wspectral', action="store_true", default=False,
+                         help="Also use a spectral filtering for byecr.")
+
     args = parser.parse_args()
 
     # ================= #
@@ -218,7 +231,26 @@ if __name__ == "__main__":
                     #
                     "verbose": True,
                     }
-                
+
+                # Remove cosmic ray at a specific spaxel at a given wavelength.
+                if args.byecr:
+                    from pysedm import byecr
+
+                    print(" Starting byecr cosmic ray removal ".center(50, "-"))
+                    targetid = io.filename_to_id(filecube)
+                    byecrclass = byecr.get_cr_spaxels_from_byecr(in_date, targetid)
+                    cr_df = byecrclass.get_cr_spaxel_info(
+                        lbda_index=args.byecr_lbda,
+                        cut_criteria=args.byecr_cut,
+                        wspectral=args.byecr_wspectral)
+
+                    cube.data[cr_df["cr_lbda_index"], cr_df[
+                        "cr_spaxel_index"]] = np.nan
+
+                    print("Number of detected cosmic rays = %i" % len(cr_df))
+                    print("Number of cosmic ray affected spaxels = %i" % len(
+                        np.unique(cr_df["cr_spaxel_index"])))
+
                 # ===================== #
                 # SOURCE EXTRACTION     #
                 # ===================== #
@@ -328,6 +360,11 @@ if __name__ == "__main__":
                         savefile=es_object.basename.replace(
                             "{placeholder}", "psfprofile" + plot_tag),
                         sliceid=2)
+
+                if args.byecr:
+                    es_object.raw_spectrum.header.set("NCR", len(cr_df), "total number of detected cosmic-rays from byecr")
+                    es_object.raw_spectrum.header.set("NCRSPX", len(np.unique(cr_df["cr_spaxel_index"])), "total number of cosmic-ray affected spaxels")
+
                 # Generate A/B spectrum
                 spec_A = es_object.get_spectrum()
 

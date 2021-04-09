@@ -248,6 +248,10 @@ def fit_spaxel_wavelesolution(arccollection, sequential=True,
 
 def fit_wavesolution(lamps, indexes, multiprocess=True, notebook=False):
     """ """
+    from .utils import tools
+    warnings.warn("DEPRECATION WARNING (wavesolution.fit_wavesolution()), the notebook key word is no longer used")
+    notebook = tools.is_running_from_notebook()
+
     if notebook:
         print("RUNNING FROM NOTEBOOK")
         try:

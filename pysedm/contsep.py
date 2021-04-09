@@ -292,7 +292,7 @@ class SEDM_CONTOUR():
               This case, let's try only with 'area' method: "get_target_faintest_contour(method='area')."
         """
 
-        if method is "both":
+        if method == "both":
             area_method = self.get_target_faintest_contour_w_area_method()
             counting_method = self.get_target_faintest_contour_w_counting_method()
 
@@ -305,7 +305,7 @@ class SEDM_CONTOUR():
                 target_consep_mag_ = counting_method
                 return target_consep_mag_
 
-        elif method is "area":
+        elif method == "area":
             area_method = self.get_target_faintest_contour_w_area_method()
             counting_method = "Not used."
 
@@ -313,7 +313,7 @@ class SEDM_CONTOUR():
 
             return target_contsep_mag_
 
-        elif method is "counting":
+        elif method == "counting":
             counting_method = self.get_target_faintest_contour_w_counting_method()
             area_method = "Not used."
 
@@ -675,7 +675,7 @@ class SEDM_CONTOUR():
 
                 only_host_check = self._host_polygon_check(self.host_contsep_poly)
 
-                if only_host_check is not 1:
+                if only_host_check != 1:
                     # means there are host+other src.
                     self._set_host_contsep_information(update=True)
                     self.get_host_spaxels(spaxels_id=_spaxels_id, updated=True)

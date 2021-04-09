@@ -29,7 +29,11 @@ if  __name__ == "__main__":
     
     parser.add_argument('--solvewcs',  action="store_true", default=False,
                         help='Shall the wcs solution of the guider be solved (ignored if --noguider). [part of the --build]')
-    
+
+    parser.add_argument('--ncore',  type=int, default=None,
+                        help='Number of cores to use for multiprocessing. ncore=1 means no multiprocessing.')
+
+    ncore
     # --------------- #
     #  Cube Building  #
     # --------------- #
@@ -96,8 +100,6 @@ if  __name__ == "__main__":
     # ----------------- #
     #  Short Cuts       #
     # ----------------- #
-    
-    
     parser.add_argument('--allcalibs', action="store_true", default=False,
                         help='')
     
@@ -154,7 +156,8 @@ if  __name__ == "__main__":
                              solve_wcs = args.solvewcs,
                              savefig = False if args.nofig else True,
                              flexure_corrected = False if args.noflexure else True,
-                             traceflexure_corrected = False if args.notraceflexure else True)
+                             traceflexure_corrected = False if args.notraceflexure else True,
+                             ncore=args.ncore)
             
     if args.buildcal is not None:
         if args.buildcal=="*": args.buildcal=args.build
@@ -169,7 +172,7 @@ if  __name__ == "__main__":
         for target in args.buildbkgd.split(","):
             build_backgrounds(date, target=target,
                             lamps=True, only_lamps=True, skip_calib=True, 
-                            notebook=False)
+                            notebook=False, ncore=args.ncore)
             
     # -----------
     # 
@@ -177,7 +180,7 @@ if  __name__ == "__main__":
     # - TraceMatch
     if args.tracematch or args.tracematchnomasks:
         build_tracematcher(date, save_masks= True if not args.tracematchnomasks else False,
-                           notebook=False, rebuild=args.rebuild)
+                           notebook=False, rebuild=args.rebuild, ncore=args.ncore)
         
     # - Hexagonal Grid        
     if args.hexagrid:
@@ -201,7 +204,7 @@ if  __name__ == "__main__":
                         lbda_min=lbda_min,
                         lbda_max=lbda_max,
                         ref=args.flatref, build_ref=True,
-                        savefig=~args.nofig)
+                        savefig=~args.nofig, ncore=args.ncore)
         # Now calc stats
         from pysedm import ccd
         from pysedm.io import get_datapath

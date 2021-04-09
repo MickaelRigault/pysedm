@@ -28,7 +28,7 @@ from ..sedm import INDEX_CCD_CONTOURS, TRACE_DISPERSION, build_sedmcube, build_c
 def build_tracematcher(date, verbose=True, width=None,
                            save_masks=False,
                            rebuild=False,
-                           notebook=False):
+                           notebook=False, ncore=None):
     
     """ Create Spaxel trace Solution 
     This enable to know which pixel belong to which spaxel
@@ -79,7 +79,7 @@ def build_tracematcher(date, verbose=True, width=None,
         if not rebuild and len(glob(timedir+"%s_TraceMatch_WithMasks.pkl"%date))>0:
             warnings.warn("TraceMatch_WithMasks already exists for %s. rebuild is False, so nothing is happening"%date)
             return
-        load_trace_masks(smap, smap.get_traces_within_polygon(INDEX_CCD_CONTOURS), notebook=notebook)
+        load_trace_masks(smap, smap.get_traces_within_polygon(INDEX_CCD_CONTOURS), notebook=notebook, ncore=ncore)
         smap.writeto(timedir+"%s_TraceMatch_WithMasks.pkl"%date)
     
 ############################
@@ -108,7 +108,7 @@ def build_hexagonalgrid(date, xybounds=None, theta=None):
 ############################
 def build_flatfield(date, lbda_min=7000, lbda_max=9000,
                     ref="dome", build_ref=True,
-                    kind="median", savefig=True):
+                    kind="median", savefig=True, ncore=None):
     """ """
     from ..sedm import get_sedmcube
     from pyifu.spectroscopy  import get_slice
@@ -129,7 +129,7 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000,
         # - The CCD
         ccdreffile = io.get_night_files(date, kind="ccd.lamp", target=ref)[0]
         ccdref     = get_ccd(ccdreffile, tracematch = tmatch, background = 0)
-        ccdref.fetch_background(set_it=True, build_if_needed=True)
+        ccdref.fetch_background(set_it=True, build_if_needed=True, ncore=ncore)
         if not ccdref.has_var():
             ccdref.set_default_variance()
         # - HexaGrid
@@ -184,7 +184,7 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000,
 def build_backgrounds(date, smoothing=[0,5], start=2, jump=10, 
                         target=None, lamps=True, only_lamps=False, skip_calib=True,
                         multiprocess=True,
-                        savefig=True, notebook=False, **kwargs):
+                        savefig=True, notebook=False, ncore=None):
     """ """
     from ..background import build_background
     timedir  = io.get_datapath(date)
@@ -203,7 +203,8 @@ def build_backgrounds(date, smoothing=[0,5], start=2, jump=10,
         build_background(get_ccd(file_, tracematch=tmap, background=0),
                         start=start, jump=jump, multiprocess=multiprocess, notebook=notebook,
                         smoothing=smoothing,
-            savefile = None if not savefig else timedir+"bkgd_%s.pdf"%(file_.split('/')[-1].replace(".fits","")))
+                        savefile = None if not savefig else timedir+"bkgd_%s.pdf"%(file_.split('/')[-1].replace(".fits","")),
+                        ncore=ncore)
         
     
 ############################
@@ -308,7 +309,7 @@ def build_wavesolution(date, verbose=False, ntest=None, idxrange=None,
 #                          #
 ############################
 def build_night_cubes(date, target=None, lamps=True, only_lamps=False,
-                          skip_calib=True, **kwargs):
+                          skip_calib=True, ncore=None, **kwargs):
     """ 
     """
     fileccds = []
@@ -319,8 +320,8 @@ def build_night_cubes(date, target=None, lamps=True, only_lamps=False,
         if skip_calib: crrfiles = [f for f in crrfiles if "Calib" not in fits.getval(f,"Name")]            
         fileccds += crrfiles
 
-    print(fileccds)
-    build_cubes(fileccds, date, **kwargs)
+    print("fileccds:", fileccds)
+    build_cubes(fileccds, date, ncore=ncore, **kwargs)
 
 
 # ----------------- #
@@ -340,7 +341,8 @@ def build_cubes(ccdfiles,  date, lbda=None,
                 # Out
                 build_guider=True, solve_wcs=False,
                 fileindex=None,
-                savefig=True, verbose=True, notebook=False):
+                savefig=True, verbose=True, notebook=False,
+                ncore=None):
     """ Build a cube from the an IFU ccd image. This image 
     should be bias corrected and cosmic ray corrected.
 
@@ -442,11 +444,12 @@ def build_cubes(ccdfiles,  date, lbda=None,
                               correct_traceflexure = traceflexure_corrected,
                               savefile_traceflexure=flexuresavefile)
         if traceflexure_corrected:
-            load_trace_masks(ccd_.tracematch, ccd_.tracematch.get_traces_within_polygon(INDEX_CCD_CONTOURS),
-                                 notebook=notebook)
+            load_trace_masks(ccd_.tracematch,
+                                ccd_.tracematch.get_traces_within_polygon(INDEX_CCD_CONTOURS),
+                                notebook=notebook, ncore=ncore)
             
         if not nobackground:
-            ccd_.fetch_background(set_it=True, build_if_needed=True)
+            ccd_.fetch_background(set_it=True, build_if_needed=True, ncore=ncore)
             ccd_.header["CCDBKGD"] = (True, "is the ccd been background subtracted?")
         else:
             ccd_.header["CCDBKGD"] = (False, "is the ccd been background subtracted?")

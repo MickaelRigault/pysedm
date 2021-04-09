@@ -11,7 +11,7 @@ from datetime import datetime
 from propobject           import BaseObject
 # pyifu
 from pyifu.spectroscopy   import Cube, Spectrum, get_spectrum, load_spectrum
-from .utils.tools         import kwargs_update, is_arraylike
+from .utils import tools
 
 from . import io
 
@@ -1701,7 +1701,7 @@ class SEDMCube( Cube ):
             sourcex, sourcey = np.ones( len(self.lbda) )*xref,np.ones( len(self.lbda) )*yref
 
         # - Radius
-        if not is_arraylike(radius):
+        if not tools.is_arraylike(radius):
             radius = np.ones(len(self.lbda))*radius
         elif len(radius)!= len(self.lbda):
             raise TypeError("The radius size must be a constant or have the same lenth as self.lbda")
@@ -1803,13 +1803,13 @@ class SEDMCube( Cube ):
         -------
         Void (loads the self.adr)
         """
-        adr_prop = kwargs_update( dict(pressure=pressure,
+        adr_prop = {**dict(pressure=pressure,
                                        lbdaref=lbdaref,
                                        temperature=self.header["IN_AIR"],
                                        relathumidity=self.header["IN_HUM"],
                                        airmass=self.header.get('AIRMASS', 1.1),
                                        parangle=self.header['TEL_PA']),
-                                **kwargs)
+                    **kwargs}
         return super(SEDMCube, self).load_adr(**adr_prop)
 
     def remove_sky(self, nspaxels=50, usemean=False,
@@ -1921,6 +1921,9 @@ class SEDMCube( Cube ):
         -------
         Void
         """
+        warnings.warn("DEPRECATION WARNING (sedm | show()), the notebook key word is no longer used")
+        notebook = tools.is_running_from_notebook()
+
         if not interactive or ccd is None:
             return super(SEDMCube, self).show(toshow=toshow, interactive=interactive,
                                            savefile=savefile, ax=ax, show=show,
@@ -2024,7 +2027,7 @@ class ApertureSpectrum( Spectrum ):
         -------
         Void, affect the object (data, variance)
         """
-        if not is_arraylike(coef) or len(coef)==1 or np.shape(coef)==self.data.shape:
+        if not tools.is_arraylike(coef) or len(coef)==1 or np.shape(coef)==self.data.shape:
 
             self._properties["rawdata"]  = self.rawdata / coef
             if self.has_variance():

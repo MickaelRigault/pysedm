@@ -466,8 +466,10 @@ class CCD( BaseCCD ):
             self.set_background(self._background.background, force_it=True)
 
 
-    def fetch_background(self, set_it=True, build_if_needed=True, **kwargs):
-        """ """
+    def fetch_background(self, set_it=True, build_if_needed=True, ncore=None, **kwargs):
+        """ 
+        ncore is used only if build_background() is called.
+        """
         from .background import load_background
         from .io import filename_to_background_name
         # ---------------- #
@@ -479,7 +481,7 @@ class CCD( BaseCCD ):
             if not build_if_needed:
                 raise IOError("Since build_if_needed=False, No background available.")
             from .background import build_background
-            build_background(self, **kwargs)
+            build_background(self, ncore=ncore, **kwargs)
             warnings.warn("A background has been built")
 
         self._background = load_background( filename_to_background_name( self.filename ))

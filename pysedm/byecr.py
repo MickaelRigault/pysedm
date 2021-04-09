@@ -173,7 +173,7 @@ class SEDM_BYECR():
     def get_spectral_neighbors_info(self, lbda_index=0):
         """ """
 
-        if lbda_index is 0:
+        if lbda_index == 0:
             self.derived_df["spec_nei_flux1_norm"] = self.norm_cube_data[lbda_index+1][self.derived_df["index"]]
             self.derived_df["spec_nei_flux1_norm_err"] = self.norm_cube_err[lbda_index+1][self.derived_df["index"]]
             self.derived_df["spec_nei_flux2_norm"] = self.norm_cube_data[lbda_index+2][self.derived_df["index"]]

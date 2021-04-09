@@ -11,7 +11,7 @@ from astropy.utils.console import ProgressBar
 
 from propobject import BaseObject
 from .ccd import get_dome, ScienceCCD
-from .utils.tools import kwargs_update, is_arraylike
+from .utils import tools
 
 from .sedm import SEDM_CCD_SIZE
 try:
@@ -101,7 +101,7 @@ def polygon_mask(vertices, width=2048, height=2048,
     back = Image.new('RGBA', (width, height), BACKCOLOR)
     mask = Image.new('RGBA', (width, height))
     # PIL *needs* (!!) [(),()] format [[],[]] wont work
-    if not is_arraylike(vertices[0][0]):
+    if not tools.is_arraylike(vertices[0][0]):
         vertices = [vertices]
         
     if facecolor is None:
@@ -186,7 +186,7 @@ def get_boxing_polygone(x, y, rangex, width,
     """ """
     from shapely import geometry
     import modefit
-    if not is_arraylike(dy):
+    if not tools.is_arraylike(dy):
         dy = np.ones(len(y))*dy
     pfit = modefit.get_polyfit(x, y, dy, degree=polydegree)
     pfit.fit(a0_guess=np.median(y))
@@ -246,6 +246,9 @@ def load_trace_masks(tmatch, trace_indexes=None, multiprocess=True,
         trace_indexes = tmatch.trace_indexes
     
     if multiprocess:
+        warnings.warn("DEPRECATION WARNING (spectralmatching.load_trace_masks()), the notebook key word is no longer used")
+        notebook = tools.is_running_from_notebook()
+
         import multiprocessing
         bar = ProgressBar( len(trace_indexes), ipython_widget=notebook)
         if ncore is None:
@@ -388,7 +391,7 @@ class TraceMatch( BaseObject ):
     # => Deriv the rest
     def set_trace_masks(self, masks, trace_indexes):
         """ Attach to the current instance masks. """
-        if is_arraylike(trace_indexes):
+        if tools.is_arraylike(trace_indexes):
             if len(masks) != len(trace_indexes):
                 raise ValueError("masks and trace_indexes do not have the same size.")
             for i,v in zip(trace_indexes, masks):
@@ -520,7 +523,7 @@ class TraceMatch( BaseObject ):
         **kwargs goes to spectralmatching.get_boxing_polygone() 
         """
         xbounds = self.get_trace_xbounds(traceindex)
-        prop = kwargs_update( dict(dy=1), **kwargs )
+        prop = { **dict(dy=1), **kwargs }
         return np.asarray(get_boxing_polygone(x, y, rangex=np.linspace(xbounds[0], xbounds[1], polydegree+5),
                                     width= width, polydegree=polydegree, get_vertices=True, **prop))
     
@@ -548,7 +551,7 @@ class TraceMatch( BaseObject ):
         x, y 
         """
         xbounds = self.get_trace_xbounds(traceindex)
-        prop = kwargs_update( dict(dy=1), **kwargs )
+        prop = {**dict(dy=1), **kwargs}
         return np.asarray(get_boxing_polygone(x, y, rangex=np.arange(*xbounds),
                                     width= 0, polydegree=polydegree, get_vertices=True, **prop))
 
@@ -685,10 +688,10 @@ class TraceMatch( BaseObject ):
         """ """
         from matplotlib import patches
         # Several indexes given
-        if is_arraylike(traceindex):
-            if not is_arraylike(facecolors):
+        if tools.is_arraylike(traceindex):
+            if not tools.is_arraylike(facecolors):
                 facecolors = [facecolors]*len(traceindex)
-            if not is_arraylike(edgecolors):
+            if not tools.is_arraylike(edgecolors):
                 edgecolors = [edgecolors]*len(traceindex)
                 
             ps = [patches.Polygon(self.trace_vertices[idx_],

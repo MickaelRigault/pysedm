@@ -11,7 +11,7 @@ from astropy.utils.console import ProgressBar
 
 
 from propobject   import BaseObject
-from .utils.tools import kwargs_update, load_pkl, dump_pkl
+from .utils       import tools
 from .sedm        import SEDM_CCD_SIZE
 
 DEGREE   = 5
@@ -27,12 +27,14 @@ LEGENDRE_GAUSS= False
 # ------------------ #
 def build_background(ccd,
                     smoothing=[0,5],
-                    start=2, jump=10, multiprocess=True,notebook=False,
-                    savefile=None):
+                    start=2, jump=10, multiprocess=True, notebook=False,
+                    savefile=None, ncore=None):
     """ """
     from .io import is_stdstars, filename_to_background_name
     ccd.fit_background(start=start, jump=jump, multiprocess=multiprocess, notebook=notebook,
-                                set_it=False, is_std= is_stdstars(ccd.header), smoothing=smoothing)
+                       set_it=False, is_std= is_stdstars(ccd.header), smoothing=smoothing,
+                       ncore=ncore)
+    
     ccd._background.writeto( filename_to_background_name(ccd.filename).replace('.gz','') )
     if savefile is not None:
         ccd._background.show(savefile=savefile)
@@ -68,8 +70,8 @@ def get_contvalue_sdt(spec):
     spec.fit_continuum(CONTDEGREE_GAUSS, legendre=LEGENDRE_GAUSS, ngauss=NGAUSS)
     return spec.contmodel.fitvalues
 
-def fit_background(ccd, start=2, jump=10, multiprocess=True, ncore=None,
-                       notebook=True, is_std=False):
+def fit_background(ccd, start=2, jump=10, multiprocess=True,
+                       ncore=None, notebook=True, is_std=False):
     """ calling `get_contvalue` for each ccd column (xslice).
     This uses astropy's ProgressBar.map 
 
@@ -78,9 +80,17 @@ def fit_background(ccd, start=2, jump=10, multiprocess=True, ncore=None,
     dictionary 
     """
     # Running from ipython notebook
+    warnings.warn("DEPRECATION WARNING (background.fit_background()), the notebook key word is no longer used")
+    notebook = tools.is_running_from_notebook()
+    
     index_column = range(ccd.width)[start::jump]
     bar = ProgressBar( len(index_column), ipython_widget=notebook)
 
+    if ncore is not None and ncore==1:
+        if multiprocess:
+            warnings.warn("you requested ncore=1, then multiprocess is set to False")
+        multiprocess = False
+        
     # - Multiprocessing 
     if multiprocess:
         import multiprocessing
@@ -93,6 +103,7 @@ def fit_background(ccd, start=2, jump=10, multiprocess=True, ncore=None,
                 ncore = multiprocessing.cpu_count() - 2
             if ncore==0:
                 ncore = 1
+                
         p = multiprocessing.Pool(ncore)
         res = {}
         for j, result in enumerate( p.imap(get_contvalue if not is_std else get_contvalue_sdt, [ccd.get_xslice(i_) for i_ in index_column])):

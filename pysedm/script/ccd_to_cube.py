@@ -183,7 +183,7 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000,
 ############################
 def build_backgrounds(date, smoothing=[0,5], start=2, jump=10, 
                         target=None, lamps=True, only_lamps=False, skip_calib=True,
-                        multiprocess=True, show_progress=True,
+                        multiprocess=True, show_progress=False,
                         savefig=True, ncore=None):
     """ """
     from ..background import build_background
@@ -214,7 +214,7 @@ def build_backgrounds(date, smoothing=[0,5], start=2, jump=10,
 ############################
 def build_wavesolution(date, verbose=False, ntest=None, idxrange=None,
                        use_fine_tuned_traces=False,
-                       wavedegree=5, contdegree=3,
+                       wavedegree=5, contdegree=3, show_progress=False,
                        lamps=["Hg","Cd","Xe"], savefig=True, saveindividuals=False,
                        xybounds=None, rebuild=True):
     """ Create the wavelength solution for the given night.
@@ -265,7 +265,6 @@ def build_wavesolution(date, verbose=False, ntest=None, idxrange=None,
     idx = idxall if ntest is None else np.random.choice(idxall,ntest, replace=False) 
 
     # - Do The loop and map it thanks to astropy
-    from astropy.utils.console import ProgressBar
     def fitsolution(idx_):
         if saveindividuals:
             saveplot = timedir+"%s_wavesolution_trace%d.pdf"%(date,idx_)
@@ -276,9 +275,22 @@ def build_wavesolution(date, verbose=False, ntest=None, idxrange=None,
         if saveplot is not None:
             csolution._wsol.show(show_guesses=True, savefile=saveplot)
             mpl.close("all")
-            
-    ProgressBar.map(fitsolution, idx)
 
+    if show_progress:
+        from astropy.utils.console import ProgressBar
+        from ..utils import tools
+        notebook = tools.is_running_from_notebook()
+        bar = ProgressBar( len(index_columnidx), ipython_widget=notebook)
+    else:
+        bar = None
+
+    for j,i_ in enumerate(idx):
+        fitsolution(i_)
+        if bar is not None:
+            bar.update(j)
+    if bar is not None:
+        bar.update(len(idx))
+        
     # - output - #
     outfile = "%s_WaveSolution"%date
     if idxrange is not None:
@@ -340,7 +352,7 @@ def build_cubes(ccdfiles,  date, lbda=None,
                 build_calibrated_cube=False, calibration_ref=None,
                 # Out
                 build_guider=True, solve_wcs=False,
-                fileindex=None,
+                fileindex=None, show_progress=False,
                 savefig=True, verbose=True, 
                 ncore=None):
     """ Build a cube from the an IFU ccd image. This image 
@@ -485,12 +497,9 @@ def build_cubes(ccdfiles,  date, lbda=None,
             
             
     # The actual build
-    if len(ccds)>1:
-        from astropy.utils.console import ProgressBar
-        ProgressBar.map(_build_cubes_, ccds)
-    else:
-        _build_cubes_(ccds[0])
+    return [_build_cubes_(ccd_) for ccd_ in ccds]
         
+
 # ---------------- #
 # Flux Calibration #
 # ---------------- #
@@ -510,10 +519,11 @@ def calibrate_cubes(cubefiles, date=None, calibrated_reference=None,
                                 calibration_ref=calibrated_reference)
     # - The build
     if len(cubefiles)==1:
-        _build_cal_cubes_(cubefiles[0])
-    else:
-        from astropy.utils.console import ProgressBar
-        ProgressBar.map(_build_cal_cubes_, cubefiles, multiprocess=multiprocess, step=2)
+        return _build_cal_cubes_(cubefiles[0])
+    if multiprocess:
+        print("multiprocess removed for calibrate_cubes()")
+        
+    return [_build_cal_cubes_(cubefiles_) for cubefiles_ in cubefiles]
         
     
 def save_cubeplot(date, kind="cube.basic"):

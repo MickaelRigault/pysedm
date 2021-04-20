@@ -239,24 +239,31 @@ def verts_to_mask(verts):
     return maskfull.T
     
 
-def load_trace_masks(tmatch, trace_indexes=None, multiprocess=True, ncore=None):
+def load_trace_masks(tmatch, trace_indexes=None, multiprocess=True,
+                         ncore=None, show_progress=False):
     """ """
     if trace_indexes is None:
         trace_indexes = tmatch.trace_indexes
     
     if multiprocess:
-        notebook = tools.is_running_from_notebook()
-
         import multiprocessing
-        bar = ProgressBar( len(trace_indexes), ipython_widget=notebook)
+        if show_progress:
+            notebook = tools.is_running_from_notebook()
+            bar = ProgressBar( len(trace_indexes), ipython_widget=notebook)
+        else:
+            bar = None
+            
         if ncore is None:
             ncore = np.max([multiprocessing.cpu_count() - 1, 1])
-                
+        
         p = multiprocessing.Pool(ncore)
-        for j, mask in enumerate( p.imap(verts_to_mask, [tmatch.trace_vertices[i_] for i_ in trace_indexes])):
+        for j, mask in enumerate( p.imap(verts_to_mask, [tmatch.trace_vertices[i_]
+                                                             for i_ in trace_indexes])):
             tmatch.set_trace_masks(sparse.csr_matrix(mask), trace_indexes[j])
-            bar.update(j)
-        bar.update( len(trace_indexes) )
+            if bar is not None:
+                bar.update(j)
+        if bar is not None:
+            bar.update( len(trace_indexes) )
         
     else:
         raise NotImplementedError("Use multiprocess = True (load_trace_masks)")

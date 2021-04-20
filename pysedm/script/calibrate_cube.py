@@ -31,10 +31,9 @@ def flat_cubes(date, lbda_min=7000, lbda_max=9000, ref="dome"):
         cube_.scale_by(flatfied)
         cube_.writeto(cube_.filename.replace(baseroot,newroot))
         
-    from astropy.utils.console import ProgressBar
     cubefiles = io.get_night_cubes(date, kind="cube")
     print(cubefiles)
-    ProgressBar.map(build_flat_cube, cubefiles)
+    return [build_flat_cube(cube_) for cube_ in cubefiles]
     
     
     

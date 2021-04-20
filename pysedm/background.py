@@ -71,7 +71,7 @@ def get_contvalue_sdt(spec):
     return spec.contmodel.fitvalues
 
 def fit_background(ccd, start=2, jump=10, multiprocess=True,
-                       ncore=None, is_std=False, show_progress=True):
+                       ncore=None, is_std=False, show_progress=False):
     """ calling `get_contvalue` for each ccd column (xslice).
     This uses astropy's ProgressBar.map 
 

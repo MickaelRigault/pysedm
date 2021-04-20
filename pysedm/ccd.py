@@ -655,13 +655,9 @@ class CCD( BaseCCD ):
         # ------------ #
         # - MultiThreading to speed this up
         if show_progress:
-            from astropy.utils.console import ProgressBar
-            ProgressBar.map(_build_ith_flux_, used_indexes)
-        else:
-            #from multiprocessing import Pool as ThreadPool
-            #pool = ThreadPool(4)
-            #pool.map(_build_ith_flux_, used_indexes)
-            _ = [_build_ith_flux_(i) for i in used_indexes]
+            print("show_progress removed from extract_cube()")
+
+        _ = [_build_ith_flux_(i) for i in used_indexes]
 
         cubeflux = np.asarray([cubeflux_[i] for i in used_indexes])
         cubevar  = np.asarray([cubevar_[i]   for i in used_indexes]) if cubevar_ is not None else None

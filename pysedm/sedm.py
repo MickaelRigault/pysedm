@@ -336,7 +336,7 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
         flatfield = io.load_nightly_flat(date)
 
     # - Build the Cube
-    cube = ccd.extract_cube(wavesolution, lbda, hexagrid=hexagrid, show_progress=True,
+    cube = ccd.extract_cube(wavesolution, lbda, hexagrid=hexagrid, show_progress=False,
                             pixel_shift=pixel_shift)
 
     # - passing the header inforation

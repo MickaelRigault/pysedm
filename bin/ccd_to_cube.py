@@ -33,7 +33,6 @@ if  __name__ == "__main__":
     parser.add_argument('--ncore',  type=int, default=None,
                         help='Number of cores to use for multiprocessing. ncore=1 means no multiprocessing.')
 
-    ncore
     # --------------- #
     #  Cube Building  #
     # --------------- #

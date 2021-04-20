@@ -183,7 +183,7 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000,
 ############################
 def build_backgrounds(date, smoothing=[0,5], start=2, jump=10, 
                         target=None, lamps=True, only_lamps=False, skip_calib=True,
-                        multiprocess=True,
+                        multiprocess=True, show_progress=True,
                         savefig=True, ncore=None):
     """ """
     from ..background import build_background
@@ -202,7 +202,7 @@ def build_backgrounds(date, smoothing=[0,5], start=2, jump=10,
     for i,file_ in enumerate(fileccds):
         build_background(get_ccd(file_, tracematch=tmap, background=0),
                         start=start, jump=jump, multiprocess=multiprocess, 
-                        smoothing=smoothing,
+                        smoothing=smoothing,show_progress=show_progress,
                         savefile = None if not savefig else timedir+"bkgd_%s.pdf"%(file_.split('/')[-1].replace(".fits","")),
                         ncore=ncore)
         

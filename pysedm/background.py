@@ -71,7 +71,7 @@ def get_contvalue_sdt(spec):
     return spec.contmodel.fitvalues
 
 def fit_background(ccd, start=2, jump=10, multiprocess=True,
-                       ncore=None, is_std=False):
+                       ncore=None, is_std=False, show_progress=True):
     """ calling `get_contvalue` for each ccd column (xslice).
     This uses astropy's ProgressBar.map 
 
@@ -80,10 +80,14 @@ def fit_background(ccd, start=2, jump=10, multiprocess=True,
     dictionary 
     """
     # Running from ipython notebook
-    notebook = tools.is_running_from_notebook()
+    
     
     index_column = range(ccd.width)[start::jump]
-    bar = ProgressBar( len(index_column), ipython_widget=notebook)
+    if show_progress:
+        notebook = tools.is_running_from_notebook()
+        bar = ProgressBar( len(index_column), ipython_widget=notebook)
+    else:
+        bar = None
 
     if ncore is not None and ncore==1:
         if multiprocess:
@@ -107,8 +111,12 @@ def fit_background(ccd, start=2, jump=10, multiprocess=True,
         res = {}
         for j, result in enumerate( p.imap(get_contvalue if not is_std else get_contvalue_sdt, [ccd.get_xslice(i_) for i_ in index_column])):
             res[index_column[j]] = result
-            bar.update(j)
-        bar.update(len(index_column))
+            if bar is not None:
+                bar.update(j)
+                
+        if bar is not None:
+            bar.update(len(index_column))
+            
         return res
     
     # - No multiprocessing 

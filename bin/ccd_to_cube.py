@@ -170,9 +170,11 @@ if  __name__ == "__main__":
     # - Background
     if args.buildbkgd is not None and len(args.buildbkgd) > 0:
         for target in args.buildbkgd.split(","):
-            build_backgrounds(date, target=target, multiprocess=False, # Force no multiprocessing here
-                            lamps=True, only_lamps=True, skip_calib=True, 
-                            ncore=args.ncore)
+            build_backgrounds(date, target=target,
+                                  show_progress=True,
+                                  multiprocess=False, # Force no multiprocessing here
+                                  lamps=True, only_lamps=True, skip_calib=True, 
+                                  ncore=args.ncore)
             
     # -----------
     # 

@@ -172,6 +172,7 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000,
     
     if savefig:
         print("Saving flat3d Figure")
+        slice_.show(savefile=timedir+"%s_flat3d.pdf"%date)
         slice_.show(savefile=timedir+"%s_flat3d.png"%date)
 
     
@@ -202,7 +203,7 @@ def build_backgrounds(date, smoothing=[0,5], start=2, jump=10,
         build_background(get_ccd(file_, tracematch=tmap, background=0),
                         start=start, jump=jump, multiprocess=multiprocess, 
                         smoothing=smoothing,show_progress=show_progress,
-                        savefile = None if not savefig else timedir+"bkgd_%s.png"%(file_.split('/')[-1].replace(".fits","")),
+                        savefile = None if not savefig else timedir+"bkgd_%s.pdf"%(file_.split('/')[-1].replace(".fits","")),
                         ncore=ncore)
         
     
@@ -266,7 +267,7 @@ def build_wavesolution(date, verbose=False, ntest=None, idxrange=None,
     # - Do The loop and map it thanks to astropy
     def fitsolution(idx_):
         if saveindividuals:
-            saveplot = timedir+"%s_wavesolution_trace%d.png"%(date,idx_)
+            saveplot = timedir+"%s_wavesolution_trace%d.pdf"%(date,idx_)
         else:
             saveplot = None
         csolution.fit_wavelesolution(traceindex=idx_, saveplot=None,
@@ -308,6 +309,7 @@ def build_wavesolution(date, verbose=False, ntest=None, idxrange=None,
             hexagrid = io.load_nightly_hexagonalgrid(date)
             pl = wsol.show_dispersion_map(hexagrid,vmin="0.5",vmax="99.5",
                                               outlier_highlight=5, show=False)
+            pl['fig'].savefig(timedir+"%s_wavesolution_dispersionmap.pdf"%date)
             pl['fig'].savefig(timedir+"%s_wavesolution_dispersionmap.png"%date)
 
         
@@ -448,7 +450,8 @@ def build_cubes(ccdfiles,  date, lbda=None,
     # ---------------- #
     ccds = []
     for ccdfile in ccdfiles:
-        flexuresavefile = None if not savefig else [ccdfile.replace("crr","flexuretrace_crr").replace(".fits",".png")]
+        flexuresavefile = None if not savefig else [ccdfile.replace("crr","flexuretrace_crr").replace(".fits",".pdf"),
+                                                    ccdfile.replace("crr","flexuretrace_crr").replace(".fits",".png")]
         ccd_    = get_ccd(ccdfile, tracematch = tracematch, background = 0,
                               correct_traceflexure = traceflexure_corrected,
                               savefile_traceflexure=flexuresavefile)
@@ -530,7 +533,7 @@ def save_cubeplot(date, kind="cube.basic"):
     
     for cubefile in io.get_night_files(date, kind):
         cube = get_sedmcube(cubefile)
-        cube.show(savefile= timedir+"%s.png"%(cubefile.split('/')[-1].replace(".fits.gz",".png").replace(".fits",".png")))
+        cube.show(savefile= timedir+"%s.pdf"%(cubefile.split('/')[-1].replace(".fits.gz",".pdf").replace(".fits",".pdf")))
 
 
 

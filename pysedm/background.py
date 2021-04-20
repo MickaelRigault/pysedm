@@ -114,44 +114,6 @@ def fit_background(ccd, start=2, jump=10, multiprocess=True,
     # - No multiprocessing 
     return {index_column[i_]: get_contvalue(ccd.get_xslice(spec_)) if not is_std else get_contvalue_sdt(ccd.get_xslice(spec_)) for i_,spec_ in enumerate(bar)}
 
-
-def _fit_background_notebook_(ccd, start=2, jump=10, multiprocess=True,
-                                  is_std=False, ncore=None,
-                                  ipython_widget=True):
-    """ calling `get_contvalue` for each ccd column (xslice).
-    This uses astropy's ProgressBar.map 
-s
-    ===
-    This version of the code is made to be called from fit_background
-    when this software detects that ipython is running from an notebook
-    ===
-
-    Returns 
-    -------
-    dictionary 
-    """
-    index_column = range(ccd.width)[start::jump]
-    bar = ProgressBar( len(index_column), ipython_widget=ipython_widget)
-
-    # - Multiprocessing 
-    if multiprocess:
-        import multiprocessing
-        if ncore is None:
-            ncore = multiprocessing.cpu_count() - 1
-            if ncore==0:
-                ncore = 1
-        p = multiprocessing.Pool(ncore)
-        res = {}
-        for j, result in enumerate( p.imap(get_contvalue if not is_std else get_contvalue_sdt,
-                                                         [ccd.get_xslice(i_) for i_ in index_column])):
-            res[index_column[j]] = result
-            bar.update(j)
-        bar.update(len(index_column))
-        return res
-    
-    # - No multiprocessing 
-    return {index_column[i_]: get_contvalue(ccd.get_xslice(spec_)) if not is_std else get_contvalue_sdt(ccd.get_xslice(spec_)) for i_,spec_ in enumerate(bar)}
-
 def _get_xaxis_polynomial_(xyv, degree=DEGREE, legendre=LEGENDRE,
                          xmodel=None, clipping = [5,5]):
     """ """

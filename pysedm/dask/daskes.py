@@ -118,6 +118,13 @@ class DaskES( ClientHolder ):
         return cls.from_cubefiles(cubefiles=cubefiles, client=client)
 
     @classmethod
+    def from_month(cls, year, month, client):
+        """ """
+        from calendar import monthrange
+        monthdates = [f'{year:04d}{month:02d}{d:02d}' for d in range(1, monthrange(year, month)[1] + 1)]
+        return cls.from_date(monthdates, client=client)
+    
+    @classmethod
     def from_cubefiles(cls, cubefiles, client):
         """ shortcut to __init__ for simplicity """
         return cls(client=client, cubefiles=cubefiles)

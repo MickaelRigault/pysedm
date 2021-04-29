@@ -1,7 +1,7 @@
 """ Dasked version of pysedm/bin/extractstars.py """
 
 from dask import delayed
-from .base import ClientHolder
+from .base import DaskCube
 
 
 from .. import get_sedmcube, fluxcalibration, io

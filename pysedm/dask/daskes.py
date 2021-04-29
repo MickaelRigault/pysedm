@@ -72,7 +72,7 @@ def build_fluxcalibrator(rawspec_std):
 
 
 
-class DaskES( ClientHolder ):
+class DaskES( DaskCube ):
     """
     1. Get Files
     cubefiles
@@ -92,53 +92,11 @@ class DaskES( ClientHolder ):
 
     7. store the result
     """
-    # =============== #
-    # Initialisation  #
-    # =============== #
-    def __init__(self, client=None, cubefiles=None):
-        """ """
-        _ = super().__init__(client=client)
-        if cubefiles is not None:
-            self.set_cubefiles(cubefiles)
-            
-    @classmethod
-    def from_name(cls, name, client):
-        """ """
-        from ztfquery import sedm
-        squery = sedm.SEDMQuery()
-        cubefiles = squery.get_target_cubes(name, client=client)
-        return cls.from_cubefiles(cubefiles=cubefiles, client=client)
 
-    @classmethod
-    def from_date(cls, date, client):
-        """ """
-        from ztfquery import sedm
-        squery = sedm.SEDMQuery()
-        cubefiles = squery.get_night_cubes(date, client=client)
-        return cls.from_cubefiles(cubefiles=cubefiles, client=client)
-
-    @classmethod
-    def from_month(cls, year, month, client):
-        """ """
-        from calendar import monthrange
-        monthdates = [f'{year:04d}{month:02d}{d:02d}' for d in range(1, monthrange(year, month)[1] + 1)]
-        return cls.from_date(monthdates, client=client)
-    
-    @classmethod
-    def from_cubefiles(cls, cubefiles, client):
-        """ shortcut to __init__ for simplicity """
-        return cls(client=client, cubefiles=cubefiles)
 
     # =============== #
     #    Methods      #
     # =============== #
-    # -------- #
-    #  SETTER  #
-    # -------- #
-    def set_cubefiles(self, cubefiles):
-        """ """
-        self._cubefiles = cubefiles
-        
     # -------- #
     # Running  #
     # -------- #
@@ -151,8 +109,8 @@ class DaskES( ClientHolder ):
                         for cubefiles_ in cubefiles]
         return self.client.compute(delayed_)
     
-        
-    def single_extractstars(self, cube_filename, build_fluxcalibrator=False,  **kwargs):
+    @staticmethod
+    def single_extractstars(cube_filename, build_fluxcalibrator=False,  **kwargs):
         """ """
         # 1. Get cube
         cube = delayed(get_sedmcube)(cube_filename)
@@ -177,17 +135,3 @@ class DaskES( ClientHolder ):
             
         return speccal, fluxcalibrator
         
-    # =============== #
-    #  Properties     #
-    # =============== #
-    @property
-    def cubefiles(self):
-        """ """
-        if not hasattr(self,"_cubefiles"):
-            return None
-        return self._cubefiles
-
-    def has_cubefiles(self):
-        """ """
-        return self.cubefiles is not None and len(self.cubefiles)>0
-

@@ -284,12 +284,18 @@ if  __name__ == "__main__":
                 es_object = cube.extractstar
 
                 if args.contsep:
-                    es_object.raw_spectrum.header.set("CONTMAG", cont.target_contsep_mag, "contsep splitting magnitude")
-                    es_object.raw_spectrum.header.set("NCONTSPX", len(es_options["spaxels_to_avoid"]), "total number of non-target spaxels from contsep")
+                    es_object.raw_spectrum.header.set("CONTMAG", cont.target_contsep_mag,
+                                                          "contsep splitting magnitude")
+                    es_object.raw_spectrum.header.set("NCONTSPX",
+                                                len(es_options["spaxels_to_avoid"]),
+                                                "total number of non-target spaxels from contsep")
 
                 if args.byecr:
-                    es_object.raw_spectrum.header.set("NCR", len(cr_df), "total number of detected cosmic-rays from byecr")
-                    es_object.raw_spectrum.header.set("NCRSPX", len(np.unique(cr_df["cr_spaxel_index"])), "total number of cosmic-ray affected spaxels")
+                    es_object.raw_spectrum.header.set("NCR", len(cr_df),
+                                                "total number of detected cosmic-rays from byecr")
+                    es_object.raw_spectrum.header.set("NCRSPX",
+                                                len(np.unique(cr_df["cr_spaxel_index"])),
+                                                "total number of cosmic-ray affected spaxels")
 
                 # -
                 # - SAVING

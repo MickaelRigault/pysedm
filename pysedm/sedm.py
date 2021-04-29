@@ -1034,10 +1034,10 @@ class SEDMExtractStar( BaseObject ):
 
         # - Input check
         if not self.raw_spectrum.header['IMGTYPE'].lower() in ['standard']:
-            raise TypeError("The target is not a standard star (header keyword IMPTYME != standard)")
+            raise TypeError("The target is not a std star (header keyword IMPTYME != standard)")
 
         if 'AIRMASS' not in self.raw_spectrum.header:
-            raise ValueError("The given standard star target has no AIRMASS parameter in the header. Unusable.")
+            raise ValueError("The given std star target has no AIRMASS parameter in the header.")
 
         if self.raw_spectrum.header['QUALITY'] != 0:
             warnings.warn("Standard spectrum of low quality, "+
@@ -1674,13 +1674,15 @@ class SEDMCube( Cube ):
             import matplotlib.pyplot as mpl
             self.extractstar.get_humain_input()
             self.extractstar.update_from_humain_input()
+            
         elif spaxels_to_use is not None: # You fixed which you want
             if len(spaxels_to_use)<4:
                 print("WARNING, you provided less than 4 spaxel to be fitted")
             self.extractstar.set_fitted_spaxels(spaxels_to_use)
 
         if self.extractstar.fitted_spaxels is None: # Automatic selections (with or without spaxels)
-            self.extractstar.get_spaxels_tofit(buffer=spaxelbuffer, update=True, spaxels_to_avoid=spaxels_to_avoid)
+            self.extractstar.get_spaxels_tofit(buffer=spaxelbuffer, update=True,
+                                                spaxels_to_avoid=spaxels_to_avoid)
 
         if verbose: print("* Starting extractstar.run")
         return self.extractstar.run(slice_width=slice_width, psfmodel=psfmodel,

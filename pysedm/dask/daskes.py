@@ -1,5 +1,6 @@
 """ Dasked version of pysedm/bin/extractstars.py """
 
+import os
 from dask import delayed
 from .base import DaskCube
 
@@ -17,19 +18,18 @@ def get_extractstar(cube, step1range=[4500,7000], step1bins=6,
     es.set_centroid(centroid=centroid)
     return es
 
-def get_fluxcal(cubefile):
+def get_fluxcalfile(cubefile):
     """ """
-    fluxcal_file = io.fetch_nearest_fluxcal(mjd=fits.getval(cubefile,"MJD_OBS"))
-    if fluxcal_file is None:
-        return None
-    return fluxcalibration.load_fluxcal_spectrum(fluxcalfile)
+    return io.fetch_nearest_fluxcal(mjd=fits.getval(cubefile,"MJD_OBS"))
 
 def run_extractstar(es, spaxelbuffer = 10,
                     spaxels_to_use=None,
                     spaxels_to_avoid=None,
                     psfmodel="NormalMoffatTilted",
                     slice_width = 1, fwhm_guess=None, 
-                    verbose=False, **kwargs):
+                    verbose=False,
+                    store_fig=True, store_data=True,
+                    **kwargs):
     """ """
     
     if spaxels_to_use is not None: # You fixed which you want
@@ -45,34 +45,75 @@ def run_extractstar(es, spaxelbuffer = 10,
     es.run(slice_width=slice_width, psfmodel=psfmodel,
            fwhm_guess=fwhm_guess, verbose=verbose, **kwargs)
     
-    return es.get_spectrum("raw", persecond=True)
+    rawspec = es.get_spectrum("raw", persecond=True)
+    rawspec.set_filename(es.cube.filename.replace("e3d", "esspec"))
+    #
+    # - Output
+    if store_fig:
+        basename = es.basename
+        es.show_adr(savefile = basename.replace("{placeholder}","esadr")+".pdf")
+        es.show_mla(savefile = basename.replace("{placeholder}","esmla")+".pdf")
+        es.show_psf(savefile = basename.replace("{placeholder}","espsf")+".pdf")
+        rawspec.show(savefile = basename.replace("{placeholder}","esspec")+".pdf")
+        
+    if store_data:
+        rawspec.writeto(rawspec.filename)
 
+    return rawspec
 
-def calibrate_spec(spec, fluxcal, default_airmass=1.1):
+def calibrate_spec(spec, fluxcalfile, default_airmass=1.1,
+                       store_fig=True, store_data=True):
     """ """
+    if fluxcalfile is None:
+        fluxcal = None
+    else:
+        fluxcal = fluxcalibration.load_fluxcal_spectrum(fluxcalfile)
+        
     if fluxcal is None:
         spec.header["FLUXCAL"] = (False,"has the spectra been flux calibrated")
         spec.header["CALSRC"] = (None, "Flux calibrator filename")
         spec.header["BUNIT"]  = (spec.header.get('BUNIT',""),"Flux Units")
         specout = spec.copy()
     else:
-        spec.scale_by( fluxcal.get_inversed_sensitivity( spec.header.get("AIRMASS", default_airmass) ),
+        spec.scale_by(fluxcal.get_inversed_sensitivity(spec.header.get("AIRMASS",default_airmass)),
                       onraw=False)
         spec.header["FLUXCAL"] = (True, "has the spectra been flux calibrated")
         spec.header["CALSRC"] = (os.path.basename(fluxcalfile), "Flux calibrator filename")
         spec.header["BUNIT"]  = ("erg/s/A/cm^2", "Flux Units")
         specout = spec.copy()
+
+    specout.set_filename( spec.filename.replace("esspec","spec") )
+    if store_fig:
+        specout.show( savefile=specout.filename.replace(".fits",".pdf") )
+                         
+    if store_data:
+        specout.writeto(specout.filename)
         
     return specout
         
-def build_fluxcalibrator(rawspec_std, store_plot=True):
-    """ """
+def build_fluxcalibrator(rawspec_std,
+                             store_plot=True, store_data=True):
+    """ 
+    
+
+    Returns
+    -------
+    speccal filename
+    """
     speccal, fl = fluxcalibration.get_fluxcalibrator(rawspec_std, fullout=True)
-#    speccal.header.set("SOURCE", rawspec_std.filename.split("/")[-1], "This object has been derived from this file")
+    speccal.header.set("SOURCE", os.path.basename(rawspec_std.filename),
+                           "This object has been derived from this file")
     speccal.header.set("PYSEDMT","Flux Calibration Spectrum", "Object to use to flux calibrate")
+
+    speccal.set_filename( rawspec_std.filename.replace("esspec","fluxcal") )
     if store_plot:
-        _ = fl # 
-    return speccal
+        _ = fl.show( savefile=speccal.filename.replace(".fits",".pdf") )
+        
+    if store_data:
+        speccal.writeto( speccal.filename )
+
+    # Returning the filename because dask has serialization issue 
+    return speccal.filename
 
 
 
@@ -116,34 +157,38 @@ class DaskES( DaskCube ):
 
     def stdconnected_extractstars(self, std_basename):
         """ """
+        #
+        # Get the cube paths
         cubefile_df  = self.get_cubefile_dataframe().xs(std_basename).set_index("basename")
-        cubefile_std = cubefile_df.loc[std_filename]["filepath"]
-        cubefiles    = cubefile_df.drop(std_filename)["filepath"].values
-    
+        cubefile_std = cubefile_df.loc[std_basename]["filepath"]
+        cubefiles    = cubefile_df.drop(std_basename)["filepath"].values
+
+        #
+        # Build the graph
         raw_std = self.extract_rawstar(cubefile_std)
-        fluxcal = self.build_fluxcalibrator(raw_std)
+        fluxcalfile = self.build_fluxcalibrator(raw_std)
         f_spec = [raw_std]
         for cubefile in cubefiles:
             rawspec = self.extract_rawstar(cubefile)
-            spec = self.calibrate_rawspec(rawspec, fluxcal)
+            spec = self.calibrate_rawspec(rawspec, fluxcalfile=fluxcalfile)
             f_spec.append(spec)
             
         return f_spec
     
     @classmethod
-    def single_extractstars(cls, cube_filename, fluxcal=None, calibrate=True):
+    def single_extractstars(cls, cube_filename, fluxcalfile=None, calibrate=True):
         """ """
         rawspec = cls.extract_rawstar(cube_filename)
-        if fluxcal is None and calibrate:
-            fluxcal = delayed(get_fluxcal)(cube_filename)
+        if fluxcalfile is None and calibrate:
+            fluxcalfile = delayed(get_fluxcalfile)(cube_filename)
             
-        return cls.calibrate_rawspec(rawspec, fluxcal)
+        return cls.calibrate_rawspec(rawspec, fluxcalfile)
 
     # -------- #
     # Static   #
     # -------- #
     @staticmethod
-    def extract_rawstar(cube_filename, **kwargs):
+    def extract_rawstar(cube_filename, store_fig=True, store_data=True, **kwargs):
         """ Extract the pointsource from the given filename 
         
         Parameters
@@ -162,13 +207,14 @@ class DaskES( DaskCube ):
         estar = delayed(get_extractstar)(cube)
         
         # 4. Run ExtractStar
-        rawspec = delayed(run_extractstar)(estar)
+        rawspec = delayed(run_extractstar)(estar, store_fig=store_fig, store_data=store_data,
+                                               **kwargs)
         return rawspec
 
     @staticmethod
-    def calibrate_rawspec(rawspec, fluxcal):
+    def calibrate_rawspec(rawspec, fluxcalfile):
         """ """
-        return delayed(calibrate_spec)(rawspec, fluxcal)
+        return delayed(calibrate_spec)(rawspec, fluxcalfile)
 
     @staticmethod
     def build_fluxcalibrator(rawspec):

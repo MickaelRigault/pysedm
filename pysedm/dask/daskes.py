@@ -145,15 +145,15 @@ class DaskES( DaskCube ):
     # -------- #
     # Running  #
     # -------- #
-    def compute(self, cubefiles=None):
+    def compute(self, get_delayed=False):
         """ """
-        if cubefiles is None:
-            cubefiles = self.cubefiles
-            
-        delayed_ = [self.single_extractstars(cubefiles_, build_fluxcalibrator=False)[0]
-                        for cubefiles_ in cubefiles]
-        return self.client.compute(delayed_)
-
+        dcube = self.get_cubefile_dataframe(False)
+        stdfiles = dcube[dcube["is_std"]]["basename"].values
+        spectra = [self.stdconnected_extractstars(stdbasename)
+                    for stdbasename in stdfiles]
+        if get_delayed:
+            return spectra
+        return self.client.compute(spectra)
 
     def stdconnected_extractstars(self, std_basename):
         """ """

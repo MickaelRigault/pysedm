@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 
 import numpy as np
+import warnings
 from propobject import BaseObject
 from pyifu.spectroscopy import Spectrum, get_spectrum
 from .sedm import get_sedm_version
@@ -337,10 +338,9 @@ class FluxCalibrator( BaseObject ):
         kwarg_fit = {**{k+"_guess":self.tpoly_tell.fitvalues[k] for k in self.tpoly_tell.model.TELL_FREEPARAMETERS},
                          **{k+"_fixed":True for k in self.tpoly_tell.model.TELL_FREEPARAMETERS}}
         
-        print("step 1 Done")
         # - Step 2 fit The blue region
         if get_sedm_version(self.spectrum.header.get("OBSDATE",None)):
-            print("SEDM version <3 (pre-Feb 2019): running the old flux calibration procedure")
+            warnings.warn("SEDM version <3 (pre-Feb 2019): running specific interpolation procedure.")
             POLY_TELL_BLUE = 20
             self.tpoly_blue = TelluricPolynomeFit(self.spectrum.lbda,
                                                   datacal,
@@ -351,7 +351,6 @@ class FluxCalibrator( BaseObject ):
             response_continuum = self.tpoly_blue.model._get_continuum_()
             POLY_TELL = "%d"%POLY_TELL_BLUE
         else:
-            print("step 2 Starting")
             blue_range = (self.spectrum.lbda<8600)
             POLY_TELL_BLUE = 20
             self.tpoly_blue = TelluricPolynomeFit(self.spectrum.lbda[blue_range],
@@ -360,10 +359,8 @@ class FluxCalibrator( BaseObject ):
                                                   POLY_TELL_BLUE, load_telluric_line(), maskin=maskin)
             self.tpoly_blue.fit(**kwarg_fit)
             self.tpoly_blue.norm = norm
-            print("step 2 Done")
             #
             # - Step 3 fit The red region
-            print("step 3 Starting")
             red_range = (self.spectrum.lbda>8400)
             POLY_TELL_RED = 15
             telluric = self.tpoly_blue.model.get_telluric_model(lbda=self.spectrum.lbda)
@@ -372,7 +369,6 @@ class FluxCalibrator( BaseObject ):
                                         (datacal-telluric)[red_range], 
                                         errcal[red_range], POLY_TELL_RED, legendre=True)
             self.poly_red.fit()
-            print("step 3 Done")
             #
             # Finally Merge the two continuums
             #

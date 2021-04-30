@@ -58,7 +58,7 @@ def position_source(cube,
 
     # OPTION 1: Use maximum spaxels to derive position
     if maxpos:
-        print("Centroid guessed based on brightness")
+        warnings.warn("Centroid guessed based on brightness")
         xcentroid, ycentroid = estimate_default_position(cube, lbdaranges=lbdaranges)
         if not centroid_err_given:
             centroids_err = [5, 5]
@@ -70,13 +70,12 @@ def position_source(cube,
 
         if xcentroid is None or ycentroid is None or np.isnan(xcentroid*ycentroid):
             # FAILS... go back to OPTION 1
-            print("IFU target location based on CCD astrometry failed. "
-                  "centroid guessed based on brightness used instead")
+            warnings.warn("IFU target location based on CCD astrometry failed. "
+                            "centroid guessed based on brightness used instead")
             return position_source(cube, lbdaranges=lbdaranges, maxpos=True)
 
         # Works !
-        print("IFU position based on CCD wcs solution used : ",
-                  xcentroid, ycentroid)
+        warning.warn(f"IFU position based on CCD wcs solution used : {xcentroid, ycentroid}")
         position_type="astrom"
 
     # OPTION 3: Use input centroid values for position
@@ -87,8 +86,7 @@ def position_source(cube,
             raise ValueError("Unable to parse `centroid`. Should be None or a 2d float array `xcentroid, ycentroid = centroids`")
         position_type="manual"
 
-    print("Position type %s: %.2f, %.2f" %
-          (position_type, xcentroid, ycentroid))
+    warnings.warn(f"Position type {position_type}:{xcentroid:.2f}, {ycentroid:.2f}")
 
     return [xcentroid, ycentroid], centroids_err, position_type
 

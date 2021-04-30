@@ -1,5 +1,19 @@
 """ Basic Dask Tools  """
 
+import pandas
+import numpy as np
+from astropy import time
+
+def parse_filename(filename):
+    """ """
+    e3d,crr,b, ifudate, *times, targetname=filename.split("_")
+    date = ifudate.replace("ifu","")
+    mjd = time.Time(f"{date[:4]}-{date[4:6]}-{date[6:]}"+" "+":".join(times), format="iso").mjd
+    return {"date":date, 
+           "mjd":mjd, 
+           "name":targetname.split(".")[0]}
+
+
 
 class ClientHolder( object ):
 
@@ -71,7 +85,26 @@ class DaskCube( ClientHolder ):
     def set_cubefiles(self, cubefiles):
         """ """
         self._cubefiles = cubefiles
-        
+
+    def get_cubefile_dataframe(self, index_per_calib=True):
+        """ """
+        datafile = pandas.DataFrame(self.cubefiles, columns=["filepath"])
+        dataall = datafile["filepath"].str.split("/", expand=True)
+        datafile["basename"] = dataall[dataall.columns[-1]].values
+
+        info = pandas.DataFrame.from_records(datafile["basename"].apply(parse_filename))
+        datafile = pandas.merge(datafile, info,
+                                    left_index=True, right_index=True)
+        datafile["is_std"] = datafile["name"].str.contains("STD")
+
+        df_std = datafile[datafile["is_std"]]
+        id_ = np.argmin(np.abs(datafile["mjd"].values-df_std["mjd"].values[:,None]), axis=0)
+        datafile["std_calib"] = df_std["basename"].iloc[id_].values
+
+        if index_per_calib:
+            return datafile.set_index(["std_calib", datafile.index])
+        return datafile
+    
     # =============== #
     #  Properties     #
     # =============== #
@@ -86,3 +119,4 @@ class DaskCube( ClientHolder ):
         """ """
         return self.cubefiles is not None and len(self.cubefiles)>0
 
+    

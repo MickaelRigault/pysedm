@@ -6,7 +6,7 @@ from .base import DaskCube
 
 from .. import get_sedmcube, fluxcalibration, io
 from ..sedm import SEDMExtractStar, flux_calibrate_sedm
-
+from astropy.io import fits
 
 
 def get_extractstar(cube, step1range=[4500,7000], step1bins=6,
@@ -17,9 +17,12 @@ def get_extractstar(cube, step1range=[4500,7000], step1bins=6,
     es.set_centroid(centroid=centroid)
     return es
 
-def get_fluxcal_file(cube):
+def get_fluxcal(cubefile):
     """ """
-    return io.fetch_nearest_fluxcal(mjd=cube.header.get("MJD_OBS"))
+    fluxcal_file = io.fetch_nearest_fluxcal(mjd=fits.getval(cubefile,"MJD_OBS"))
+    if fluxcal_file is None:
+        return None
+    return fluxcalibration.load_fluxcal_spectrum(fluxcalfile)
 
 def run_extractstar(es, spaxelbuffer = 10,
                     spaxels_to_use=None,
@@ -40,20 +43,19 @@ def run_extractstar(es, spaxelbuffer = 10,
 
     if verbose: print("* Starting extractstar.run")
     es.run(slice_width=slice_width, psfmodel=psfmodel,
-           fwhm_guess=fwhm_guess, **kwargs)
+           fwhm_guess=fwhm_guess, verbose=verbose, **kwargs)
     
     return es.get_spectrum("raw", persecond=True)
 
 
-def calibrate_spec(spec, fluxcalfile, default_airmass=1.1):
+def calibrate_spec(spec, fluxcal, default_airmass=1.1):
     """ """
-    if fluxcalfile is None:
+    if fluxcal is None:
         spec.header["FLUXCAL"] = (False,"has the spectra been flux calibrated")
         spec.header["CALSRC"] = (None, "Flux calibrator filename")
         spec.header["BUNIT"]  = (spec.header.get('BUNIT',""),"Flux Units")
         specout = spec.copy()
     else:
-        fluxcal = fluxcalibration.load_fluxcal_spectrum(fluxcalfile)
         spec.scale_by( fluxcal.get_inversed_sensitivity( spec.header.get("AIRMASS", default_airmass) ),
                       onraw=False)
         spec.header["FLUXCAL"] = (True, "has the spectra been flux calibrated")
@@ -63,12 +65,14 @@ def calibrate_spec(spec, fluxcalfile, default_airmass=1.1):
         
     return specout
         
-def build_fluxcalibrator(rawspec_std):
+def build_fluxcalibrator(rawspec_std, store_plot=True):
     """ """
     speccal, fl = fluxcalibration.get_fluxcalibrator(rawspec_std, fullout=True)
-    speccal.header.set("SOURCE", rawspec_std.filename.split("/")[-1], "This object has been derived from this file")
+#    speccal.header.set("SOURCE", rawspec_std.filename.split("/")[-1], "This object has been derived from this file")
     speccal.header.set("PYSEDMT","Flux Calibration Spectrum", "Object to use to flux calibrate")
-    return speccal, fl
+    if store_plot:
+        _ = fl # 
+    return speccal
 
 
 
@@ -108,30 +112,66 @@ class DaskES( DaskCube ):
         delayed_ = [self.single_extractstars(cubefiles_, build_fluxcalibrator=False)[0]
                         for cubefiles_ in cubefiles]
         return self.client.compute(delayed_)
-    
-    @staticmethod
-    def single_extractstars(cube_filename, build_fluxcalibrator=False,  **kwargs):
+
+
+    def stdconnected_extractstars(self, std_basename):
         """ """
+        cubefile_df  = self.get_cubefile_dataframe().xs(std_basename).set_index("basename")
+        cubefile_std = cubefile_df.loc[std_filename]["filepath"]
+        cubefiles    = cubefile_df.drop(std_filename)["filepath"].values
+    
+        raw_std = self.extract_rawstar(cubefile_std)
+        fluxcal = self.build_fluxcalibrator(raw_std)
+        f_spec = [raw_std]
+        for cubefile in cubefiles:
+            rawspec = self.extract_rawstar(cubefile)
+            spec = self.calibrate_rawspec(rawspec, fluxcal)
+            f_spec.append(spec)
+            
+        return f_spec
+    
+    @classmethod
+    def single_extractstars(cls, cube_filename, fluxcal=None, calibrate=True):
+        """ """
+        rawspec = cls.extract_rawstar(cube_filename)
+        if fluxcal is None and calibrate:
+            fluxcal = delayed(get_fluxcal)(cube_filename)
+            
+        return cls.calibrate_rawspec(rawspec, fluxcal)
+
+    # -------- #
+    # Static   #
+    # -------- #
+    @staticmethod
+    def extract_rawstar(cube_filename, **kwargs):
+        """ Extract the pointsource from the given filename 
+        
+        Parameters
+        ----------
+        cube_filename: [sting]
+            Path to the e3d cube.
+
+        Returns
+        -------
+        Spectrum (not flux calibrated)
+        """
         # 1. Get cube
         cube = delayed(get_sedmcube)(cube_filename)
-        
-        # 2. Get flux calibration file (if any)
-        fluxcalfile = delayed(get_fluxcal_file)(cube) # could be None
-        
+                
         # 3. Get ExtractStar
         estar = delayed(get_extractstar)(cube)
         
         # 4. Run ExtractStar
-        specraw = delayed(run_extractstar)(estar)
+        rawspec = delayed(run_extractstar)(estar)
+        return rawspec
 
-        # 5. Calibrate the spectra
-        speccal = delayed(calibrate_spec)(specraw, fluxcalfile)
+    @staticmethod
+    def calibrate_rawspec(rawspec, fluxcal):
+        """ """
+        return delayed(calibrate_spec)(rawspec, fluxcal)
 
-        # 6. Build the flux Calibrator
-        if build_fluxcalibrator:
-            fluxcalibrator = delayed(build_fluxcalibrator)(specraw)
-        else:
-            fluxcalibrator = None
-            
-        return speccal, fluxcalibrator
+    @staticmethod
+    def build_fluxcalibrator(rawspec):
+        """ """
+        return delayed(build_fluxcalibrator)(rawspec)
         

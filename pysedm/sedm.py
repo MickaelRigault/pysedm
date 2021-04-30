@@ -778,7 +778,7 @@ class SEDMExtractStar( BaseObject ):
     # MAIN    #
     # ------- #
     def run(self, psfmodel=None, slice_width=1,
-                spaxel_unit=IFU_SCALE_UNIT, update=True, **kwargs):
+                spaxel_unit=IFU_SCALE_UNIT, update=True, verbose=False, **kwargs):
         """
         Returns
         -------
@@ -792,11 +792,11 @@ class SEDMExtractStar( BaseObject ):
             self.set_psfmodel(psfmodel)
 
         if not self.has_centroid():
-            print("No target centroid yet, on the set automatically ('auto') ")
+            warnings.warn("No target centroid yet, on the set automatically ('auto') ")
             self.set_centroid("auto")
 
         if not self.is_centroid_in_mla():
-            print("CENTROID NOT IN MLA, extract_star did not run. Default backup solution built")
+            warnings.warn("CENTROID NOT IN MLA, extract_star did not run. Default backup solution built")
             self.build_backup_output()
             return
 
@@ -806,10 +806,12 @@ class SEDMExtractStar( BaseObject ):
                                                             centroids_err=self.centroiderr,
                                                             spaxel_unit = spaxel_unit,
                                                             final_slice_width = slice_width,
-                                                            psfmodel=self.psfmodel, **kwargs)
+                                                            psfmodel=self.psfmodel,
+                                                            verbose=verbose,
+                                                          **kwargs)
         # Divide out exposure time
         expt = spec.header.get("EXPTIME", 1.0)
-        print("Dividing counts by %s seconds" % expt)
+        warnings.warn(f"Dividing counts by {expt} seconds")
         spec.scale_by(expt)
         spec.header.set("CALSCL", True, "Exposure time divided out")
 
@@ -1686,7 +1688,7 @@ class SEDMCube( Cube ):
 
         if verbose: print("* Starting extractstar.run")
         return self.extractstar.run(slice_width=slice_width, psfmodel=psfmodel,
-                                        fwhm_guess=fwhm_guess, **kwargs)
+                                        fwhm_guess=fwhm_guess, verbose=verbose, **kwargs)
 
     def get_aperture_spec(self, xref, yref, radius, bkgd_annulus=None,
                               refindex=None, adr=True, **kwargs):

@@ -824,21 +824,21 @@ class SEDMExtractStar( BaseObject ):
             return spec, other_es_output
 
     # ExtractStar output
-    def set_es_products(self, spec, cubemodel, psfmodel, bkgdmodel, psffit, slpsf):
+    def set_es_products(self, spec, cubemodel, psfmodel, bkgdmodel, psffit, slpsf,
+                            backup=False):
         """ """
         for k,v in locals().items():
             if k in self.es_products:
                 self.es_products[k] = v # defined just above
 
-        self._build_es_output_()
+        self._build_es_output_(backup=backup)
         self._es_spec_update_()
 
     def build_backup_output(self):
         """ """
-        backup_spec = get_spectrum( SEDM_LBDA, np.ones(len(SEDM_LBDA))*np.NaN, header=self.cube.header )
-        self.set_es_products(backup_spec, None, None, None, None, None)
-        self._build_es_output_(backup=True)
-        self._es_spec_update_()
+        backup_spec = get_spectrum( SEDM_LBDA, np.ones(len(SEDM_LBDA))*np.NaN,
+                                        header=self.cube.header )
+        self.set_es_products(backup_spec, None, None, None, None, None, backup=True)
 
     def _es_spec_update_(self):
         """ """

@@ -49,11 +49,12 @@ def run_extractstar(es, spaxelbuffer = 10,
     rawspec.set_filename(es.cube.filename.replace("e3d", "esspec"))
     #
     # - Output
-    if store_fig:
+    if store_fig and es is not None:
         basename = es.basename
-        es.show_adr(savefile = basename.replace("{placeholder}","esadr")+".pdf")
         es.show_mla(savefile = basename.replace("{placeholder}","esmla")+".pdf")
-        es.show_psf(savefile = basename.replace("{placeholder}","espsf")+".pdf")
+        if es._es_headerkey["posok"]:
+            es.show_adr(savefile = basename.replace("{placeholder}","esadr")+".pdf")
+            es.show_psf(savefile = basename.replace("{placeholder}","espsf")+".pdf")
         rawspec.show(savefile = basename.replace("{placeholder}","esspec")+".pdf")
         
     if store_data:

@@ -171,7 +171,7 @@ class DaskES( DaskCube ):
 
         #
         # Build the graph
-        raw_std = self.extract_rawstar(cubefile_std)
+        raw_std = self.extract_rawstar(cubefile_std, centroid="brightest")
         fluxcalfile = self.build_fluxcalibrator(raw_std)
         f_spec = [raw_std]
         for cubefile in cubefiles:
@@ -182,9 +182,9 @@ class DaskES( DaskCube ):
         return f_spec
     
     @classmethod
-    def single_extractstars(cls, cube_filename, fluxcalfile=None, calibrate=True):
+    def single_extractstars(cls, cube_filename, fluxcalfile=None, calibrate=True, **kwargs):
         """ """
-        rawspec = cls.extract_rawstar(cube_filename)
+        rawspec = cls.extract_rawstar(cube_filename, **kwargs)
         if fluxcalfile is None and calibrate:
             fluxcalfile = delayed(get_fluxcalfile)(cube_filename)
             
@@ -194,7 +194,7 @@ class DaskES( DaskCube ):
     # Static   #
     # -------- #
     @staticmethod
-    def extract_rawstar(cube_filename, store_fig=True, store_data=True, **kwargs):
+    def extract_rawstar(cube_filename, centroid='auto', store_fig=True, store_data=True, **kwargs):
         """ Extract the pointsource from the given filename 
         
         Parameters
@@ -210,7 +210,7 @@ class DaskES( DaskCube ):
         cube = delayed(get_sedmcube)(cube_filename)
                 
         # 3. Get ExtractStar
-        estar = delayed(get_extractstar)(cube)
+        estar = delayed(get_extractstar)(cube, centroid=centroid)
         
         # 4. Run ExtractStar
         rawspec = delayed(run_extractstar)(estar, store_fig=store_fig, store_data=store_data,

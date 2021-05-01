@@ -75,7 +75,7 @@ def position_source(cube,
             return position_source(cube, lbdaranges=lbdaranges, maxpos=True)
 
         # Works !
-        warning.warn(f"IFU position based on CCD wcs solution used : {xcentroid, ycentroid}")
+        warnings.warn(f"IFU position based on CCD wcs solution used : {xcentroid, ycentroid}")
         position_type="astrom"
 
     # OPTION 3: Use input centroid values for position

@@ -849,7 +849,7 @@ class SEDMExtractStar( BaseObject ):
     def _build_es_output_(self, backup=False):
         """ """
         if backup:
-            self._es_headerkey = dict(POSOK = self.is_centroid_in_mla(),
+            self._es_headerkey = dict(posok = self.is_centroid_in_mla(),
                                     lbdaref     = "nan", fwhm_arcsec = "nan",
                                     psf_ab     = "nan", psf_pa      = "nan",
                                     psf_airmass = "nan", psf_chi2    = "nan")

@@ -51,21 +51,22 @@ class DaskCube( ClientHolder ):
         _ = super().__init__(client=client)
         if cubefiles is not None:
             self.set_cubefiles(cubefiles)
-            
+
+    @classmethod
+    def from_cubefiles(cls, cubefiles, client):
+        """ shortcut to __init__ for simplicity """
+        return cls(client=client, cubefiles=cubefiles)
+
     @classmethod
     def from_name(cls, name, client):
         """ """
-        from ztfquery import sedm
-        squery = sedm.SEDMQuery()
-        cubefiles = squery.get_target_cubes(name, client=client)
+        cubefiles = cls.get_cubes(client=client, targetname=name, **kwargs)[0]
         return cls.from_cubefiles(cubefiles=cubefiles, client=client)
 
     @classmethod
-    def from_date(cls, date, client):
+    def from_date(cls, date, client, **kwargs):
         """ """
-        from ztfquery import sedm
-        squery = sedm.SEDMQuery()
-        cubefiles = squery.get_night_cubes(date, client=client)
+        cubefiles = cls.get_cubes(client=client, dates=date, **kwargs)[0]
         return cls.from_cubefiles(cubefiles=cubefiles, client=client)
 
     @classmethod
@@ -75,10 +76,27 @@ class DaskCube( ClientHolder ):
         monthdates = [f'{year:04d}{month:02d}{d:02d}' for d in range(1, monthrange(year, month)[1] + 1)]
         return cls.from_date(monthdates, client=client)
     
-    @classmethod
-    def from_cubefiles(cls, cubefiles, client):
-        """ shortcut to __init__ for simplicity """
-        return cls(client=client, cubefiles=cubefiles)
+    @staticmethod
+    def get_cubes(client, dates=None, targetname=None, incl_astrom=True):
+        """ """
+        if targetname is None and dates is None:
+            raise ValueError("either dates or targetname must be given")
+
+        from ztfquery import sedm
+        squery = sedm.SEDMQuery()
+        cubes = []
+        astrom = []
+        if dates is not None:
+            cubes += list(squery.get_night_cubes(dates, client=client))
+            if incl_astrom:
+                astrom += list(squery.get_night_astrom(dates, client=client))
+        if targetname is not None:
+            cubes += list(squery.get_target_cubes(targetname, client=client))
+            if incl_astrom:
+                astrom += list(squery.get_target_astrom(targetname, client=client))
+
+        return cubes, astrom
+        
     # -------- #
     #  SETTER  #
     # -------- #

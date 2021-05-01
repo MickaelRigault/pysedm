@@ -142,17 +142,22 @@ class DaskES( DaskCube ):
     # =============== #
     #    Methods      #
     # =============== #
+    def get_std_basename(self):
+        """ """
+        dcube = self.get_cubefile_dataframe(False)
+        return dcube[dcube["is_std"]]["basename"].values
+
     # -------- #
     # Running  #
     # -------- #
     def compute(self, get_delayed=False):
         """ """
-        dcube = self.get_cubefile_dataframe(False)
-        stdfiles = dcube[dcube["is_std"]]["basename"].values
+        stdbasenames = self.get_std_basename()
         spectra = [self.stdconnected_extractstars(stdbasename)
-                    for stdbasename in stdfiles]
+                    for stdbasename in stdbasenames]
         if get_delayed:
             return spectra
+        
         return self.client.compute(spectra)
 
     def stdconnected_extractstars(self, std_basename):
@@ -220,4 +225,12 @@ class DaskES( DaskCube ):
     def build_fluxcalibrator(rawspec):
         """ """
         return delayed(build_fluxcalibrator)(rawspec)
+        
+
+
+    # -------- #
+    # Checks   #
+    # -------- #
+    def compute_check(self, futures):
+        """ """
         

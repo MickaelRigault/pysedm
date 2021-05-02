@@ -143,10 +143,15 @@ class DaskES( DaskCube ):
     # =============== #
     #    Methods      #
     # =============== #
-    def get_std_basename(self):
+    def get_std_basename(self, excluse_std="GD248"):
         """ """
         dcube = self.get_cubefile_dataframe(False)
-        return dcube[dcube["is_std"]]["basename"].values
+        dstd = dcube[dcube["is_std"]]
+        if excluse_std is not None:
+            re_exclude = "|".join(list(np.atleast_1d(excluse_std)))
+            dstd = dstd[~dstd["name"].str.contains(re_exclude)]
+                
+        return dstd["basename"].values
 
     # -------- #
     # Running  #

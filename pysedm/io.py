@@ -398,7 +398,9 @@ def load_telluric_line(filter=None):
     from .utils.atmosphere import load_telluric_spectrum
     return load_telluric_spectrum(_PACKAGE_ROOT+"data/KPNO_lines.fits", filter=filter)
 
-
+def get_bad_standard_exposures():
+    """ Get the list of recorded standard star exposures that cannot be used for calibration. """
+    return open(os.path.join(_PACKAGE_ROOT,"data/bad_standard.txt").read().splitlines())
 
 
 #########################3

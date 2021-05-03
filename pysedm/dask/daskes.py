@@ -154,7 +154,7 @@ class DaskES( DaskCube ):
         data = self.get_datafiles(excluse_std=excluse_std, avoid_bad=avoid_bad_std,
                                       add_stdcalib=True, index_per_calib=True)
         stdbasenames = np.unique(data.index.levels[0])
-        spectra = [self.stdconnected_extractstars(stdbasename)
+        spectra = [self.stdconnected_extractstars(datafile_std=data.xs(stdbasename).set_index("basename"))
                     for stdbasename in stdbasenames]
         
         if get_delayed:
@@ -162,13 +162,15 @@ class DaskES( DaskCube ):
         
         return self.client.compute(spectra)
 
-    def stdconnected_extractstars(self, std_basename):
+    def stdconnected_extractstars(self, datafile_std=None, std_basename=None, **kwargs):
         """ """
         #
         # Get the cube paths
-        cubefile_df  = self.get_cubefile_dataframe().xs(std_basename).set_index("basename")
-        cubefile_std = cubefile_df.loc[std_basename]["filepath"]
-        cubefiles    = cubefile_df.drop(std_basename)["filepath"].values
+        if datafile_std is None:
+            datafile_std  = self.get_datafiles(**kwargs).xs(std_basename).set_index("basename")
+        
+        cubefile_std = datafile_std.loc[std_basename]["filepath"]
+        cubefiles    = datafile_std.drop(std_basename)["filepath"].values
 
         #
         # Build the graph

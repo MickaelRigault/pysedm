@@ -400,7 +400,7 @@ def load_telluric_line(filter=None):
 
 def get_bad_standard_exposures():
     """ Get the list of recorded standard star exposures that cannot be used for calibration. """
-    return open(os.path.join(_PACKAGE_ROOT,"data/bad_standard.txt").read().splitlines())
+    return open(os.path.join(_PACKAGE_ROOT,"data/bad_standard.txt")).read().splitlines()
 
 
 #########################3

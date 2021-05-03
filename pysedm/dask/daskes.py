@@ -143,22 +143,16 @@ class DaskES( DaskCube ):
     # =============== #
     #    Methods      #
     # =============== #
-    def get_std_basename(self, excluse_std="GD248"):
-        """ """
-        dcube = self.get_cubefile_dataframe(False)
-        dstd = dcube[dcube["is_std"]]
-        if excluse_std is not None:
-            re_exclude = "|".join(list(np.atleast_1d(excluse_std)))
-            dstd = dstd[~dstd["name"].str.contains(re_exclude)]
-                
-        return dstd["basename"].values
+
 
     # -------- #
     # Running  #
     # -------- #
-    def compute(self, get_delayed=False):
+    def compute(self, get_delayed=False, excluse_std=['GD248'], avoid_bad_std=True):
         """ """
-        stdbasenames = self.get_std_basename()
+        data = self.get_datafiles(excluse_std=excluse_std, avoid_bad=avoid_bad_std,
+                                      add_stdcalib=True, index_per_calib=True)
+        stdbasenames = np.unique(data.index.levels[0])
         spectra = [self.stdconnected_extractstars(stdbasename)
                     for stdbasename in stdbasenames]
         if get_delayed:

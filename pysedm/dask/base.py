@@ -3,6 +3,7 @@
 import pandas
 import numpy as np
 from astropy import time
+from .. import io
 
 def parse_filename(filename):
     """ """
@@ -58,7 +59,7 @@ class DaskCube( ClientHolder ):
         return cls(client=client, cubefiles=cubefiles)
 
     @classmethod
-    def from_name(cls, name, client):
+    def from_name(cls, name, client, **kwargs):
         """ """
         cubefiles = cls.get_cubes(client=client, targetname=name, **kwargs)[0]
         return cls.from_cubefiles(cubefiles=cubefiles, client=client)
@@ -70,14 +71,14 @@ class DaskCube( ClientHolder ):
         return cls.from_cubefiles(cubefiles=cubefiles, client=client)
 
     @classmethod
-    def from_month(cls, year, month, client):
+    def from_month(cls, year, month, client, **kwargs):
         """ """
         from calendar import monthrange
         monthdates = [f'{year:04d}{month:02d}{d:02d}' for d in range(1, monthrange(year, month)[1] + 1)]
-        return cls.from_date(monthdates, client=client)
+        return cls.from_date(monthdates, client=client, **kwargs)
     
     @staticmethod
-    def get_cubes(client, dates=None, targetname=None, incl_astrom=True):
+    def get_cubes(client, dates=None, targetname=None, incl_astrom=True, **kwargs):
         """ """
         if targetname is None and dates is None:
             raise ValueError("either dates or targetname must be given")
@@ -87,7 +88,7 @@ class DaskCube( ClientHolder ):
         cubes = []
         astrom = []
         if dates is not None:
-            cubes += list(squery.get_night_cubes(dates, client=client))
+            cubes += list(squery.get_night_cubes(dates, client=client, **kwargs))
             if incl_astrom:
                 astrom += list(squery.get_night_astrom(dates, client=client))
         if targetname is not None:
@@ -102,26 +103,51 @@ class DaskCube( ClientHolder ):
     # -------- #
     def set_cubefiles(self, cubefiles):
         """ """
+        # cubefiles
         self._cubefiles = cubefiles
 
-    def get_cubefile_dataframe(self, index_per_calib=True):
-        """ """
+        # datafiles
         datafile = pandas.DataFrame(self.cubefiles, columns=["filepath"])
         dataall = datafile["filepath"].str.split("/", expand=True)
         datafile["basename"] = dataall[dataall.columns[-1]].values
 
         info = pandas.DataFrame.from_records(datafile["basename"].apply(parse_filename))
-        datafile = pandas.merge(datafile, info,
-                                    left_index=True, right_index=True)
+        datafile = pandas.merge(datafile, info, left_index=True, right_index=True)
         datafile["is_std"] = datafile["name"].str.contains("STD")
+        self._datafiles = datafile
+        
+    # -------- #
+    #  GETTER  #
+    # -------- #
+    def get_std_basename(self, excluse_std=["GD248"], avoid_bad=True):
+        """ get the cubefile_dataframe entry associated to the standard stars """
+        dstd = self.datafiles[self.datafiles["is_std"]]
+        
+        if excluse_std is not None:
+            re_exclude = "|".join(list(np.atleast_1d(excluse_std)))
+            dstd = dstd[~dstd["name"].str.contains(re_exclude)]
 
-        df_std = datafile[datafile["is_std"]]
-        id_ = np.argmin(np.abs(datafile["mjd"].values-df_std["mjd"].values[:,None]), axis=0)
-        datafile["std_calib"] = df_std["basename"].iloc[id_].values
+        if avoid_bad:
+            bad_std = io.get_bad_standard_exposures()
+            dstd = dstd[~dstd["basename"].str.contains("|".join(bad_std))]
+            
+        return dstd["basename"]
+    
+    def get_datafiles(self, excluse_std=["GD248"], avoid_bad=True,
+                          add_stdcalib=True, index_per_calib=True):
+        """ """
+        datafiles = self.datafiles.copy()
+        if add_stdcalib:
+            std_datafiles = self.get_std_basename(excluse_std=excluse_std, avoid_bad=avoid_bad)
+            df_std = datafiles.loc[std_datafiles.index]
+            id_ = np.argmin(np.abs(datafiles["mjd"].values-df_std["mjd"].values[:,None]), axis=0)
+            datafiles["std_calib"] = df_std["basename"].iloc[id_].values
 
-        if index_per_calib:
-            return datafile.set_index(["std_calib", datafile.index])
-        return datafile
+            if index_per_calib:
+                return datafiles.set_index(["std_calib", datafiles.index])
+            
+        return datafiles
+
     
     # =============== #
     #  Properties     #
@@ -136,5 +162,10 @@ class DaskCube( ClientHolder ):
     def has_cubefiles(self):
         """ """
         return self.cubefiles is not None and len(self.cubefiles)>0
-
     
+    @property
+    def datafiles(self):
+        """ stored version of get_datafiles """
+        if not hasattr(self,"_datafiles"):
+            return None
+        return self._datafiles

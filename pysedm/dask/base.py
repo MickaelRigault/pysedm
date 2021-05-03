@@ -119,7 +119,7 @@ class DaskCube( ClientHolder ):
     # -------- #
     #  GETTER  #
     # -------- #
-    def get_std_basename(self, excluse_std=["GD248"], avoid_bad=True):
+    def get_std_basename(self, excluse_std=None, avoid_noncalspec=True, avoid_bad=True):
         """ get the cubefile_dataframe entry associated to the standard stars """
         dstd = self.datafiles[self.datafiles["is_std"]]
         
@@ -127,18 +127,25 @@ class DaskCube( ClientHolder ):
             re_exclude = "|".join(list(np.atleast_1d(excluse_std)))
             dstd = dstd[~dstd["name"].str.contains(re_exclude)]
 
+        if avoid_noncalspec:
+            noncalspec_std = io.get_noncalspec_standards()
+            dstd = dstd[~dstd["name"].str.contains("|".join(noncalspec_std))]
+            
         if avoid_bad:
             bad_std = io.get_bad_standard_exposures()
             dstd = dstd[~dstd["basename"].str.contains("|".join(bad_std))]
             
         return dstd["basename"]
     
-    def get_datafiles(self, excluse_std=["GD248"], avoid_bad=True,
+    def get_datafiles(self, excluse_std=None,
+                          avoid_noncalspec=True, avoid_bad=True,
                           add_stdcalib=True, index_per_calib=True):
         """ """
         datafiles = self.datafiles.copy()
         if add_stdcalib:
-            std_datafiles = self.get_std_basename(excluse_std=excluse_std, avoid_bad=avoid_bad)
+            std_datafiles = self.get_std_basename(excluse_std=excluse_std,
+                                                    avoid_noncalspec=avoid_noncalspec,
+                                                    avoid_bad=avoid_bad)
             df_std = datafiles.loc[std_datafiles.index]
             id_ = np.argmin(np.abs(datafiles["mjd"].values-df_std["mjd"].values[:,None]), axis=0)
             datafiles["std_calib"] = df_std["basename"].iloc[id_].values

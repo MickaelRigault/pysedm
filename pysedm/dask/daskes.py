@@ -1,6 +1,7 @@
 """ Dasked version of pysedm/bin/extractstars.py """
 
 import os
+import numpy as np
 from dask import delayed
 from .base import DaskCube
 
@@ -155,6 +156,7 @@ class DaskES( DaskCube ):
         stdbasenames = np.unique(data.index.levels[0])
         spectra = [self.stdconnected_extractstars(stdbasename)
                     for stdbasename in stdbasenames]
+        
         if get_delayed:
             return spectra
         

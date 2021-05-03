@@ -149,12 +149,12 @@ class DaskES( DaskCube ):
     # -------- #
     # Running  #
     # -------- #
-    def compute(self, get_delayed=False, excluse_std=['GD248'], avoid_bad_std=True):
+    def compute(self, get_delayed=False, **kwargs):
         """ """
-        data = self.get_datafiles(excluse_std=excluse_std, avoid_bad=avoid_bad_std,
-                                      add_stdcalib=True, index_per_calib=True)
+        data = self.get_datafiles(add_stdcalib=True, index_per_calib=True, **kwargs)
+        
         stdbasenames = np.unique(data.index.levels[0])
-        spectra = [self.stdconnected_extractstars(datafile_std=data.xs(stdbasename).set_index("basename"))
+        spectra = [self.stdconnected_extractstars(std_basename=stdbasename)
                     for stdbasename in stdbasenames]
         
         if get_delayed:
@@ -162,12 +162,11 @@ class DaskES( DaskCube ):
         
         return self.client.compute(spectra)
 
-    def stdconnected_extractstars(self, datafile_std=None, std_basename=None, **kwargs):
+    def stdconnected_extractstars(self, std_basename=None, **kwargs):
         """ """
         #
         # Get the cube paths
-        if datafile_std is None:
-            datafile_std  = self.get_datafiles(**kwargs).xs(std_basename).set_index("basename")
+        datafile_std  = self.get_datafiles(**kwargs).xs(std_basename).set_index("basename")
         
         cubefile_std = datafile_std.loc[std_basename]["filepath"]
         cubefiles    = datafile_std.drop(std_basename)["filepath"].values

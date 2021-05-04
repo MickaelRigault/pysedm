@@ -7,14 +7,13 @@ from .. import io
 
 def parse_filename(filename):
     """ """
-    e3d,crr,b, ifudate, *times, targetname=filename.split("_")
+    e3d, crr,b, ifudate, hh,mm,ss, *targetname=filename.split("_")
+    targetname = "-".join(targetname).replace(" ","")
     date = ifudate.replace("ifu","")
-    mjd = time.Time(f"{date[:4]}-{date[4:6]}-{date[6:]}"+" "+":".join(times), format="iso").mjd
+    mjd = time.Time(f"{date[:4]}-{date[4:6]}-{date[6:]}"+" "+f"{hh}:{mm}:{ss}", format="iso").mjd
     return {"date":date, 
            "mjd":mjd, 
            "name":targetname.split(".")[0]}
-
-
 
 class ClientHolder( object ):
 
@@ -27,8 +26,6 @@ class ClientHolder( object ):
         """ """
         self._client = client
 
-
-
     # =============== #
     #  Properties     #
     # =============== #
@@ -38,7 +35,6 @@ class ClientHolder( object ):
         if not hasattr(self,"_client"):
             return None
         return self._client
-
 
 
 class DaskCube( ClientHolder ):
@@ -88,7 +84,7 @@ class DaskCube( ClientHolder ):
     @classmethod
     def from_year(cls, year, client, **kwargs):
         """ """
-        return self.from_daterange([f"{year}-01-01",f"{year}-12-31"], client, **kwargs)
+        return cls.from_daterange([f"{year}-01-01",f"{year}-12-31"], client, **kwargs)
 
     @staticmethod
     def get_cubes(client, dates=None, targetname=None, incl_astrom=True, **kwargs):
@@ -122,6 +118,7 @@ class DaskCube( ClientHolder ):
         # datafiles
         datafile = pandas.DataFrame(self.cubefiles, columns=["filepath"])
         dataall = datafile["filepath"].str.split("/", expand=True)
+        datafile["date"] = dataall[dataall.columns[-2]].values
         datafile["basename"] = dataall[dataall.columns[-1]].values
 
         info = pandas.DataFrame.from_records(datafile["basename"].apply(parse_filename))

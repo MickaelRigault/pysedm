@@ -115,10 +115,9 @@ class DaskCube( ClientHolder ):
         # cubefiles
         self._cubefiles = cubefiles
 
-        # datafiles
+        # dataziles
         datafile = pandas.DataFrame(self.cubefiles, columns=["filepath"])
         dataall = datafile["filepath"].str.split("/", expand=True)
-        datafile["date"] = dataall[dataall.columns[-2]].values
         datafile["basename"] = dataall[dataall.columns[-1]].values
 
         info = pandas.DataFrame.from_records(datafile["basename"].apply(parse_filename))

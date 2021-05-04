@@ -71,12 +71,25 @@ class DaskCube( ClientHolder ):
         return cls.from_cubefiles(cubefiles=cubefiles, client=client)
 
     @classmethod
+    def from_daterange(cls, daterange, client, **kwargs):
+        """ """
+        from ztfquery import sedm
+        start, end = daterange
+        dates = sedm.build_datelist(start=start, end=end)
+        return cls.from_date(dates, client, **kwargs)
+
+    @classmethod
     def from_month(cls, year, month, client, **kwargs):
         """ """
         from calendar import monthrange
         monthdates = [f'{year:04d}{month:02d}{d:02d}' for d in range(1, monthrange(year, month)[1] + 1)]
         return cls.from_date(monthdates, client=client, **kwargs)
-    
+
+    @classmethod
+    def from_year(cls, year, client, **kwargs):
+        """ """
+        return self.from_daterange([f"{year}-01-01",f"{year}-12-31"], client, **kwargs)
+
     @staticmethod
     def get_cubes(client, dates=None, targetname=None, incl_astrom=True, **kwargs):
         """ """

@@ -402,7 +402,7 @@ def get_bad_standard_exposures():
     """ Get the list of recorded standard star exposures that cannot be used for calibration. """
     return open(os.path.join(_PACKAGE_ROOT,"data/bad_standard.txt")).read().splitlines()
 
-def get_noncalspec_standards()
+def get_noncalspec_standards():
     """ Get the list of STD observed by SEDm that are not calspec standards. """
     return open(os.path.join(_PACKAGE_ROOT,"data/noncalspec_standard.txt")).read().splitlines()
 

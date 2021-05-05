@@ -7,13 +7,23 @@ from .. import io
 
 def parse_filename(filename):
     """ """
-    e3d, crr,b, ifudate, hh,mm,ss, *targetname=filename.split("_")
-    targetname = "-".join(targetname).replace(" ","")
+    filename = filename.split(".")[0]
+    if filename.startswith("crr"):
+        crr, b, ifudate, hh, mm, ss, *targetname  = filename.split("_")
+    else:
+        _, crr, b, ifudate, hh, mm, ss, *targetname = filename.split("_")
+
+    if len(targetname)==0:
+        targetname = None
+    else:
+        targetname = ("-".join(targetname).replace(" ","")).split(".")[0]
+        
     date = ifudate.replace("ifu","")
     mjd = time.Time(f"{date[:4]}-{date[4:6]}-{date[6:]}"+" "+f"{hh}:{mm}:{ss}", format="iso").mjd
     return {"date":date, 
            "mjd":mjd, 
-           "name":targetname.split(".")[0]}
+           "name":targetname}
+
 
 class ClientHolder( object ):
 
@@ -36,35 +46,38 @@ class ClientHolder( object ):
             return None
         return self._client
 
-
-class DaskCube( ClientHolder ):
+#
+#
+#
+#
+#
+class _SEDMFileHolder_( ClientHolder ):
     
-    
+    def __init__(self, client=None, files=None):
+        """ """
+        _ = super().__init__(client=client)
+        if files is not None:
+            self.set_files(files)
     # =============== #
     # Initialisation  #
     # =============== #
-    def __init__(self, client=None, cubefiles=None):
-        """ """
-        _ = super().__init__(client=client)
-        if cubefiles is not None:
-            self.set_cubefiles(cubefiles)
 
     @classmethod
-    def from_cubefiles(cls, cubefiles, client):
+    def from_files(cls, files, client):
         """ shortcut to __init__ for simplicity """
-        return cls(client=client, cubefiles=cubefiles)
+        return cls(client=client, files=files)
 
     @classmethod
     def from_name(cls, name, client, **kwargs):
         """ """
-        cubefiles = cls.get_cubes(client=client, targetname=name, **kwargs)[0]
-        return cls.from_cubefiles(cubefiles=cubefiles, client=client)
+        files = cls.get_files(client=client, targetname=name, **kwargs)
+        return cls.from_files(files=files, client=client)
 
     @classmethod
     def from_date(cls, date, client, **kwargs):
         """ """
-        cubefiles = cls.get_cubes(client=client, dates=date, **kwargs)[0]
-        return cls.from_cubefiles(cubefiles=cubefiles, client=client)
+        files = cls.get_files(client=client, dates=date, **kwargs)
+        return cls.from_files(files=files, client=client)
 
     @classmethod
     def from_daterange(cls, daterange, client, **kwargs):
@@ -86,8 +99,86 @@ class DaskCube( ClientHolder ):
         """ """
         return cls.from_daterange([f"{year}-01-01",f"{year}-12-31"], client, **kwargs)
 
+    # - Static Get Files
     @staticmethod
-    def get_cubes(client, dates=None, targetname=None, incl_astrom=True, **kwargs):
+    def get_files(client, dates=None, targetname=None,  **kwargs):
+        """ """
+        raise NotImplementedError("get_file mush be implemented")
+    
+    # =============== #
+    # Methods         #
+    # =============== #
+    # -------- #
+    #  SETTER  #
+    # -------- #
+    def set_files(self, files, unique=True):
+        """ """
+        # cubefiles
+        self._files = files if not unique else list(np.unique(unique))
+        # dataziles
+        datafile = pandas.DataFrame(self.files, columns=["filepath"])
+        dataall = datafile["filepath"].str.split("/", expand=True)
+        datafile["basename"] = dataall[dataall.columns[-1]].values
+
+        info = pandas.DataFrame.from_records(datafile["basename"].apply(parse_filename))
+        datafile = pandas.merge(datafile, info, left_index=True, right_index=True)
+        datafile["is_std"] = datafile["name"].str.contains("STD")
+        self._datafiles = datafile
+
+    # =============== #
+    #  Properties     #
+    # =============== #
+    @property
+    def files(self):
+        """ """
+        if not hasattr(self,"_files"):
+            return None
+        return self._files
+
+    def has_files(self):
+        """ """
+        return self.files is not None and len(self.files)>0
+    
+    @property
+    def datafiles(self):
+        """ stored version of get_datafiles """
+        if not hasattr(self,"_datafiles"):
+            return None
+        return self._datafiles
+
+    
+class DaskCCD( _SEDMFileHolder_ ):
+    """ """
+    # =============== #
+    # Initialisation  #
+    # =============== #
+    @staticmethod
+    def get_files(client, dates=None, targetname=None,  **kwargs):
+        """ """
+        if targetname is None and dates is None:
+            raise ValueError("either dates or targetname must be given")
+
+        from ztfquery import sedm
+        squery = sedm.SEDMQuery()
+        files = []
+        if dates is not None:
+            files += list(squery.get_night_crr(dates, client=client, **kwargs))
+            
+        if targetname is not None:
+            files += list(squery.get_target_crr(targetname, client=client))
+            
+        return files
+
+    
+class DaskCube( _SEDMFileHolder_ ):
+    
+    
+    # =============== #
+    # Initialisation  #
+    # =============== #
+
+    @staticmethod
+    def get_files(client, dates=None, targetname=None, incl_astrom=True, **kwargs):
         """ """
         if targetname is None and dates is None:
             raise ValueError("either dates or targetname must be given")
@@ -105,25 +196,11 @@ class DaskCube( ClientHolder ):
             if incl_astrom:
                 astrom += list(squery.get_target_astrom(targetname, client=client))
 
-        return cubes, astrom
+        return cubes
         
     # -------- #
     #  SETTER  #
     # -------- #
-    def set_cubefiles(self, cubefiles):
-        """ """
-        # cubefiles
-        self._cubefiles = cubefiles
-
-        # dataziles
-        datafile = pandas.DataFrame(self.cubefiles, columns=["filepath"])
-        dataall = datafile["filepath"].str.split("/", expand=True)
-        datafile["basename"] = dataall[dataall.columns[-1]].values
-
-        info = pandas.DataFrame.from_records(datafile["basename"].apply(parse_filename))
-        datafile = pandas.merge(datafile, info, left_index=True, right_index=True)
-        datafile["is_std"] = datafile["name"].str.contains("STD")
-        self._datafiles = datafile
         
     # -------- #
     #  GETTER  #
@@ -163,25 +240,3 @@ class DaskCube( ClientHolder ):
                 return datafiles.set_index(["std_calib", datafiles.index])
             
         return datafiles
-
-    
-    # =============== #
-    #  Properties     #
-    # =============== #
-    @property
-    def cubefiles(self):
-        """ """
-        if not hasattr(self,"_cubefiles"):
-            return None
-        return self._cubefiles
-
-    def has_cubefiles(self):
-        """ """
-        return self.cubefiles is not None and len(self.cubefiles)>0
-    
-    @property
-    def datafiles(self):
-        """ stored version of get_datafiles """
-        if not hasattr(self,"_datafiles"):
-            return None
-        return self._datafiles

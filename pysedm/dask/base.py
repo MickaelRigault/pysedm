@@ -114,7 +114,7 @@ class _SEDMFileHolder_( ClientHolder ):
     def set_files(self, files, unique=True):
         """ """
         # cubefiles
-        self._files = files if not unique else list(np.unique(unique))
+        self._files = files if not unique else list(np.unique(files))
         # dataziles
         datafile = pandas.DataFrame(self.files, columns=["filepath"])
         dataall = datafile["filepath"].str.split("/", expand=True)

@@ -149,11 +149,12 @@ class DaskES( DaskCube ):
     # -------- #
     # Running  #
     # -------- #
-    def compute(self, get_delayed=False, **kwargs):
+    def compute(self, stdbasenames=None, get_delayed=False, **kwargs):
         """ """
-        data = self.get_datafiles(add_stdcalib=True, index_per_calib=True, **kwargs)
+        if stdbasenames is None:
+            data = self.get_datafiles(add_stdcalib=True, index_per_calib=True, **kwargs)
+            stdbasenames = np.unique(data.index.levels[0])
         
-        stdbasenames = np.unique(data.index.levels[0])
         spectra = [self.stdconnected_extractstars(std_basename=stdbasename)
                     for stdbasename in stdbasenames]
         

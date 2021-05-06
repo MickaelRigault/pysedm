@@ -22,7 +22,7 @@ def get_fluxcal_file(cube):
     """ """
     return io.fetch_nearest_fluxcal(mjd=cube.header.get("MJD_OBS"))
 
-def calibrate_cube(cube, fluxcalfile, airmass=None, backup_airmass=1.1):
+def calibrate_cube(cube, fluxcalfile, airmass=None, backup_airmass=1.1, store_data=True):
     """ """
     if airmass is None:
         airmass = cube.header.get("AIRMASS", backup_airmass)
@@ -30,6 +30,10 @@ def calibrate_cube(cube, fluxcalfile, airmass=None, backup_airmass=1.1):
     fluxcal = fluxcalibration.load_fluxcal_spectrum(fluxcalfile)
     cube.scale_by( fluxcal.get_inversed_sensitivity( cube.header.get("AIRMASS", backup_airmass) ),
                       onraw=False)
+    cube.set_filename( cube.filename.replace("e3d","cale3d") )
+    if store_data:
+        cube.writeto(self.filename)
+        
     return cube
 
 # // HyperGal - INTRINSEC CUBE
@@ -142,24 +146,11 @@ class DaskHyperGal( DaskCube ):
         cubefile_id = ''.join(os.path.basename(cubefile_).split("ifu")[-1].split("_")[:4])
         workingdir = f"tmp_{cubefile_id}"
         return [ra,dec], workingdir
-    
-    @staticmethod
-    def get_calibrated_cube(cubefile_, fluxcalfile=None, apply_bycr=True, **kwargs):
-        """ """
-         # 1. Get cube
-        cube = delayed(get_cube)(cubefile_, apply_bycr=apply_bycr)
-
-        # 2. Get flux calibration file (if any)
-        if fluxcalfile is None:
-            fluxcalfile = delayed(get_fluxcal_file)(cube) # could be None
-
-        # 3. Flux calibrating the cube
-        calibrated_cube = delayed(calibrate_cube)(cube, fluxcalfile, **kwargs)
-        return calibrated_cube
 
 
     @staticmethod
-    def get_intrinsic_cube(radec, redshift, workingdir=None, use_cigale=True, store_fig=True, filename="intrinsic_cube.fits"):
+    def get_intrinsic_cube(radec, redshift, workingdir=None, use_cigale=True,
+                               store_fig=True, filename="intrinsic_cube.fits", **kwargs):
         """ """
 
         # 4. 

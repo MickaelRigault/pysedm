@@ -3,7 +3,8 @@
 import pandas
 import numpy as np
 from astropy import time
-from .. import io
+
+from .. import io, get_sedmcube
 
 def parse_filename(filename):
     """ """
@@ -23,6 +24,36 @@ def parse_filename(filename):
     return {"date":date, 
            "mjd":mjd, 
            "name":targetname}
+
+
+
+def get_cube(cubefile, apply_bycr=True):
+    """ """
+    # To be 
+    cube = get_sedmcube(cubefile)
+    if apply_bycr:
+        print("BY CR TO BE IMPLEMENTED")
+    return cube
+
+def get_fluxcal_file(cube):
+    """ """
+    return io.fetch_nearest_fluxcal(mjd=cube.header.get("MJD_OBS"))
+
+def calibrate_cube(cube, fluxcalfile, airmass=None, backup_airmass=1.1, store_data=True):
+    """ """
+    if airmass is None:
+        airmass = cube.header.get("AIRMASS", backup_airmass)
+        
+    fluxcal = fluxcalibration.load_fluxcal_spectrum(fluxcalfile)
+    cube.scale_by( fluxcal.get_inversed_sensitivity( cube.header.get("AIRMASS", backup_airmass) ),
+                      onraw=False)
+    cube.set_filename( cube.filename.replace("e3d","cale3d") )
+    if store_data:
+        cube.writeto(self.filename)
+        
+    return cube
+
+
 
 
 class ClientHolder( object ):
@@ -240,3 +271,19 @@ class DaskCube( _SEDMFileHolder_ ):
                 return datafiles.set_index(["std_calib", datafiles.index])
             
         return datafiles
+
+
+
+    @staticmethod
+    def get_calibrated_cube(cubefile_, fluxcalfile=None, apply_bycr=True, **kwargs):
+        """ """
+         # 1. Get cube
+        cube = delayed(get_cube)(cubefile_, apply_bycr=apply_bycr)
+
+        # 2. Get flux calibration file (if any)
+        if fluxcalfile is None:
+            fluxcalfile = delayed(get_fluxcal_file)(cube) # could be None
+
+        # 3. Flux calibrating the cube
+        calibrated_cube = delayed(calibrate_cube)(cube, fluxcalfile, **kwargs)
+        return calibrated_cube

@@ -12,7 +12,7 @@ from pysedm import get_sedmcube, io, fluxcalibration
 
 
 # // HyperGal - INTRINSEC CUBE
-def fetch_cutouts(cubefile, radec=None, source="ps1", size=240,
+def fetch_cutouts(cubefile=None, radec=None, source="ps1", size=240,
                       subsample=2, as_cigale=True):
     """ """
     if radec is None:
@@ -129,7 +129,7 @@ class DaskHyperGal( DaskCube ):
         """ """
 
         # 4. 
-        geodf_cutouts_pix_coord = delayed(fetch_cutouts)(radec, as_cigale=use_cigale)
+        geodf_cutouts_pix_coord = delayed(fetch_cutouts)(radec=radec, as_cigale=use_cigale)
         geodf_cutouts = geodf_cutouts_pix_coord[0]
         pix = geodf_cutouts_pix_coord[1]
         coord = geodf_cutouts_pix_coord[2]

@@ -141,7 +141,7 @@ class DaskHyperGal( DaskCube ):
         return [ra,dec], workingdir
     
     @staticmethod
-    def get_calibrated_cube(cubefile_, fluxcalfile=None, apply_br=True, **kwargs):
+    def get_calibrated_cube(cubefile_, fluxcalfile=None, apply_bycr=True, **kwargs):
         """ """
          # 1. Get cube
         cube = delayed(get_cube)(cubefile_, apply_bycr=apply_bycr)

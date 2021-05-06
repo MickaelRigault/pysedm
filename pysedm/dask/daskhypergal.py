@@ -70,7 +70,8 @@ def build_intrinsic_cube(geodataframe, redshift, working_dir,
     
     if store_data:
         cube3d.writeto(cube3d.filename)
-        resdf = table.Table( os.path.join( sedfitter._working_dir, "out","results.fits") ).to_pandas()
+        resdf = table.Table( fits.open( os.path.join( sedfitter._working_dir, "out","results.fits") )[1].data
+                            ).to_pandas()
         resdf.to_csv(cube3d.filename.replace("hginte3d",sedkey).replace(".fits", ".csv"))
         
     if store_fig:
@@ -163,13 +164,17 @@ class DaskHyperGal( DaskCube ):
         # Branch Cube Generation
         calibrated_cubefile = self.get_calibrated_cube(cubefile_, fluxcalfile=fluxcalfile, apply_br=apply_br, **cubeprop)
        
-        # ----- #
-        # PS1   #
-        # ----- #
         # Branch Intrinsic Cube
         intrinsic_cubefile = self.get_intrinsic_cube(radec, redshift_, workingdir=workingdir,
                                                  filename=filename_hgint,
                                                  **intprop)
+        # ----- #
+        # PS1   #
+        # ----- #
+        
+
+
+
         
         # 7. Fit
         #    7.1 metaslices

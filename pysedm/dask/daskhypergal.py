@@ -46,9 +46,9 @@ def build_intrinsic_cube(geodataframe, redshift, working_dir,
     
     # Loads the SEDFitter
     sedfitter = sed_fitting.CigaleSED(geodataframe)
-    sedfitter.setup_cigale(redshift=redshift, snr=snr, path_to_save=working_dir)
+    sedfitter.setup_cigale_df(redshift=redshift, snr=snr, path_to_save=working_dir)
     #  Cigale Initiates
-    sedfitter.initial_cigale(cores=cores, working_dir=working_dir, **init_prop)
+    sedfitter.initiate_cigale(cores=cores, working_dir=working_dir, **init_prop)
     #  Cigale Run and output results in {workingdir}/out
     _ = sedfitter.run_cigale(path_result=None)
 

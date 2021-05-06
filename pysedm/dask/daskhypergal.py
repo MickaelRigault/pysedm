@@ -1,5 +1,8 @@
 
 
+import pandas
+from astropy import table
+from astropy.io import fits
 from dask import delayed
 from .base import DaskCube
 
@@ -9,10 +12,10 @@ from pysedm import get_sedmcube, io, fluxcalibration
 
 def get_cube(cubefile, apply_bycr=True):
     """ """
+    # To be 
     cube = get_sedmcube(cubefile)
     if apply_bycr:
         print("BY CR TO BE IMPLEMENTED")
-
     return cube
 
 def get_fluxcal_file(cube):
@@ -47,26 +50,59 @@ def fetch_cutouts(cubefile, radec=None, source="ps1", size=240,
     ps_target = panstarrs_target.Panstarrs_target(ra,dec)
     ps_target.load_cutout(size=size)
     
-    return ps_target.build_geo_dataframe(subsample,as_cigale=as_cigale), ps_target.get_target_size(), ps_target.get_target_pos()
+    return ps_target.build_geo_dataframe(subsample,as_cigale=as_cigale), ps_target.get_pix_size(), ps_target.get_target_coord()
     
 # 6
-def run_sed(geodataframe, redshift, use_cigale=True, snr=3, tmp_path=None,
-                cores=1, init_prop={}, clean_output=False, **kwargs):
+def build_intrinsic_cube(geodataframe, redshift, working_dir,
+                         use_cigale=True, snr=3,
+                         pixsize=None, targetcoord=None, filename="intrinsic_cube.fits",
+                         cores=1, init_prop={}, clean_output=True,
+                         store_data=True, store_fig=True, **kwargs):
     """ """
-    from hypergal import sed_fitting
     if not use_cigale:
         raise NotImplementedError("Only CIGALE sed fit implemented")
 
-    cigale = sed_fitting.Cigale_sed(geodataframe)
-    cigale.setup(redshift=redshift, snr=snr, path_to_save=tmp_path)
-    cigale.initial_cigale(cores=cores, **init_prop)
+    from hypergal import sed_fitting
+    sedkey = "hgsed"
     
-    _ = cigale.run_cigale(TMP_PATH_RESULT,FILDER_OUR)
-    _ = cigale.get_sample_spectra()
-    if clean_output:
-        _ = cigale.clean_output()
+    # Loads the SEDFitter
+    sedfitter = sed_fitting.CigaleSED(geodataframe)
+    sedfitter.setup(redshift=redshift, snr=snr, path_to_save=working_dir)
+    #  Cigale Initiates
+    sedfitter.initial_cigale(cores=cores, working_dir=working_dir, **init_prop)
+    #  Cigale Run and output results in {workingdir}/out
+    _ = sedfitter.run_cigale(path_result=None)
+
+    # reads outputs, reshape the spectra and build the cube.
+    cube3d = sedfitter.get_sample_spectra(save_dirout_data=None, as_cube=True)
+    if pixsize is not None:
+        cube3d.header.set("PIXSIZE",pixsize)
+    else:
+        cube3d.header.set("PIXSIZE", None )
         
-    return cigale.get_3d_cube()
+    if targetcoord is not None:
+        cube3d.header.set("OBJX", targetcoord[0])
+        cube3d.header.set("OBJY", targetcoord[1])
+    else:
+        cube3d.header.set("OBJX", None)
+        cube3d.header.set("OBJY", None)
+        
+    cube3d.set_filename(filename)
+    
+    if store_data:
+        cube3d.writeto(cube3d.filename)
+        resdf = table.Table( os.path.join( sedfitter._working_dir, "out","results.fits") ).to_pandas()
+        resdf.to_csv(cube3d.filename.replace("hginte3d",sedkey).replace(".fits", ".csv"))
+        
+    if store_fig:
+        savefile = cube3d.filename.replace(".fits",".pdf") 
+        cube3d.show(savefile=savefile)
+        sedfitter.show_rms(savefile=savefile.replace("hginte3d",sedkey))
+
+    if clean_output:
+        _ = sedfitter.clean_output()
+
+    return cube3d
 
     
 # 7. Fit
@@ -87,7 +123,6 @@ def build_adr_and_psf(metaslice_parameters):
     psf=None
     return adr, psf
 
-
 def fit_cube(calibrated_cube, intrinsec_cube, adr, psf):
     """ """
     cubemodel=None
@@ -96,36 +131,76 @@ def fit_cube(calibrated_cube, intrinsec_cube, adr, psf):
 class DaskHyperGal( DaskCube ):
 
     @staticmethod
-    def single_hypergal(cubefile_, redshift_,
-                            radec=None, use_cigale=True,
-                            apply_br=True,
-                            airmass=None, nmetaslices=5):
+    def get_cubeinfo(cubefile_):
         """ """
-        # ----- #
-        # Cube  #
-        # ----- # 
-        # 1. Get cube
+        header_  = fits.getheader(cubefile_)
+        ra = header_.get("OBJRA", None)
+        dec = header_.get("OBJDEC", None)
+        cubefile_id = ''.join(os.path.basename(cubefile_).split("ifu")[-1].split("_")[:4])
+        workingdir = f"tmp_{cubefile_id}"
+        return [ra,dec], workingdir
+    
+    @staticmethod
+    def get_calibrated_cube(cubefile_, fluxcalfile=None, apply_br=True, **kwargs):
+        """ """
+         # 1. Get cube
         cube = delayed(get_cube)(cubefile_, apply_br=apply_br)
 
         # 2. Get flux calibration file (if any)
-        fluxcalfile = delayed(get_fluxcal_file)(cube) # could be None
+        if fluxcalfile is None:
+            fluxcalfile = delayed(get_fluxcal_file)(cube) # could be None
 
         # 3. Flux calibrating the cube
-        calibrated_cube = delayed(calibrate_cube)(cube, fluxcalfile, airmass=airmass)
+        calibrated_cube = delayed(calibrate_cube)(cube, fluxcalfile, **kwargs)
+        return calibrated_cube
 
+
+    @staticmethod
+    def get_intrinsic_cube(radec, redshift, workingdir=None, use_cigale=True, store_fig=True, filename="intrinsic_cube.fits"):
+        """ """
+
+        # 4. 
+        geodf_cutouts_pix_coord = delayed(fetch_cutouts)(radec, as_cigale=use_cigale)
+        geodf_cutouts = geodf_cutouts_pix_coord[0]
+        pix = geodf_cutouts_pix_coord[1]
+        coord = geodf_cutouts_pix_coord[2]
+        
+        # 5
+        intrinsec_cube = delayed(build_intrinsic_cube)(geodf_cutouts, redshift, workingdir=workingdir,
+                                                       use_cigale=use_cigale,
+                                                       pixsize=pix, targetcoord=coord, filename=filename,
+                                                       store_data=True, store_fig=store_fig, **kwargs)
+        
+        return intrinsec_cube
+        
+
+    @staticmethod
+    def single_hypergal(cubefile_, redshift_,
+                            fluxcalfile=None, # 
+                            radec=None, use_cigale=True,
+                            apply_br=True,
+                            nmetaslices=5,
+                            cubeprop={}, intprop={}):
+        """ """
+        # 0
+        radec_wd = delayed(get_cubeinfo)(cubefile_)
+        radec = radec_wd[0]
+        workingdir = radec_wd[1]
+        filename_hgint = cubefile_.replace("e3d_crr","hginte3d_crr")
+        # ----- #
+        # Cube  #
+        # ----- #
+        # Branch Cube Generation
+        calibrated_cube = self.get_calibrated_cube(cubefile_, fluxcalfile=fluxcalfile, apply_br=apply_br, **cubeprop)
+       
         # ----- #
         # PS1   #
         # ----- #
-        # 4. Get the cut out
-        cutout_pixsize_pixpos = delayed(fetch_cutouts)(cubefile_, radec, as_cigale=use_cigale)
-        geodf_cutouts = cutout_pixsize_pixpos[0]
-        pixsize = cutout_pixsize_pixpos[1]
-        pixpol = cutout_pixsize_pixpos[2]
-
-        # 6. Run CEAGALS
-        intrinsec_cube = delayed(run_sed)(geodf_cutouts, redshift_, use_cigale=use_cigale)
+        # Branch Intrinsic Cube
+        intrinsic_cube = self.get_intrinsic_cube(radec, redshift_, workingdir=workingdir,
+                                                 filename=filename_hgint,
+                                                 **intprop)
         
-
         # 7. Fit
         #    7.1 metaslices
         calibrated_mslices = delayed(split_into_slices)(calibrated_cube, nslices=nmetaslices)

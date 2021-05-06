@@ -277,7 +277,7 @@ class DaskCube( _SEDMFileHolder_ ):
     #  DASK    #
     # -------- #
     @staticmethod
-    def get_calibrated_cube(cubefile_, fluxcalfile=None, apply_bycr=True, **kwargs):
+    def get_calibrated_cube(cubefile_, fluxcalfile=None, apply_bycr=True, as_filename=True, **kwargs):
         """ """
          # 1. Get cube
         cube = delayed(get_cube)(cubefile_, apply_bycr=apply_bycr)
@@ -288,4 +288,4 @@ class DaskCube( _SEDMFileHolder_ ):
 
         # 3. Flux calibrating the cube
         calibrated_cube = delayed(calibrate_cube)(cube, fluxcalfile, **kwargs)
-        return calibrated_cube
+        return calibrated_cube if not as_filename else calibrated_cube.filename

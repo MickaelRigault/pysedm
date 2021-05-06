@@ -43,7 +43,7 @@ MARKER_PROP = {"astrom": dict(marker="x", lw=2, s=80, color="C1", zorder=8),
 
 def position_source(cube,
                     centroid=None, centroiderr=None,
-                    lbdaranges=[5000,7000], maxpos=False):
+                    lbdaranges=[5000,7000], maxpos=False, warn=True):
     """ How is the source position selected ? """
 
     if centroiderr is None or centroiderr in ["None"]:
@@ -58,7 +58,8 @@ def position_source(cube,
 
     # OPTION 1: Use maximum spaxels to derive position
     if maxpos:
-        warnings.warn("Centroid guessed based on brightness")
+        if warn:
+            warnings.warn("Centroid guessed based on brightness")
         xcentroid, ycentroid = estimate_default_position(cube, lbdaranges=lbdaranges)
         if not centroid_err_given:
             centroids_err = [5, 5]
@@ -70,12 +71,14 @@ def position_source(cube,
 
         if xcentroid is None or ycentroid is None or np.isnan(xcentroid*ycentroid):
             # FAILS... go back to OPTION 1
-            warnings.warn("IFU target location based on CCD astrometry failed. "
+            if warn:
+                warnings.warn("IFU target location based on CCD astrometry failed. "
                             "centroid guessed based on brightness used instead")
             return position_source(cube, lbdaranges=lbdaranges, maxpos=True)
 
         # Works !
-        warnings.warn(f"IFU position based on CCD wcs solution used : {xcentroid, ycentroid}")
+        if warn:
+            warnings.warn(f"IFU position based on CCD wcs solution used : {xcentroid, ycentroid}")
         position_type="astrom"
 
     # OPTION 3: Use input centroid values for position

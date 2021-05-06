@@ -7,12 +7,14 @@ from dask import delayed
 from .base import DaskCube
 
 
-from pysedm import get_sedmcube, io, fluxcalibration
+from pysedm import get_sedmcube, io, fluxcalibration, astrometry
 
+
+SEDM_SCALE = 0.558
 
 
 # // HyperGal - INTRINSEC CUBE
-def fetch_cutouts(cubefile=None, radec=None, source="ps1", size=240,
+def fetch_cutouts(cubefile=None, radec=None, source="ps1", size=140,
                       subsample=2, as_cigale=True):
     """ """
     if radec is None:
@@ -68,7 +70,9 @@ def build_intrinsic_cube(geodataframe, redshift, working_dir,
         
     cube3d.set_filename(filename)
     
+    
     if store_data:
+        warnings.warn("Storing to {cube3d.filename}; filename={filename}")
         cube3d.writeto(cube3d.filename)
         resdf = table.Table( fits.open( os.path.join( sedfitter._working_dir, "out","results.fits") )[1].data
                             ).to_pandas()
@@ -82,31 +86,84 @@ def build_intrinsic_cube(geodataframe, redshift, working_dir,
     if clean_output:
         _ = sedfitter.clean_output()
 
-    return cube3d.filename
+    return cube3d
 
+
+
+def get_scene(calcube, intrinsiccube, sedm_targetpos,
+                  psfmodel="Gauss_Mof_kernel"):# GaussMofKernel
+    """ """
+    from hypergal import geometry_tool as geotool
+    from hypergal import intrinsec_cube as scenemodel
+    #from hypergal import scenemodel
+    int_geometry  = geometry.MultiPolygon(intrinsiccube.get_spaxel_polygon())
+
+    int_pixel = intrinsiccube.header["PIXSIZE"]
     
+    int_targetpos = intrinsiccube.header["OBJX"],intrinsiccube.header["OBJY"]
+    
+    init_hexgrid = geotool.get_cube_grid(calcube, scale=SEDM_SCALE/int_pixel,
+                                         targetShift=sedm_targetpos,
+                                         x0=int_targetpos[0],
+                                         y0=int_targetpos[1])
+    #    scenemodel.HostScene( )
+    hostscene = scenemodel.Intrinsec_cube(int_geometry, int_pixel, init_hexgrid,
+                                  intrinsiccube.data.T, intrinsiccube.lbda,
+                                  psf_model=psfmodel)
+    hostscene.set_sedm_targetpos(sedm_targetpos)
+    hostscene.set_int_targetpos(int_target_pos)    
+    
+    calcube.load_adr()
+    hostscene.load_adr( calcube.adr.copy() )
+    return hostscene
+    
+def get_fitter(calcube, scene):
+    """ """
+    from hypergal import fitter
+    f_ = fitter.Fitter(calcube, scene)
+    return f_
+
 # 7. Fit
-def split_into_slices(cube_, nslices):
+def fit_slice(fitter, sliceid, lbda_range=[5000, 8000], nslices=5, **kwargs):
     """ """
-    print("split_into_slices TO BE DONE")
-    return "List_of_slices"
+    fitvalue, fitvaluerr, res = fitter.fit_slice(lbda_ranges=lbda_range, metaslices=nslices,
+                                                     sliceid=sliceid, **kwargs)
+    return fitvalue, fitvaluerr
 
-def fit_slices(cal_slice, int_slice, pixpol, pixsize, *kwargs):
+def build_results(fit_values):
     """ """
-    print("fit_slices TO BE DONE")
-    parameters = []
-    return parameters
+    fitvalues_ = {}
+    for d_ in fit_values:
+        fitvalues_.update(d_)
 
-def build_adr_and_psf(metaslice_parameters):
-    """ """
-    adr=None
-    psf=None
-    return adr, psf
+    return pandas.DataFrame.from_records(fitvalues_)
 
-def fit_cube(calibrated_cube, intrinsec_cube, adr, psf):
+
+def fit_adr(fitter, slice_fit_results, lbdaref=None):
     """ """
-    cubemodel=None
+    x0, y0, x0err, y0err, lbda = slice_fit_results[["x0_IFU", "y0_IFU", "x0_IFU_err", "y0_IFU_err", "lbda"]].values.T
+    adrfitres, adrobj = fitter.get_fitted_adr(x0, y0, x0err, y0err, lbda,
+                                                  lbdaref=lbdaref)    
+    return {**adrobj.data, **{"x0_IFU":fitter.fit_xref,"y0_IFU":fitter.fit_yref}}
+
+def fit_psf(fitter, slice_fit_results):
+    """ """
+    # TMP PATCH
+    colparam = [k for k in slice_fit_results.columns if k+"_err" in slice_fit_results.columns or k=="lbda"]
+    fitvalues = slice_fit_results[colparam].T.to_dict()
+    fitvalues_err = slice_fit_results[[k+"_err" if k != "lbda" else k for k in colparam ]].T.to_dict()
+    
+    return fitter.get_fitted_psf(fitvalues, fitvalues_err)
+    
+def fit_fullcube(fitter, adr_params, psf_params, store_data=True):
+    """ """
+    cubemodel = fitter.evaluate_model_cube(parameters={**adr_params, **psf_params})
+    cubemodel.set_filename(fitter.sedm_cube.filename.replace("e3d", "hghostmodel"))
+    if store_data:
+        cubemodel.writeto(cubemodel.filename)
     return cubemodel
+        
+    
 
 class DaskHyperGal( DaskCube ):
 
@@ -118,15 +175,16 @@ class DaskHyperGal( DaskCube ):
                                     frame='icrs', unit=(units.hourangle, units.deg))
         ra=co.ra.deg
         dec=co.dec.deg
-    
+        target_pos = astrometry.position_source( get_sedmcube(calcube), warn=False)[0]
         cubefile_id = ''.join(os.path.basename(cubefile_).split("ifu")[-1].split("_")[:4])
-        workingdir = f"tmp_{cubefile_id}"
-        return [ra,dec], workingdir
+        workingdir = os.path.abspath(f"tmp_{cubefile_id}")
+        return [ra,dec], workingdir, target_pos
 
 
     @staticmethod
     def get_intrinsic_cube(radec, redshift, working_dir=None, use_cigale=True,
-                               store_fig=True, filename="intrinsic_cube.fits", **kwargs):
+                               store_fig=True, filename="intrinsic_cube.fits",
+                               as_filename=True, **kwargs):
         """ """
 
         # 4. 
@@ -136,14 +194,31 @@ class DaskHyperGal( DaskCube ):
         coord = geodf_cutouts_pix_coord[2]
         
         # 5
-        filename = delayed(build_intrinsic_cube)(geodf_cutouts, redshift, working_dir=working_dir,
+        cube = delayed(build_intrinsic_cube)(geodf_cutouts, redshift, working_dir=working_dir,
                                                        use_cigale=use_cigale,
                                                        pixsize=pix, targetcoord=coord, filename=filename,
                                                        store_data=True, store_fig=store_fig, **kwargs)
         
-        return filename
+        return cube if not as_filename else cube.filename 
         
+    @staticmethod
+    def fit_scene(calibrated_cube, intrinsic_cube, sedm_targetpos,
+                    lbda_range=[5000,8000], nslice=5, **kwargs):
+        """ """
+        hostscene = delayed(get_scene)(calibrated_cube, intrinsic_cube, sedm_targetpos=sedm_targetpos)
+        fitter = delayed(get_scene)(calibrated_cube, hostscene)
 
+        fit_param = []
+        for i_ in np.arange(nslice):
+            fit_param.append(delayed(fit_slice)(fitter, i_, lbda_range=lbda_range, nslice=nslice, **kwargs))
+
+        residual = delayed(build_results)(fit_param)
+        
+        adr_param = delayed(fit_adr)(fitter, residual)
+        psf_param = delayed(fit_psf)(fitter, residual)
+        cubemodel = delayed(fit_fullcube)(fitter, adr_param, psf_param, store_data=True)
+        return cubemodel
+        
     @staticmethod
     def single_hypergal(cubefile_, redshift_,
                             fluxcalfile=None, # 
@@ -153,44 +228,25 @@ class DaskHyperGal( DaskCube ):
                             cubeprop={}, intprop={}):
         """ """
         # 0
-        radec_wd = delayed(self.get_cubeinfo)(cubefile_)
-        radec = radec_wd[0]
-        workingdir = radec_wd[1]
+        radec_wd_pos = delayed(self.get_cubeinfo)(cubefile_)
+        radec = radec_wd_pos[0]
+        workingdir = radec_wd_pos[1]
         filename_hgint = cubefile_.replace("e3d_crr","hginte3d_crr")
+        sedm_targetpos = radec_wd_pos[2]
+        
         # ----- #
         # Cube  #
         # ----- #
         
         # Branch Cube Generation
-        calibrated_cubefile = self.get_calibrated_cube(cubefile_, fluxcalfile=fluxcalfile, apply_br=apply_br, **cubeprop)
+        calibrated_cube = self.get_calibrated_cube(cubefile_, fluxcalfile=fluxcalfile, apply_br=apply_br,
+                                                       as_filename=False, **cubeprop)
        
         # Branch Intrinsic Cube
-        intrinsic_cubefile = self.get_intrinsic_cube(radec, redshift_, workingdir=workingdir,
+        intrinsic_cube = self.get_intrinsic_cube(radec, redshift_, workingdir=workingdir,
                                                  filename=filename_hgint,
+                                                 as_filename=False,
                                                  **intprop)
-        # ----- #
-        # PS1   #
-        # ----- #
         
-
-
-
-        
-        # 7. Fit
-        #    7.1 metaslices
-        calibrated_mslices = delayed(split_into_slices)(calibrated_cube, nslices=nmetaslices)
-        intrinsec_mslices = delayed(split_into_slices)(intrinsec_cube, nslices=nmetaslices)
-        #    7.2 fit_parameters
-        meta_params = []
-        for i in range(nmetaslices):
-            metai = delayed(fit_slices)(calibrated_mslices[i], intrinsec_mslices[i], pixsize=pixsize, pixpol=pixpol)
-            meta_params.append(metai)
-
-        # 7.3 build ADR and PSF
-        adr_psf = delayed(build_adr_and_psf)(meta_params)
-        adr = adr_psf[0] # Dask stuff
-        psf = adr_psf[1]
-
-        # 7.4 fit_slices
-        modelcube = delayed(fit_cube)(calibrated_cube, intrinsec_cube, adr, psf)
-        return modelcube
+        modecube = self.fit_scene(calibrated_cube, intrinsic_cube, sedm_targetpos)
+        return None

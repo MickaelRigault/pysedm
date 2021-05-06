@@ -1,7 +1,7 @@
 
 import os
 import pandas
-from astropy import table
+from astropy import table, coordinates, units
 from astropy.io import fits
 from dask import delayed
 from .base import DaskCube
@@ -134,8 +134,11 @@ class DaskHyperGal( DaskCube ):
     def get_cubeinfo(cubefile_):
         """ """
         header_  = fits.getheader(cubefile_)
-        ra = header_.get("OBJRA", None)
-        dec = header_.get("OBJDEC", None)
+        co=coordinates.SkyCoord(header_.get("OBJRA"), header_.get("OBJDEC"),
+                                    frame='icrs', unit=(units.hourangle, units.deg))
+        ra=co.ra.deg
+        dec=co.dec.deg
+    
         cubefile_id = ''.join(os.path.basename(cubefile_).split("ifu")[-1].split("_")[:4])
         workingdir = f"tmp_{cubefile_id}"
         return [ra,dec], workingdir

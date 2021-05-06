@@ -124,7 +124,7 @@ class DaskHyperGal( DaskCube ):
 
 
     @staticmethod
-    def get_intrinsic_cube(radec, redshift, workingdir=None, use_cigale=True,
+    def get_intrinsic_cube(radec, redshift, working_dir=None, use_cigale=True,
                                store_fig=True, filename="intrinsic_cube.fits", **kwargs):
         """ """
 
@@ -135,7 +135,7 @@ class DaskHyperGal( DaskCube ):
         coord = geodf_cutouts_pix_coord[2]
         
         # 5
-        intrinsec_cube = delayed(build_intrinsic_cube)(geodf_cutouts, redshift, workingdir=workingdir,
+        intrinsec_cube = delayed(build_intrinsic_cube)(geodf_cutouts, redshift, working_dir=working_dir,
                                                        use_cigale=use_cigale,
                                                        pixsize=pix, targetcoord=coord, filename=filename,
                                                        store_data=True, store_fig=store_fig, **kwargs)

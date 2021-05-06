@@ -144,7 +144,7 @@ class DaskHyperGal( DaskCube ):
     def get_calibrated_cube(cubefile_, fluxcalfile=None, apply_br=True, **kwargs):
         """ """
          # 1. Get cube
-        cube = delayed(get_cube)(cubefile_, apply_br=apply_br)
+        cube = delayed(get_cube)(cubefile_, apply_bycr=apply_bycr)
 
         # 2. Get flux calibration file (if any)
         if fluxcalfile is None:
@@ -183,7 +183,7 @@ class DaskHyperGal( DaskCube ):
                             cubeprop={}, intprop={}):
         """ """
         # 0
-        radec_wd = delayed(get_cubeinfo)(cubefile_)
+        radec_wd = delayed(self.get_cubeinfo)(cubefile_)
         radec = radec_wd[0]
         workingdir = radec_wd[1]
         filename_hgint = cubefile_.replace("e3d_crr","hginte3d_crr")

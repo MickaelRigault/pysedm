@@ -10,31 +10,6 @@ from .base import DaskCube
 from pysedm import get_sedmcube, io, fluxcalibration
 
 
-def get_cube(cubefile, apply_bycr=True):
-    """ """
-    # To be 
-    cube = get_sedmcube(cubefile)
-    if apply_bycr:
-        print("BY CR TO BE IMPLEMENTED")
-    return cube
-
-def get_fluxcal_file(cube):
-    """ """
-    return io.fetch_nearest_fluxcal(mjd=cube.header.get("MJD_OBS"))
-
-def calibrate_cube(cube, fluxcalfile, airmass=None, backup_airmass=1.1, store_data=True):
-    """ """
-    if airmass is None:
-        airmass = cube.header.get("AIRMASS", backup_airmass)
-        
-    fluxcal = fluxcalibration.load_fluxcal_spectrum(fluxcalfile)
-    cube.scale_by( fluxcal.get_inversed_sensitivity( cube.header.get("AIRMASS", backup_airmass) ),
-                      onraw=False)
-    cube.set_filename( cube.filename.replace("e3d","cale3d") )
-    if store_data:
-        cube.writeto(self.filename)
-        
-    return cube
 
 # // HyperGal - INTRINSEC CUBE
 def fetch_cutouts(cubefile, radec=None, source="ps1", size=240,

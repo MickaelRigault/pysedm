@@ -28,7 +28,7 @@ def calibrate_cube(cube, fluxcalfile, airmass=None, backup_airmass=1.1):
         airmass = cube.header.get("AIRMASS", backup_airmass)
         
     fluxcal = fluxcalibration.load_fluxcal_spectrum(fluxcalfile)
-    cube.scale_by( fluxcal.get_inversed_sensitivity( cube.header.get("AIRMASS", default_airmass) ),
+    cube.scale_by( fluxcal.get_inversed_sensitivity( cube.header.get("AIRMASS", backup_airmass) ),
                       onraw=False)
     return cube
 

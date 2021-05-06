@@ -46,7 +46,7 @@ def build_intrinsic_cube(geodataframe, redshift, working_dir,
     
     # Loads the SEDFitter
     sedfitter = sed_fitting.CigaleSED(geodataframe)
-    sedfitter.setup(redshift=redshift, snr=snr, path_to_save=working_dir)
+    sedfitter.setup_cigale(redshift=redshift, snr=snr, path_to_save=working_dir)
     #  Cigale Initiates
     sedfitter.initial_cigale(cores=cores, working_dir=working_dir, **init_prop)
     #  Cigale Run and output results in {workingdir}/out
@@ -81,7 +81,7 @@ def build_intrinsic_cube(geodataframe, redshift, working_dir,
     if clean_output:
         _ = sedfitter.clean_output()
 
-    return cube3d
+    return cube3d.filename
 
     
 # 7. Fit
@@ -135,12 +135,12 @@ class DaskHyperGal( DaskCube ):
         coord = geodf_cutouts_pix_coord[2]
         
         # 5
-        intrinsec_cube = delayed(build_intrinsic_cube)(geodf_cutouts, redshift, working_dir=working_dir,
+        filename = delayed(build_intrinsic_cube)(geodf_cutouts, redshift, working_dir=working_dir,
                                                        use_cigale=use_cigale,
                                                        pixsize=pix, targetcoord=coord, filename=filename,
                                                        store_data=True, store_fig=store_fig, **kwargs)
         
-        return intrinsec_cube
+        return filename
         
 
     @staticmethod
@@ -159,14 +159,15 @@ class DaskHyperGal( DaskCube ):
         # ----- #
         # Cube  #
         # ----- #
+        
         # Branch Cube Generation
-        calibrated_cube = self.get_calibrated_cube(cubefile_, fluxcalfile=fluxcalfile, apply_br=apply_br, **cubeprop)
+        calibrated_cubefile = self.get_calibrated_cube(cubefile_, fluxcalfile=fluxcalfile, apply_br=apply_br, **cubeprop)
        
         # ----- #
         # PS1   #
         # ----- #
         # Branch Intrinsic Cube
-        intrinsic_cube = self.get_intrinsic_cube(radec, redshift_, workingdir=workingdir,
+        intrinsic_cubefile = self.get_intrinsic_cube(radec, redshift_, workingdir=workingdir,
                                                  filename=filename_hgint,
                                                  **intprop)
         

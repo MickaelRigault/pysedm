@@ -7,6 +7,7 @@ from dask import delayed
 from .base import DaskCube
 import warnings
 import numpy as np
+from shapely import geometry
 
 from pysedm import get_sedmcube, io, fluxcalibration, astrometry
 
@@ -91,9 +92,11 @@ def build_intrinsic_cube(geodataframe, redshift, working_dir,
 
 
 
-def get_scene(calcube, intrinsiccube, sedm_targetpos,
+def get_scene(calcube_filename, intrinsiccube_filename, sedm_targetpos,
                   psfmodel="Gauss_Mof_kernel"):# GaussMofKernel
     """ """
+    calcube = get_sedmcube(calcube_filename)
+    intrinsiccube = get_sedmcube(intrinsiccube_filename)
     from hypergal import geometry_tool as geotool
     from hypergal import intrinsec_cube as scenemodel
     #from hypergal import scenemodel
@@ -104,7 +107,7 @@ def get_scene(calcube, intrinsiccube, sedm_targetpos,
     int_targetpos = intrinsiccube.header["OBJX"],intrinsiccube.header["OBJY"]
     
     init_hexgrid = geotool.get_cube_grid(calcube, scale=SEDM_SCALE/int_pixel,
-                                         targetShift=sedm_targetpos,
+                                         targShift=sedm_targetpos,
                                          x0=int_targetpos[0],
                                          y0=int_targetpos[1])
     #    scenemodel.HostScene( )
@@ -112,14 +115,15 @@ def get_scene(calcube, intrinsiccube, sedm_targetpos,
                                   intrinsiccube.data.T, intrinsiccube.lbda,
                                   psf_model=psfmodel)
     hostscene.set_sedm_targetpos(sedm_targetpos)
-    hostscene.set_int_targetpos(int_target_pos)    
+    hostscene.set_int_targetpos(int_targetpos)    
     
     calcube.load_adr()
     hostscene.load_adr( calcube.adr.copy() )
     return hostscene
     
-def get_fitter(calcube, scene):
+def get_fitter(calcube_filename, scene):
     """ """
+    calcube = get_sedmcube(calcube_filename)
     from hypergal import fitter
     f_ = fitter.Fitter(calcube, scene)
     return f_
@@ -127,9 +131,9 @@ def get_fitter(calcube, scene):
 # 7. Fit
 def fit_slice(fitter, sliceid, lbda_range=[5000, 8000], nslices=5, **kwargs):
     """ """
-    fitvalue, fitvaluerr, res = fitter.fit_slice(lbda_ranges=lbda_range, metaslices=nslices,
+    fitvalues = fitter.fit_slice(lbda_ranges=lbda_range, metaslices=nslices,
                                                      sliceid=sliceid, **kwargs)
-    return fitvalue, fitvaluerr
+    return fitvalues
 
 def build_results(fit_values):
     """ """
@@ -156,15 +160,16 @@ def fit_psf(fitter, slice_fit_results):
     
     return fitter.get_fitted_psf(fitvalues, fitvalues_err)
     
-def fit_fullcube(fitter, adr_params, psf_params, store_data=True):
+def fit_fullcube(fitter, adr_params, psf_params, store_data=True, get_filename=True):
     """ """
     cubemodel = fitter.evaluate_model_cube(parameters={**adr_params, **psf_params})
     cubemodel.set_filename(fitter.sedm_cube.filename.replace("e3d", "hghostmodel"))
     if store_data:
         cubemodel.writeto(cubemodel.filename)
+
+    if get_filename:
+        return cubemodel.filename        
     return cubemodel
-        
-    
 
 class DaskHyperGal( DaskCube ):
 
@@ -202,21 +207,23 @@ class DaskHyperGal( DaskCube ):
         return cube if not as_filename else cube.filename 
         
     @staticmethod
-    def fit_scene(calibrated_cube, intrinsic_cube, sedm_targetpos,
-                    lbda_range=[5000,8000], nslice=5, **kwargs):
+    def fit_scene(calibrated_cube_filename, intrinsic_cube_filename, sedm_targetpos,
+                    lbda_range=[5000,8000], nslices=5, store_data = True, **kwargs):
         """ """
-        hostscene = delayed(get_scene)(calibrated_cube, intrinsic_cube, sedm_targetpos=sedm_targetpos)
-        fitter = delayed(get_fitter)(calibrated_cube, hostscene)
+        hostscene = delayed(get_scene)(calibrated_cube_filename, intrinsic_cube_filename, sedm_targetpos=sedm_targetpos)
+        fitter = delayed(get_fitter)(calibrated_cube_filename, hostscene)
 
         fit_param = []
-        for i_ in np.arange(nslice):
-            fit_param.append(delayed(fit_slice)(fitter, i_, lbda_range=lbda_range, nslice=nslice, **kwargs))
+        for i_ in np.arange(nslices):
+            fit_param.append(delayed(fit_slice)(fitter, i_, lbda_range=lbda_range, nslices=nslices, **kwargs))
 
         residual = delayed(build_results)(fit_param)
         
         adr_param = delayed(fit_adr)(fitter, residual)
         psf_param = delayed(fit_psf)(fitter, residual)
-        cubemodel = delayed(fit_fullcube)(fitter, adr_param, psf_param, store_data=True)
+        cubemodel = delayed(fit_fullcube)(fitter, adr_param, psf_param, store_data=True, get_filename=True)
+
+        
         return cubemodel
         
     @staticmethod

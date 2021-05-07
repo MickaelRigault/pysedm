@@ -175,7 +175,7 @@ class DaskHyperGal( DaskCube ):
                                     frame='icrs', unit=(units.hourangle, units.deg))
         ra=co.ra.deg
         dec=co.dec.deg
-        target_pos = astrometry.position_source( get_sedmcube(calcube), warn=False)[0]
+        target_pos = astrometry.position_source( get_sedmcube(cubefile_), warn=False)[0]
         cubefile_id = ''.join(os.path.basename(cubefile_).split("ifu")[-1].split("_")[:4])
         workingdir = os.path.abspath(f"tmp_{cubefile_id}")
         return [ra,dec], workingdir, target_pos

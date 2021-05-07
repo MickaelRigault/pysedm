@@ -5,7 +5,8 @@ from astropy import table, coordinates, units
 from astropy.io import fits
 from dask import delayed
 from .base import DaskCube
-
+import warnings
+import numpy as np
 
 from pysedm import get_sedmcube, io, fluxcalibration, astrometry
 
@@ -180,7 +181,6 @@ class DaskHyperGal( DaskCube ):
         workingdir = os.path.abspath(f"tmp_{cubefile_id}")
         return [ra,dec], workingdir, target_pos
 
-
     @staticmethod
     def get_intrinsic_cube(radec, redshift, working_dir=None, use_cigale=True,
                                store_fig=True, filename="intrinsic_cube.fits",
@@ -206,7 +206,7 @@ class DaskHyperGal( DaskCube ):
                     lbda_range=[5000,8000], nslice=5, **kwargs):
         """ """
         hostscene = delayed(get_scene)(calibrated_cube, intrinsic_cube, sedm_targetpos=sedm_targetpos)
-        fitter = delayed(get_scene)(calibrated_cube, hostscene)
+        fitter = delayed(get_fitter)(calibrated_cube, hostscene)
 
         fit_param = []
         for i_ in np.arange(nslice):

@@ -5,7 +5,9 @@ from astropy import table, coordinates, units
 from astropy.io import fits
 from dask import delayed
 from .base import DaskCube
-
+import warnings
+import numpy as np
+from shapely import geometry
 
 from pysedm import get_sedmcube, io, fluxcalibration, astrometry
 
@@ -90,11 +92,14 @@ def build_intrinsic_cube(geodataframe, redshift, working_dir,
 
 
 
-def get_scene(calcube, intrinsiccube, sedm_targetpos,
+def get_scene(calcube_filename, intrinsiccube_filename, sedm_targetpos,
                   psfmodel="Gauss_Mof_kernel"):# GaussMofKernel
     """ """
+    calcube = get_sedmcube(calcube_filename)
+    intrinsiccube = get_sedmcube(intrinsiccube_filename)
     from hypergal import geometry_tool as geotool
     from hypergal import intrinsec_cube as scenemodel
+    from hypergal import fitter
     #from hypergal import scenemodel
     int_geometry  = geometry.MultiPolygon(intrinsiccube.get_spaxel_polygon())
 
@@ -103,7 +108,7 @@ def get_scene(calcube, intrinsiccube, sedm_targetpos,
     int_targetpos = intrinsiccube.header["OBJX"],intrinsiccube.header["OBJY"]
     
     init_hexgrid = geotool.get_cube_grid(calcube, scale=SEDM_SCALE/int_pixel,
-                                         targetShift=sedm_targetpos,
+                                         targShift=sedm_targetpos,
                                          x0=int_targetpos[0],
                                          y0=int_targetpos[1])
     #    scenemodel.HostScene( )
@@ -111,24 +116,25 @@ def get_scene(calcube, intrinsiccube, sedm_targetpos,
                                   intrinsiccube.data.T, intrinsiccube.lbda,
                                   psf_model=psfmodel)
     hostscene.set_sedm_targetpos(sedm_targetpos)
-    hostscene.set_int_targetpos(int_target_pos)    
+    hostscene.set_int_targetpos(int_targetpos)    
     
     calcube.load_adr()
     hostscene.load_adr( calcube.adr.copy() )
+   
     return hostscene
     
-def get_fitter(calcube, scene):
+def get_fitter(calcube_filename, scene):
     """ """
     from hypergal import fitter
-    f_ = fitter.Fitter(calcube, scene)
+    f_ = fitter.Fitter(calcube_filename, scene)
     return f_
 
 # 7. Fit
 def fit_slice(fitter, sliceid, lbda_range=[5000, 8000], nslices=5, **kwargs):
     """ """
-    fitvalue, fitvaluerr, res = fitter.fit_slice(lbda_ranges=lbda_range, metaslices=nslices,
+    fitvalues = fitter.fit_slice(lbda_ranges=lbda_range, metaslices=nslices,
                                                      sliceid=sliceid, **kwargs)
-    return fitvalue, fitvaluerr
+    return fitvalues
 
 def build_results(fit_values):
     """ """
@@ -136,7 +142,7 @@ def build_results(fit_values):
     for d_ in fit_values:
         fitvalues_.update(d_)
 
-    return pandas.DataFrame.from_records(fitvalues_)
+    return pandas.DataFrame.from_records(fitvalues_).T
 
 
 def fit_adr(fitter, slice_fit_results, lbdaref=None):
@@ -155,17 +161,17 @@ def fit_psf(fitter, slice_fit_results):
     
     return fitter.get_fitted_psf(fitvalues, fitvalues_err)
     
-def fit_fullcube(fitter, adr_params, psf_params, store_data=True, nb_process=1, **kwargs):
+def fit_fullcube(fitter, adr_params, psf_params, store_data=True, get_filename=True, nb_process=1, **kwargs):
     """ """
-    cubemodel = fitter.evaluate_model_cube(parameters={**adr_params, **psf_params}, nb_process=nb_process,
-                                            **kwargs)
-    cubemodel.set_filename(fitter.sedm_cube.filename.replace("e3d", "hghostmodel"))
+    cubemodel = fitter.evaluate_model_cube(parameters={**adr_params, **psf_params}, nb_process=nb_process=1, **kwargs)
+    cubemodel.set_filename(fitter.sedm_cube_filename.replace("e3d", "hghostmodel"))
     if store_data:
         cubemodel.writeto(cubemodel.filename)
-        
-    return cubemodel
-        
+
+    if get_filename:
+        return cubemodel.filename
     
+    return cubemodel
 
 class DaskHyperGal( DaskCube ):
 
@@ -177,11 +183,10 @@ class DaskHyperGal( DaskCube ):
                                     frame='icrs', unit=(units.hourangle, units.deg))
         ra=co.ra.deg
         dec=co.dec.deg
-        target_pos = astrometry.position_source( get_sedmcube(calcube), warn=False)[0]
+        target_pos = astrometry.position_source( get_sedmcube(cubefile_), warn=False)[0]
         cubefile_id = ''.join(os.path.basename(cubefile_).split("ifu")[-1].split("_")[:4])
         workingdir = os.path.abspath(f"tmp_{cubefile_id}")
         return [ra,dec], workingdir, target_pos
-
 
     @staticmethod
     def get_intrinsic_cube(radec, redshift, working_dir=None, use_cigale=True,
@@ -204,21 +209,22 @@ class DaskHyperGal( DaskCube ):
         return cube if not as_filename else cube.filename 
         
     @staticmethod
-    def fit_scene(calibrated_cube, intrinsic_cube, sedm_targetpos,
-                    lbda_range=[5000,8000], nslice=5, **kwargs):
+    def fit_scene(calibrated_cube_filename, intrinsic_cube_filename, sedm_targetpos,
+                    lbda_range=[5000,8000], nslices=5, store_data = True, **kwargs):
         """ """
-        hostscene = delayed(get_scene)(calibrated_cube, intrinsic_cube, sedm_targetpos=sedm_targetpos)
-        fitter = delayed(get_scene)(calibrated_cube, hostscene)
+        hostscene = delayed(get_scene)(calibrated_cube_filename, intrinsic_cube_filename, sedm_targetpos=sedm_targetpos)
+        fitter = delayed(get_fitter)(calibrated_cube_filename, hostscene)
 
         fit_param = []
-        for i_ in np.arange(nslice):
-            fit_param.append(delayed(fit_slice)(fitter, i_, lbda_range=lbda_range, nslice=nslice, **kwargs))
-
+        for i_ in np.arange(nslices):
+            fit_param.append(delayed(fit_slice)(fitter, i_, lbda_range=lbda_range, nslices=nslices, **kwargs))
+       
         residual = delayed(build_results)(fit_param)
         
         adr_param = delayed(fit_adr)(fitter, residual)
         psf_param = delayed(fit_psf)(fitter, residual)
-        cubemodel = delayed(fit_fullcube)(fitter, adr_param, psf_param, store_data=True)
+        cubemodel = delayed(fit_fullcube)(fitter, adr_param, psf_param, store_data=True, get_filename=True)
+
         return cubemodel
         
     @staticmethod

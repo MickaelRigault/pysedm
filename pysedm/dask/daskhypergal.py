@@ -142,7 +142,7 @@ def build_results(fit_values):
     for d_ in fit_values:
         fitvalues_.update(d_)
 
-    return pandas.DataFrame.from_records(fitvalues_)
+    return pandas.DataFrame.from_records(fitvalues_).T
 
 
 def fit_adr(fitter, slice_fit_results, lbdaref=None):
@@ -163,8 +163,8 @@ def fit_psf(fitter, slice_fit_results):
     
 def fit_fullcube(fitter, adr_params, psf_params, store_data=True, get_filename=True):
     """ """
-    cubemodel = fitter.evaluate_model_cube(parameters={**adr_params, **psf_params})
-    cubemodel.set_filename(fitter.sedm_cube.filename.replace("e3d", "hghostmodel"))
+    cubemodel = fitter.evaluate_model_cube(parameters={**adr_params, **psf_params}, nb_process=1)
+    cubemodel.set_filename(fitter.sedm_cube_filename.replace("e3d", "hghostmodel"))
     if store_data:
         cubemodel.writeto(cubemodel.filename)
 

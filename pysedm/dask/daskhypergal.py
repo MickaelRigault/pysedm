@@ -99,6 +99,7 @@ def get_scene(calcube_filename, intrinsiccube_filename, sedm_targetpos,
     intrinsiccube = get_sedmcube(intrinsiccube_filename)
     from hypergal import geometry_tool as geotool
     from hypergal import intrinsec_cube as scenemodel
+    from hypergal import fitter
     #from hypergal import scenemodel
     int_geometry  = geometry.MultiPolygon(intrinsiccube.get_spaxel_polygon())
 
@@ -119,13 +120,13 @@ def get_scene(calcube_filename, intrinsiccube_filename, sedm_targetpos,
     
     calcube.load_adr()
     hostscene.load_adr( calcube.adr.copy() )
+   
     return hostscene
     
 def get_fitter(calcube_filename, scene):
     """ """
-    calcube = get_sedmcube(calcube_filename)
     from hypergal import fitter
-    f_ = fitter.Fitter(calcube, scene)
+    f_ = fitter.Fitter(calcube_filename, scene)
     return f_
 
 # 7. Fit
@@ -216,14 +217,13 @@ class DaskHyperGal( DaskCube ):
         fit_param = []
         for i_ in np.arange(nslices):
             fit_param.append(delayed(fit_slice)(fitter, i_, lbda_range=lbda_range, nslices=nslices, **kwargs))
-
+       
         residual = delayed(build_results)(fit_param)
         
         adr_param = delayed(fit_adr)(fitter, residual)
         psf_param = delayed(fit_psf)(fitter, residual)
         cubemodel = delayed(fit_fullcube)(fitter, adr_param, psf_param, store_data=True, get_filename=True)
 
-        
         return cubemodel
         
     @staticmethod

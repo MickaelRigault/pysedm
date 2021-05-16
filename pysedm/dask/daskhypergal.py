@@ -161,9 +161,11 @@ def fit_psf(fitter, slice_fit_results):
     
     return fitter.get_fitted_psf(fitvalues, fitvalues_err)
     
-def fit_fullcube(fitter, adr_params, psf_params, store_data=True, get_filename=True, nb_process=1, **kwargs):
+def fit_fullcube(fitter, adr_params, psf_params, store_data=True, get_filename=True,
+                     nb_process=1, **kwargs):
     """ """
-    cubemodel = fitter.evaluate_model_cube(parameters={**adr_params, **psf_params}, nb_process=nb_process=1, **kwargs)
+    cubemodel = fitter.evaluate_model_cube(parameters={**adr_params, **psf_params},
+                                               nb_process=nb_process, **kwargs)
     cubemodel.set_filename(fitter.sedm_cube_filename.replace("e3d", "hghostmodel"))
     if store_data:
         cubemodel.writeto(cubemodel.filename)

@@ -498,7 +498,7 @@ def get_sedm_flatcube(domecube, s=0.8, loc=4300):
 # ------------------ #
 #  Main Functions    #
 # ------------------ #
-def load_sedmcube(filename, **kwargs):
+def load_sedmcube(filename, apply_byecr=False, **kwargs):
     """Load a Cube from the given filename
 
     Returns
@@ -506,17 +506,21 @@ def load_sedmcube(filename, **kwargs):
     Cube
     """
     # To be split between load and get
-    return get_sedmcube(filename, **kwargs)
+    return get_sedmcube(filename, apply_byecr=apply_byecr, **kwargs)
 
 
-def get_sedmcube(filename, **kwargs):
+def get_sedmcube(filename, apply_byecr=False, **kwargs):
     """ Load a Cube from the given filename
 
     Returns
     -------
     Cube
     """
-    return SEDMCube(filename, **kwargs)
+    cube = SEDMCube(filename, **kwargs)
+    if apply_byecr:
+        return cube.get_byecr_cube()
+    return cube
+    
 
 def get_aperturespectrum(filename):
     """ Load and return an Aperture Spectrum """
@@ -1689,6 +1693,33 @@ class SEDMCube( Cube ):
         if verbose: print("* Starting extractstar.run")
         return self.extractstar.run(slice_width=slice_width, psfmodel=psfmodel,
                                         fwhm_guess=fwhm_guess, verbose=verbose, **kwargs)
+
+
+    def get_byecr_cube(self, cut_criteria=5):
+        """ """
+        from . import  byecr
+        night = self.header['OBSDATE'].rsplit('-')
+        night = ''.join(night)
+
+        # Get the affected spaxels
+        byecrcl = byecr.SEDM_BYECR(night, self)
+        cr_df = byecrcl.get_cr_spaxel_info(cut_criteria=cut_criteria)
+        
+        # and NaN their flux.
+        newdata = self.data.copy()
+        newdata[cr_df["cr_lbda_index"], cr_df["cr_spaxel_index"]] = np.nan
+        # Update the header...
+        newheader = self.header.copy()
+        newheader.set("NCR", len(cr_df), "total number of detected cosmic-rays from byecr")
+        newheader.set("NCRSPX", len(np.unique(cr_df["cr_spaxel_index"])), "total number of cosmic-ray affected spaxels")
+        # ..and the filename
+        newfilename = self.filename.replace("e3d_crr","e3d_byecr")
+
+        newcube = self.get_new(newdata=newdata, newheader=newheader)
+        newcube.set_filename(newfilename)
+        return newcube
+
+    
 
     def get_aperture_spec(self, xref, yref, radius, bkgd_annulus=None,
                               refindex=None, adr=True, **kwargs):

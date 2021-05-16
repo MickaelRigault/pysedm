@@ -6,7 +6,7 @@ from astropy import time
 from dask import delayed
 
 from .. import io, get_sedmcube
-
+from .. import fluxcalibration
 def parse_filename(filename):
     """ """
     filename = filename.split(".")[0]
@@ -30,11 +30,7 @@ def parse_filename(filename):
 
 def get_cube(cubefile, apply_bycr=True):
     """ """
-    # To be 
-    cube = get_sedmcube(cubefile)
-    if apply_bycr:
-        print("BY CR TO BE IMPLEMENTED")
-    return cube
+    return get_sedmcube(cubefile, apply_bycr=apply_bycr)
 
 def get_fluxcal_file(cube):
     """ """

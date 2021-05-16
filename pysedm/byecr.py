@@ -68,9 +68,9 @@ class SEDM_BYECR():
     # SETTER
     #
 
-    def set_hexagrid(self, date):
+    def set_hexagrid(self, date, download_it=True):
         """ NEED date_HexaGrid.pkl file. """
-        self.hexagrid = io.load_nightly_hexagonalgrid(date)
+        self.hexagrid = io.load_nightly_hexagonalgrid(date, download_it=download_it)
 
     def set_normalized_cube(self):
         """
@@ -225,9 +225,11 @@ class SEDM_BYECR():
         lbda_index: float.
             specify lbda_index you want to investigate.
             'None' means run through whole lbda_index. Default.
+
         wspectral: bool.
             if you want to use a spectral filtering together with spatial one, put 'wspectral=True'.
             But it is not yet validated.
+
         cut_criteria: float.
             cut criteria values we want to use.
             Default is '5'.

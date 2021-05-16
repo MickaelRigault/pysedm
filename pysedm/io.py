@@ -313,13 +313,28 @@ def load_nightly_tracematch(YYYYMMDD, withmask=False):
             return load_nightly_tracematch(YYYYMMDD, withmask=False)
 
 # - HexaGrid
-def load_nightly_hexagonalgrid(YYYYMMDD):
+def load_nightly_hexagonalgrid(YYYYMMDD, download_it=True):
     """ Load the Grid id <-> QR<->XY position
     This object must have been created. 
     """
     from .utils.hexagrid import load_hexprojection
-    return load_hexprojection(get_datapath(YYYYMMDD)+"%s_HexaGrid.pkl"%(YYYYMMDD))
+    hexagrid_path = os.path.join(get_datapath(YYYYMMDD),"%s_HexaGrid.pkl"%(YYYYMMDD) )
+    if os.path.isfile(hexagrid_path):
+        return load_hexprojection( hexagrid_path )
 
+    if not download_it:
+        raise IOError(f"Cannot find an hexagrid for date {date}")
+
+    warnings.warn("cannot find the hexagrid for date {date}, using ztquery.sedm to download it.")
+    from ztfquery import sedm
+    squery = sedm.SEDMQuery()
+    squery.download_night_calibrations(YYYYMMDD, which="HexaGrid.pkl")
+    # has it been downloaded ?
+    if os.path.isfile(hexagrid_path):
+        return load_hexprojection( hexagrid_path )
+    
+    raise IOError(f"Cannot find an hexagrid for date {date}, even after calling squery.download_night_calibrations()")
+        
 # - WaveSolution
 def load_nightly_wavesolution(YYYYMMDD, subprocesses=False):
     """ Load the spectral matcher.

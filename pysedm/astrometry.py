@@ -93,6 +93,25 @@ def position_source(cube,
 
     return [xcentroid, ycentroid], centroids_err, position_type
 
+
+
+def read_radec(filename=None, header=None):
+    """ """
+    from astropy import table, coordinates, units
+    if header is None:
+        from astropy.io import fits
+        header = fits.getheader(filename)
+        
+    co=coordinates.SkyCoord(header.get("OBJRA"), header.get("OBJDEC"),
+                                    frame='icrs', unit=(units.hourangle, units.deg))
+    return co.ra.deg, co.dec.deg
+
+
+def get_wcs_dict(filename):
+    """ """
+    astrom = Astrometry(filename)
+    return astrom.get_wcs_dict()
+    
 # ======================= #
 #   High Level            #
 # ======================= #
@@ -464,6 +483,16 @@ class Astrometry():
         """ """
         return self.radec_to(where, *self.target_radec)
 
+    def get_wcs_dict(self, spaxel_size_arcsec=0.55):
+        """ """
+        spra, spdec = 0,0
+        ra, dec = self.ifu_to_radec(spra, spdec)
+        return {"CTYPE1":'RA---TAN', 
+                "CTYPE2":'DEC--TAN' ,
+                "CRVAL1":ra, "CRVAL2":dec,
+                "CRPIX1":spra+1, "CRPIX2":spdec+1,
+                "CDELT1":-spaxel_size_arcsec/3600,
+                "CDELT2":spaxel_size_arcsec/3600}
     # -------- #
     # CONVERT  #
     # -------- #
@@ -533,7 +562,7 @@ class Astrometry():
         if hasattr(self,"_astromfile") and self._astromfile is not None:
             return True
 
-        fileastrom = io.filename_to_guider(self.filename)
+        fileastrom = io.filename_to_guider(self.cube.filename)
         if fileastrom is None or len(fileastrom)==0:
             return False
         return True

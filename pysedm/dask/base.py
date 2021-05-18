@@ -2,41 +2,23 @@
 
 import pandas
 import numpy as np
-from astropy import time
 from dask import delayed
 
 from .. import io, get_sedmcube
 from .. import fluxcalibration
-def parse_filename(filename):
+
+
+def get_fluxcal_file(cube, update=False):
     """ """
-    filename = filename.split(".")[0]
-    if filename.startswith("crr"):
-        crr, b, ifudate, hh, mm, ss, *targetname  = filename.split("_")
-    else:
-        _, crr, b, ifudate, hh, mm, ss, *targetname = filename.split("_")
-
-    if len(targetname)==0:
-        targetname = None
-    else:
-        targetname = ("-".join(targetname).replace(" ","")).split(".")[0]
-        
-    date = ifudate.replace("ifu","")
-    mjd = time.Time(f"{date[:4]}-{date[4:6]}-{date[6:]}"+" "+f"{hh}:{mm}:{ss}", format="iso").mjd
-    return {"date":date, 
-           "mjd":mjd, 
-           "name":targetname}
-
-
-
-def get_cube(cubefile, apply_bycr=True):
-    """ """
-    return get_sedmcube(cubefile, apply_bycr=apply_bycr)
-
-def get_fluxcal_file(cube):
-    """ """
+    date = cube.header["OBSDATE"].replace("-","")
+    # - Make sure you have all the fluxcalibration files locally
+    from ztfquery import sedm
+    squery = sedm.SEDMQuery()
+    _ = squery.get_night_fluxcal(date) # downloads what is missing.
+    # - grab the nearest
     return io.fetch_nearest_fluxcal(mjd=cube.header.get("MJD_OBS"))
 
-def calibrate_cube(cube, fluxcalfile, airmass=None, backup_airmass=1.1, store_data=True):
+def calibrate_cube(cube, fluxcalfile, airmass=None, backup_airmass=1.1, store_data=False):
     """ """
     if airmass is None:
         airmass = cube.header.get("AIRMASS", backup_airmass)
@@ -45,12 +27,11 @@ def calibrate_cube(cube, fluxcalfile, airmass=None, backup_airmass=1.1, store_da
     cube.scale_by( fluxcal.get_inversed_sensitivity( cube.header.get("AIRMASS", backup_airmass) ),
                       onraw=False)
     cube.set_filename( cube.filename.replace("e3d","cale3d") )
+    
     if store_data:
-        cube.writeto(self.filename)
+        cube.writeto(cube.filename)
         
     return cube
-
-
 
 
 class ClientHolder( object ):
@@ -148,7 +129,7 @@ class _SEDMFileHolder_( ClientHolder ):
         dataall = datafile["filepath"].str.split("/", expand=True)
         datafile["basename"] = dataall[dataall.columns[-1]].values
 
-        info = pandas.DataFrame.from_records(datafile["basename"].apply(parse_filename))
+        info = pandas.DataFrame.from_records(datafile["basename"].apply(io.parse_filename))
         datafile = pandas.merge(datafile, info, left_index=True, right_index=True)
         datafile["is_std"] = datafile["name"].str.contains("STD")
         self._datafiles = datafile
@@ -200,11 +181,10 @@ class DaskCCD( _SEDMFileHolder_ ):
     
 class DaskCube( _SEDMFileHolder_ ):
     
-    
     # =============== #
     # Initialisation  #
     # =============== #
-
+    
     @staticmethod
     def get_files(client, dates=None, targetname=None, incl_astrom=True, **kwargs):
         """ """
@@ -273,10 +253,10 @@ class DaskCube( _SEDMFileHolder_ ):
     #  DASK    #
     # -------- #
     @staticmethod
-    def get_calibrated_cube(cubefile_, fluxcalfile=None, apply_bycr=True, as_filename=True, **kwargs):
+    def get_calibrated_cube(cubefile_, fluxcalfile=None, apply_byecr=True, get_filename=False, **kwargs):
         """ """
          # 1. Get cube
-        cube = delayed(get_cube)(cubefile_, apply_bycr=apply_bycr)
+        cube = delayed(get_sedmcube)(cubefile_, apply_byecr=apply_byecr)
 
         # 2. Get flux calibration file (if any)
         if fluxcalfile is None:
@@ -284,4 +264,8 @@ class DaskCube( _SEDMFileHolder_ ):
 
         # 3. Flux calibrating the cube
         calibrated_cube = delayed(calibrate_cube)(cube, fluxcalfile, **kwargs)
-        return calibrated_cube if not as_filename else calibrated_cube.filename
+        
+        if get_filename:
+            return calibrated_cube.filename
+        
+        return calibrated_cube

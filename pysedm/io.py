@@ -224,15 +224,32 @@ def fetch_guider(date, filename, astrom=True, extinction=".fits"):
 
 def filename_to_guider(filename, astrom=True, extinction=".fits", nomd5=True):
     """ """
-    date = filename_to_date(filename)
-    id_  = filename_to_id(filename)
-    guiders =  [l for l in os.listdir( get_datapath(date)) if id_ in l and "guider" in l 
-               and extinction in l and (not nomd5 or not l.endswith(".md5"))]
-    if astrom:
-        return [get_datapath(date)+"/"+l for l in guiders if "astrom" in l and (not nomd5 or not l.endswith(".md5"))]
-    return guiders
-    
+    fileinfo = parse_filename(filename)
+    dirname = os.path.dirname(filename)
+    key = "astrom" if astrom else "guider"
+    return [os.path.join(dirname,l) for l in os.listdir( get_datapath(fileinfo["date"]))
+                if fileinfo["sedmid"] in l and key in l] 
 
+    
+def parse_filename(filename):
+    """ """
+    filename = filename.split(".")[0]
+    if filename.startswith("crr"):
+        crr, b, ifudate, hh, mm, ss, *targetname  = filename.split("_")
+    else:
+        _, crr, b, ifudate, hh, mm, ss, *targetname = filename.split("_")
+
+    if len(targetname)==0:
+        targetname = None
+    else:
+        targetname = ("-".join(targetname).replace(" ","")).split(".")[0]
+        
+    date = ifudate.replace("ifu","")
+    mjd = Time(f"{date[:4]}-{date[4:6]}-{date[6:]}"+" "+f"{hh}:{mm}:{ss}", format="iso").mjd
+    return {"date":date,
+            "sedmid":f"{ifudate}_{hh}_{mm}_{ss}",
+           "mjd":mjd, 
+           "name":targetname}
 
 def filename_to_background_name(filename):
     """ predefined structure for background naming """

@@ -590,6 +590,7 @@ class Astrometry():
                 self._astromfile = io.filename_to_guider(self.filename)[0]
             except:
                 raise IOError(f"No astrometric file for {self.filename}")
+            
         return self._astromfile
 
     @property

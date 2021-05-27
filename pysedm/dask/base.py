@@ -2,7 +2,7 @@
 
 import pandas
 import numpy as np
-from dask import delayed
+import dask
 
 from .. import io, get_sedmcube
 from .. import fluxcalibration
@@ -32,6 +32,15 @@ def calibrate_cube(cube, fluxcalfile, airmass=None, backup_airmass=1.1, store_da
         cube.writeto(cube.filename)
         
     return cube
+
+def _no_delayed_(func):
+    return func
+
+def get_delayed_func(as_dask):
+    """ """
+    return dask.delayed if as_dask else _no_delayed_ 
+    
+
 
 
 class ClientHolder( object ):
@@ -253,8 +262,11 @@ class DaskCube( _SEDMFileHolder_ ):
     #  DASK    #
     # -------- #
     @staticmethod
-    def get_calibrated_cube(cubefile_, fluxcalfile=None, apply_byecr=True, get_filename=False, **kwargs):
+    def get_calibrated_cube(cubefile_, fluxcalfile=None, apply_byecr=True, get_filename=False, as_dask=True, **kwargs):
         """ """
+        # dask.delayed or doing nothing
+        delayed  = get_delayed_func(as_dask)
+        
          # 1. Get cube
         cube = delayed(get_sedmcube)(cubefile_, apply_byecr=apply_byecr)
 

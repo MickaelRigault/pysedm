@@ -70,7 +70,7 @@ class SEDM_BYECR():
 
     def set_hexagrid(self, date, download_it=True):
         """ NEED date_HexaGrid.pkl file. """
-        self.hexagrid = io.load_nightly_hexagonalgrid(date, download_it=download_it)
+        self.hexagrid = io.load_nightly_hexagonalgrid(date, download_it=download_it, show_progress=False)
 
     def set_normalized_cube(self):
         """

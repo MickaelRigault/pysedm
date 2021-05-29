@@ -330,7 +330,8 @@ def load_nightly_tracematch(YYYYMMDD, withmask=False):
             return load_nightly_tracematch(YYYYMMDD, withmask=False)
 
 # - HexaGrid
-def load_nightly_hexagonalgrid(YYYYMMDD, download_it=True, nprocess_dl=1):
+def load_nightly_hexagonalgrid(YYYYMMDD, download_it=True,
+                                   nprocess_dl=1, **kwargs):
     """ Load the Grid id <-> QR<->XY position
     This object must have been created. 
 
@@ -350,7 +351,8 @@ def load_nightly_hexagonalgrid(YYYYMMDD, download_it=True, nprocess_dl=1):
     warnings.warn("cannot find the hexagrid for date {date}, using ztquery.sedm to download it.")
     from ztfquery import sedm
     squery = sedm.SEDMQuery()
-    squery.download_night_calibrations(YYYYMMDD, which="HexaGrid.pkl", nprocess=nprocess_dl)
+    squery.download_night_calibrations(YYYYMMDD, which="HexaGrid.pkl",
+                                           nprocess=nprocess_dl, **kwargs)
     # has it been downloaded ?
     if os.path.isfile(hexagrid_path):
         return load_hexprojection( hexagrid_path )

@@ -14,7 +14,7 @@ def get_fluxcal_file(cube, update=False):
     # - Make sure you have all the fluxcalibration files locally
     from ztfquery import sedm
     squery = sedm.SEDMQuery()
-    _ = squery.get_night_fluxcal(date, nprocess=1) # downloads what is missing.
+    _ = squery.get_night_fluxcal(date, nprocess=1, show_progress=False) # downloads what is missing.
     # - grab the nearest
     return io.fetch_nearest_fluxcal(mjd=cube.header.get("MJD_OBS"))
 
@@ -131,6 +131,9 @@ class _SEDMFileHolder_( ClientHolder ):
     # -------- #
     def set_files(self, files, unique=True):
         """ """
+        if len(files)==0:
+            raise ValueError("no files given")
+        
         # cubefiles
         self._files = files if not unique else list(np.unique(files))
         # dataziles

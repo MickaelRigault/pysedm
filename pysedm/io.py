@@ -346,9 +346,9 @@ def load_nightly_hexagonalgrid(YYYYMMDD, download_it=True,
         return load_hexprojection( hexagrid_path )
 
     if not download_it:
-        raise IOError(f"Cannot find an hexagrid for date {date}")
+        raise IOError(f"Cannot find an hexagrid for date {YYYYMMDD}")
 
-    warnings.warn("cannot find the hexagrid for date {date}, using ztquery.sedm to download it.")
+    warnings.warn("cannot find the hexagrid for date {YYYYMMDD}, using ztquery.sedm to download it.")
     from ztfquery import sedm
     squery = sedm.SEDMQuery()
     squery.download_night_calibrations(YYYYMMDD, which="HexaGrid.pkl",
@@ -357,7 +357,7 @@ def load_nightly_hexagonalgrid(YYYYMMDD, download_it=True,
     if os.path.isfile(hexagrid_path):
         return load_hexprojection( hexagrid_path )
     
-    raise IOError(f"Cannot find an hexagrid for date {date}, even after calling squery.download_night_calibrations()")
+    raise IOError(f"Cannot find an hexagrid for date {YYYYMMDD}, even after calling squery.download_night_calibrations()")
         
 # - WaveSolution
 def load_nightly_wavesolution(YYYYMMDD, subprocesses=False):

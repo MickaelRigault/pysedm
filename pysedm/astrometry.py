@@ -107,11 +107,30 @@ def read_radec(filename=None, header=None):
     return co.ra.deg, co.dec.deg
 
 
-def get_wcs_dict(filename):
+def get_wcs_dict(filename=None, radec=None, spxy=None, **kwargs):
     """ """
-    astrom = Astrometry(filename)
-    return astrom.get_wcs_dict()
+    if radec is not None and spxy is not None:
+        return build_wcs(radec=None, spxy=None, **kwargs)
+    elif filename is None:
+        raise ValueError("either filename or (radec & spxy) must be given as input")
     
+    astrom = Astrometry(filename)
+    return astrom.get_wcs_dict(**kwargs)
+
+def build_wcs(radec, spxy, rotation=2, scale=0.55):
+    """ """    
+    theta = -rotation * np.pi/180
+    rot = np.asarray([[np.cos(theta), np.sin(theta)],[-np.sin(theta), np.cos(theta)]])
+    offset_radec = np.dot(rot, np.asarray(spxy).T)* scale
+    
+    ra0,dec0 = radec-offset_radec
+    
+    return {"CTYPE1":'RA---TAN', 
+            "CTYPE2":'DEC--TAN' ,
+            "CRVAL1":ra0, "CRVAL2":dec0,
+            "CRPIX1":1, "CRPIX2":1,
+            "CDELT1":-scale/3600,
+            "CDELT2":scale/3600}
 # ======================= #
 #   High Level            #
 # ======================= #
@@ -360,6 +379,10 @@ class Astrometry():
     def _load_parameters_(self, date):
         """ """
         self.date = date
+        scale=0.55
+        rotation=1
+        position = np.NaN, np.NaN
+        
         if Time(date) >= Time("2020-10-04"):
             position = 1039.5,968.5
             scale=0.55

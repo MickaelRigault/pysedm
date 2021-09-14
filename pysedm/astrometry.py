@@ -110,7 +110,7 @@ def read_radec(filename=None, header=None):
 def get_wcs_dict(filename=None, radec=None, spxy=None, **kwargs):
     """ """
     if radec is not None and spxy is not None:
-        return build_wcs(radec=None, spxy=None, **kwargs)
+        return build_wcs(radec=radec, spxy=spxy, **kwargs)
     elif filename is None:
         raise ValueError("either filename or (radec & spxy) must be given as input")
     
@@ -121,7 +121,7 @@ def build_wcs(radec, spxy, rotation=2, scale=0.55):
     """ """    
     theta = -rotation * np.pi/180
     rot = np.asarray([[np.cos(theta), np.sin(theta)],[-np.sin(theta), np.cos(theta)]])
-    offset_radec = np.dot(rot, np.asarray(spxy).T)* scale
+    offset_radec = np.dot(rot, np.asarray(spxy).T)* scale/3600
     
     ra0,dec0 = radec-offset_radec
     

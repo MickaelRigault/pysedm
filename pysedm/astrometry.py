@@ -119,11 +119,12 @@ def get_wcs_dict(filename=None, radec=None, spxy=None, **kwargs):
 
 def build_wcs(radec, spxy, rotation=2, scale=0.55):
     """ """    
-    theta = -rotation * np.pi/180
+    theta = - rotation * np.pi/180
     rot = np.asarray([[np.cos(theta), np.sin(theta)],[-np.sin(theta), np.cos(theta)]])
-    offset_radec = np.dot(rot, np.asarray(spxy).T)* scale/3600
+    scaling = scale * np.asarray([-1/np.cos(radec[1]*np.pi/180),1])
+    offset_radec = np.dot(rot, np.asarray(spxy)/3600)
     
-    ra0,dec0 = radec-offset_radec
+    ra0,dec0 = radec - scaling*offset_radec
     
     return {"CTYPE1":'RA---TAN', 
             "CTYPE2":'DEC--TAN' ,

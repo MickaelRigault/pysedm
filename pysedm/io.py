@@ -228,7 +228,7 @@ def filename_to_guider(filename, astrom=True, extinction=".fits", nomd5=True):
     dirname = os.path.dirname(filename)
     key = "astrom" if astrom else "guider"
     return [os.path.join(dirname,l) for l in os.listdir( get_datapath(fileinfo["date"]))
-                if fileinfo["sedmid"] in l and key in l] 
+                if fileinfo["sedmid"] in l and key in l and (l.endswith(('.fits', '.gz')) if nomd5 else l) ] 
 
     
 def parse_filename(filename):

@@ -1703,6 +1703,8 @@ class SEDMCube( Cube ):
         else:
             raise AttributeError("Cannot find the cube's night ; no 'ORIGIN' in the header, no filename.")
         
+        return night
+    
     def get_byecr_cube(self, cut_criteria=5):
         """ """
         from . import  byecr

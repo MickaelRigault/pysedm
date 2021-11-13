@@ -1694,13 +1694,21 @@ class SEDMCube( Cube ):
         return self.extractstar.run(slice_width=slice_width, psfmodel=psfmodel,
                                         fwhm_guess=fwhm_guess, verbose=verbose, **kwargs)
 
-
+    def get_night(self):
+        """ """
+        if "ORIGIN" in self.header:
+            night = self.header["ORIGIN"].split("_")[2].replace("ifu","")
+        elif self.filename is not None:
+            night = self.filename.split("/")[-1].split("_")[3].replace("ifu","")
+        else:
+            raise AttributeError("Cannot find the cube's night ; no 'ORIGIN' in the header, no filename.")
+        
     def get_byecr_cube(self, cut_criteria=5):
         """ """
         from . import  byecr
-        night = self.header['OBSDATE'].rsplit('-')
-        night = ''.join(night)
-
+        # This is the storing night
+        night = self.get_night()
+        
         # Get the affected spaxels
         byecrcl = byecr.SEDM_BYECR(night, self)
         cr_df = byecrcl.get_cr_spaxel_info(cut_criteria=cut_criteria)

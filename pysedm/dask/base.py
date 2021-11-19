@@ -12,11 +12,16 @@ import os
 from astropy.io.fits import getval
 
 
-def fetch_hypergalfluxcal(date):
+def fetch_hypergalfluxcal(date, range_night=2):
     """ """
+    from datetime import datetime, timedelta
     files = []
-    for file in glob.glob(os.path.join(REDUXPATH, date)+"/fluxcal_hypergal*"):
-        files.append(file)
+    d_ = datetime.strptime(date, '%Y%m%d')
+    dates = [(d_ + timedelta(n)).strftime('%Y%m%d').replace('-', '')
+             for n in range(-range_night, range_night+1)]
+    for date_ in dates:
+        for file in glob.glob(os.path.join(REDUXPATH, date_)+"/fluxcal_hypergal*"):
+            files.append(file)
     return files
 
 
@@ -26,6 +31,10 @@ def get_fluxcal_file(cube, hgfirst=False, update=False):
     # - Make sure you have all the fluxcalibration files locally
     if hgfirst:  # Use hypergal fluxcalibration file if available
         filefluxcal = fetch_hypergalfluxcal(date)
+        for f_ in filefluxcal:
+            spec = fluxcalibration.load_fluxcal_spectrum(f_)
+            if np.min(spec.data) < 0:
+                filefluxcal.remove(f_)
         if len(filefluxcal) == 1:
             return filefluxcal[0]
         elif len(filefluxcal) > 1:

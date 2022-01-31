@@ -60,7 +60,7 @@ def calibrate_cube(cube, fluxcalfile, airmass=None, backup_airmass=1.1, store_da
                   onraw=False)
     cube.set_filename(cube.filename.replace("e3d", "cale3d"))
     header = {**dict(cube.header), **
-              dict({'FLUXCALFILE': f'{os.path.basename(fluxcalfile)}'})}
+              dict({'FLUXCAL': f'{os.path.basename(fluxcalfile)}'})}
     cube.set_header(header)
 
     if store_data:

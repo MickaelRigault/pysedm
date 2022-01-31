@@ -59,6 +59,9 @@ def calibrate_cube(cube, fluxcalfile, airmass=None, backup_airmass=1.1, store_da
     cube.scale_by(fluxcal.get_inversed_sensitivity(cube.header.get("AIRMASS", backup_airmass)),
                   onraw=False)
     cube.set_filename(cube.filename.replace("e3d", "cale3d"))
+    header = {**dict(cube.header), **
+              dict({'FLUXCALFILE': f'{os.path.basename(fluxcalfile)}'})}
+    cube.set_header(header)
 
     if store_data:
         cube.writeto(cube.filename)

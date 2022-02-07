@@ -32,8 +32,11 @@ def get_fluxcal_file(cube, hgfirst=False, update=False):
     if hgfirst:  # Use hypergal fluxcalibration file if available
         filefluxcal = fetch_hypergalfluxcal(date)
         for f_ in filefluxcal:
-            spec = fluxcalibration.load_fluxcal_spectrum(f_)
-            if np.min(spec.data) < 0:
+            try:
+                spec = fluxcalibration.load_fluxcal_spectrum(f_)
+                if np.min(spec.data) < 0:
+                    filefluxcal.remove(f_)
+            except TypeError:
                 filefluxcal.remove(f_)
         if len(filefluxcal) == 1:
             return filefluxcal[0]

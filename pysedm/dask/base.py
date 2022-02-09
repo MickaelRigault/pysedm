@@ -25,6 +25,19 @@ def fetch_hypergalfluxcal(date, range_night=2):
     return files
 
 
+def fetch_pysedmfluxcal(date, range_night=0):
+    """ """
+    from datetime import datetime, timedelta
+    files = []
+    d_ = datetime.strptime(date, '%Y%m%d')
+    dates = [(d_ + timedelta(n)).strftime('%Y%m%d').replace('-', '')
+             for n in range(-range_night, range_night+1)]
+    for date_ in dates:
+        for file in glob.glob(os.path.join(REDUXPATH, date_)+"/fluxcal*"):
+            files.append(file)
+    return files
+
+
 def get_fluxcal_file(cube, hgfirst=False, update=False):
     """ """
     date = cube.header["OBSDATE"].replace("-", "")
@@ -48,9 +61,38 @@ def get_fluxcal_file(cube, hgfirst=False, update=False):
     from ztfquery import sedm
     squery = sedm.SEDMQuery()
     # downloads what is missing.
-    _ = squery.get_night_fluxcal(date, nprocess=1, show_progress=False)
+    try:
+        import json
+        _ = squery.get_night_fluxcal(date, nprocess=1, show_progress=False)
+    except (json.JSONDecodeError, OSError) as e:
+        import warnings
+        warnings.warn(f"Corrupted file from whatdata at date {date}")
     # - grab the nearest
-    return io.fetch_nearest_fluxcal(mjd=cube.header.get("MJD_OBS"))
+    try:
+        fluxcal = io.fetch_nearest_fluxcal(mjd=cube.header.get("MJD_OBS"))
+    except FileNotFoundError:
+        filefluxcal = fetch_pysedmfluxcal(date)
+        for f_ in filefluxcal:
+            try:
+                spec = fluxcalibration.load_fluxcal_spectrum(f_)
+                if np.min(spec.data) < 0:
+                    filefluxcal.remove(f_)
+            except TypeError:
+                filefluxcal.remove(f_)
+            except FileNotFoundError:
+                filefluxcal.remove(f_)
+                import warnings
+                warnings.warn(
+                    f"{f_} is a Corrupted file from whatdata at date {date}")
+        if len(filefluxcal) == 1:
+            return filefluxcal[0]
+        elif len(filefluxcal) > 1:
+            fluxcal_mjd_obs = [getval(f, "MJD_OBS") for f in filefluxcal]
+            mjd = cube.header.get("MJD_OBS")
+            target_mjd_obs = mjd
+            fluxcal = filefluxcal[np.argmin(
+                np.abs(target_mjd_obs - np.asarray(fluxcal_mjd_obs)))]
+    return fluxcal
 
 
 def calibrate_cube(cube, fluxcalfile, airmass=None, backup_airmass=1.1, store_data=False):

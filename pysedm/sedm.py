@@ -518,7 +518,12 @@ def get_sedmcube(filename, apply_byecr=False, **kwargs):
     """
     cube = SEDMCube(filename, **kwargs)
     if apply_byecr:
-        return cube.get_byecr_cube()
+        try:
+            import json
+            return cube.get_byecr_cube()
+        except (json.JSONDecodeError, OSError, FileNotFoundError) as err:
+            warnings.warn(f"No Hexagrid or corrupted file for {filename}")
+            return cube
     return cube
     
 

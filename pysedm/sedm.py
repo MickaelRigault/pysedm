@@ -1862,6 +1862,17 @@ class SEDMCube( Cube ):
                     **kwargs}
         return super(SEDMCube, self).load_adr(**adr_prop)
 
+    def save_sky(self, nspaxels=50, usemean=False, estimate_from="rawdata",
+                 lbda_range=[5000, 8000], **kwargs):
+        rawsky = self.get_spectrum(
+            self.get_faintest_spaxels(nspaxels, lbda_range=lbda_range,
+                                      **kwargs),
+            usemean=usemean, data=estimate_from)
+        rawsky.set_header(self.header)
+        calsky = flux_calibrate_sedm(rawsky)
+        outfile = self.filename.replace("%s" % io.PROD_CUBEROOT, "skyspec_cal")
+        calsky.writeto(outfile)
+
     def remove_sky(self, nspaxels=50, usemean=False,
                        estimate_from="rawdata", lbda_range=[5000,8000],
                       **kwargs):

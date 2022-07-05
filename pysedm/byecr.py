@@ -3,6 +3,7 @@
 
 """
 This module is to remove cosmic ray spaxels in the SEDM datacube.
+-v20220705: change 'pd.append' > 'pd.concat'. And 'is'> '=='.
 -v20201218-1221: add "show_cr_spaxels".
 -v20201110.
 """
@@ -68,9 +69,9 @@ class SEDM_BYECR():
     # SETTER
     #
 
-    def set_hexagrid(self, date, download_it=True):
+    def set_hexagrid(self, date):
         """ NEED date_HexaGrid.pkl file. """
-        self.hexagrid = io.load_nightly_hexagonalgrid(date, download_it=download_it, show_progress=False)
+        self.hexagrid = io.load_nightly_hexagonalgrid(date)
 
     def set_normalized_cube(self):
         """
@@ -173,13 +174,15 @@ class SEDM_BYECR():
     def get_spectral_neighbors_info(self, lbda_index=0):
         """ """
 
+        #if lbda_index is 0:
         if lbda_index == 0:
             self.derived_df["spec_nei_flux1_norm"] = self.norm_cube_data[lbda_index+1][self.derived_df["index"]]
             self.derived_df["spec_nei_flux1_norm_err"] = self.norm_cube_err[lbda_index+1][self.derived_df["index"]]
             self.derived_df["spec_nei_flux2_norm"] = self.norm_cube_data[lbda_index+2][self.derived_df["index"]]
             self.derived_df["spec_nei_flux2_norm_err"] = self.norm_cube_err[lbda_index+2][self.derived_df["index"]]
 
-        elif lbda_index is (len(self.cube.lbda)-1):
+        #elif lbda_index is (len(self.cube.lbda)-1):
+        elif lbda_index == (len(self.cube.lbda)-1):
             self.derived_df["spec_nei_flux1_norm"] = self.norm_cube_data[lbda_index-1][self.derived_df["index"]]
             self.derived_df["spec_nei_flux1_norm_err"] = self.norm_cube_err[lbda_index-1][self.derived_df["index"]]
             self.derived_df["spec_nei_flux2_norm"] = self.norm_cube_data[lbda_index-2][self.derived_df["index"]]
@@ -225,11 +228,9 @@ class SEDM_BYECR():
         lbda_index: float.
             specify lbda_index you want to investigate.
             'None' means run through whole lbda_index. Default.
-
         wspectral: bool.
             if you want to use a spectral filtering together with spatial one, put 'wspectral=True'.
             But it is not yet validated.
-
         cut_criteria: float.
             cut criteria values we want to use.
             Default is '5'.
@@ -270,7 +271,8 @@ class SEDM_BYECR():
                 _cr_info_df["nei_norm_mean"] = _cr_temp_df["nei_norm_mean"]
                 _cr_info_df["nei_norm_mean_err"] = _cr_temp_df["nei_norm_mean_err"]
 
-                cr_info_df = cr_info_df.append( _cr_info_df, ignore_index=True)
+                #cr_info_df = cr_info_df.append( _cr_info_df, ignore_index=True)
+                cr_info_df = pd.concat([cr_info_df, _cr_info_df], ignore_index=True)
 
         else: #run whole lbda_index
             for _lbda_index in range(0, len(self.cube.lbda)):
@@ -298,7 +300,8 @@ class SEDM_BYECR():
                         _cr_info_df["nei_norm_mean"] = _cr_temp_df["nei_norm_mean"]
                         _cr_info_df["nei_norm_mean_err"] = _cr_temp_df["nei_norm_mean_err"]
 
-                        cr_info_df = cr_info_df.append( _cr_info_df, ignore_index=True)
+                        #cr_info_df = cr_info_df.append( _cr_info_df, ignore_index=True)
+                        cr_info_df = pd.concat([cr_info_df, _cr_info_df], ignore_index=True)
 
                 else: # wspectral=False, default
                     self.get_spatial_neighbors_info(lbda_index=_lbda_index)
@@ -322,7 +325,8 @@ class SEDM_BYECR():
                         _cr_info_df["nei_norm_mean"] = _cr_temp_df["nei_norm_mean"]
                         _cr_info_df["nei_norm_mean_err"] = _cr_temp_df["nei_norm_mean_err"]
 
-                        cr_info_df = cr_info_df.append( _cr_info_df, ignore_index=True)
+                        #cr_info_df = cr_info_df.append( _cr_info_df, ignore_index=True)
+                        cr_info_df = pd.concat([cr_info_df, _cr_info_df], ignore_index=True)
 
 
 

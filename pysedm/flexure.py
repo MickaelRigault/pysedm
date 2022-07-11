@@ -19,7 +19,7 @@ j-offset is measured by maximizing the total flux within the randomly selected s
 #                      #
 ########################
 def get_ccd_jflexure(ccd, ntraces=100, tracewidth=1,
-                         jscan=[-3,3,10], savefile=None, get_object=False):
+                         jscan=[-2.5,2.5,10], savefile=None, get_object=False):
     """ give a ccd object (with tracematch loaded) ; this estimate the ccd-j trace flexure.
     [takes about ~5s]
 

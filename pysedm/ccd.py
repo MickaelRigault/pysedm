@@ -46,6 +46,7 @@ __all__ = ["get_dome","get_ccd"]
 def get_ccd(lampfile, ccdspec_mask=None,
             tracematch=None, background=None,
             correct_traceflexure=False, savefile_traceflexure=None,
+            jscan = None,
                 **kwargs):
     """ Load a SEDmachine ccd image.
 
@@ -73,7 +74,8 @@ def get_ccd(lampfile, ccdspec_mask=None,
             from .flexure import get_ccd_jflexure
             from .sedm    import TRACE_DISPERSION
             # Save the flexure plot
-            j_offset = get_ccd_jflexure(lamp, ntraces=200, tracewidth=1, jscan=[-3,3,10],
+            j_offset = get_ccd_jflexure(lamp, ntraces=200, tracewidth=1,
+                                        jscan=[-2.5, 2.5, 10] if jscan is None else jscan,
                                 savefile=savefile_traceflexure, get_object=False)
 
             new_tracematch = lamp.tracematch.get_shifted_tracematch(0, j_offset)

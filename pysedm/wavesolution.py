@@ -23,7 +23,11 @@ import modefit
 
 # - Internal Modules
 from .ccd import CCD
-from sedm import REFWAVELENGTH, SODIUM_SKYLINE_LBDA, TELLURIC_REF_LBDA, _REFORIGIN, LINES 
+
+if os.getenv('WHICHSEDM',default='P60')=='P60':
+    from .sedmvariables import REFWAVELENGTH, SODIUM_SKYLINE_LBDA, TELLURIC_REF_LBDA, _REFORIGIN, LINES 
+elif os.getenv('WHICHSEDM',default='P60')=='KP84':
+    from .sedmkpvariables import REFWAVELENGTH, SODIUM_SKYLINE_LBDA, TELLURIC_REF_LBDA, _REFORIGIN, LINES 
 
 # Vacuum wavelength
 # from KECK https://www2.keck.hawaii.edu/inst/lris/arc_calibrations.html

@@ -24,11 +24,11 @@ CALIBFILES = ["Hg.fits","Cd.fits","Xe.fits","dome.fits"]
 # --- CCD
 SEDM_CCD_SIZE = [2048, 2048]
 DOME_TRACEBOUNDS = [70,230]
-TRACE_DISPERSION = 1.2*2 # PSF (sigma assuming gaussian) of the traces on the CCD.
+TRACE_DISPERSION = 1.5#1.2*2 # PSF (sigma assuming gaussian) of the traces on the CCD.
 
 SEDM_INVERT = False #  Shall the x and y axis extracted in the hexagrid be inverted ?
 SEDM_ROT    = 103 # SEDM alignment to have north up
-SEDM_MLA_RADIUS = 25
+SEDM_MLA_RADIUS = 26#25
 
 _rot = SEDM_ROT*np.pi/  180
 SEDMSPAXELS = np.dot( np.asarray([[np.cos(_rot), -np.sin(_rot)],[np.sin(_rot),np.cos(_rot)]]) ,
@@ -57,7 +57,7 @@ MLA_GRID   = geometry.Polygon([[40,40],[40,2000], [2000,2000], [2000,40]])
 INDEX_CCD_CONTOURS = MLA_CIRCLE.intersection(MLA_GRID)
 
 # --- LBDA
-SEDM_LBDA = np.linspace(3700, 9300, 220)
+SEDM_LBDA = np.linspace(4000, 7500, 137)
 LBDA_PIXEL_CUT = 3
 
 
@@ -67,7 +67,7 @@ MLA_ROTATION_RAD= MLA_ROTATION_DEG * np.pi / 180.  # degree -> to rad
 MLA_ROTMATRIX   = np.asarray([[ np.cos(MLA_ROTATION_RAD),-np.sin(MLA_ROTATION_RAD)],
                               [ np.sin(MLA_ROTATION_RAD), np.cos(MLA_ROTATION_RAD)]] )
 DEFAULT_REFLBDA = 6000 # In Angstrom
-IFU_SCALE_UNIT  = 0.55
+IFU_SCALE_UNIT  = 0.75
 
 # ----- WCS
 SEDM_ASTROM_PARAM  = [ 7.28968990e-01,  6.89009309e-02, -6.57804812e-03, -7.94252856e-01,
@@ -115,27 +115,31 @@ def get_sedm_version(cube_date):
 
     return "v4"
 
---- Palomar Atmosphere
-Palomar Extinction Data from Hayes & Latham 1975
-(Wavelength in Angstroms, Magnitudes per airmass)
-PALOMAR_EXTINCTION = np.asarray([ (3200, 1.058),
- (3250, 0.911), (3300, 0.826), (3350, 0.757), (3390, 0.719), (3448, 0.663), (3509, 0.617),
- (3571, 0.575), (3636, 0.537), (3704, 0.500), (3862, 0.428), (4036, 0.364), (4167, 0.325),
- (4255, 0.302), (4464, 0.256), (4566, 0.238), (4785, 0.206), (5000, 0.183), (5263, 0.164),
- (5556, 0.151), (5840, 0.140), (6055, 0.133), (6435, 0.104), (6790, 0.084), (7100, 0.071),
- (7550, 0.061), (7780, 0.055), (8090, 0.051), (8370, 0.048), (8708, 0.044), (9832, 0.036),
- (10255, 0.034), (10610, 0.032), (10795, 0.032), (10870, 0.031)])
 
+KITTPEAK_EXTINCTION = np.asarray([(3200. , 1.017),
+ (3250. , 0.881),(3300. , 0.787),(3350. , 0.731),(3400. , 0.683),(3450. , 0.639),(3500. , 0.600),
+ (3571. , 0.556),(3636. , 0.518),(3704. , 0.484),(3760. , 0.457),(3816. , 0.433),(3862. , 0.414),
+ (3945. , 0.383),(4000. , 0.365),(4036. , 0.353),(4065. , 0.344),(4167. , 0.315),(4190. , 0.310),
+ (4255. , 0.293),(4290. , 0.284),(4370. , 0.268),(4464. , 0.250),(4498. , 0.243),(4566. , 0.231),
+ (4604. , 0.225),(4678. , 0.215),(4735. , 0.206),(4785. , 0.202),(4825. , 0.197),(4914. , 0.186),
+ (5000. , 0.180),(5067. , 0.174),(5145. , 0.167),(5206. , 0.163),(5263. , 0.161),(5341. , 0.158),
+ (5440. , 0.153),(5504. , 0.150),(5556. , 0.148),(5630. , 0.147),(5710. , 0.146),(5775. , 0.144),
+ (5840. , 0.137),(5910. , 0.133),(5980. , 0.133),(6056. , 0.132),(6140. , 0.125),(6220. , 0.119),
+ (6290. , 0.114),(6365. , 0.109),(6436. , 0.104),(6473. , 0.101),(6530. , 0.097),(6600. , 0.093),
+ (6670. , 0.090),(6740. , 0.085),(6790. , 0.083),(6850. , 0.081),(6975. , 0.075),(7055. , 0.073),
+ (7100. , 0.072),(7150. , 0.070),(7220. , 0.068),(7270. , 0.066),(7365. , 0.065),(7460. , 0.063),
+ (7550. , 0.061),(7580. , 0.058),(7725. , 0.056),(7780. , 0.055),(7820. , 0.055),(7910. , 0.054),
+ (8000. , 0.052),(8090. , 0.051),(8210. , 0.050),(8260. , 0.049),(8370. , 0.048),(8708. , 0.030),
+ (9832. , 0.053),(10256., 0.023)])
 
-PALOMAR_COORDS = {"latitude":   33.3563, # North
-                  "longitude":-116.8648, # West
-                  "altitude":1712,       #meter
+KITTPEAK_COORDS = {"latitude":  31.9633, #North
+                   "longitude": -111.6, #West
+                   "altitude": 2120,  #meter
                       }
 
 
-
-def get_palomar_extinction():
-    """ The ExtinctionSpectrum object of the Palomar Extinction
+def get_kittpeak_extinction():
+    """ The ExtinctionSpectrum object of the Kitt peak Extinction
     To correct for atmosphere extinction, see the get_atm_extinction() method
 
     Return
@@ -144,19 +148,18 @@ def get_palomar_extinction():
     """
     from .utils.atmosphere import ExtinctionSpectrum
     spec = ExtinctionSpectrum(None)
-    spec.create(lbda=PALOMAR_EXTINCTION.T[0],data=PALOMAR_EXTINCTION.T[1],
+    spec.create(lbda=KITTPEAK_EXTINCTION.T[0],data=KITTPEAK_EXTINCTION.T[1],
                                 variance=None, header=None)
-    spec._source = "Hayes & Latham 1975"
+    spec._source = ""
     return spec
 
 
 from scipy.stats import linregress
-SEDM_XRED_EXTENTION = [5.972e-03,56]# 54.4443
-SEDM_XBLUE_EXTENTION = [7.232e-03,-238] #236.4647
-
+SEDM_XRED_EXTENTION = [5.972e-03, 30]# 54.4443
+SEDM_XBLUE_EXTENTION = [7.232e-03,-220] #236.4647
 
 # -------------- #
-#  SEDM          #
+#  SEDMv2        #
 # -------------- #
 # From wavesolution.py but is SEDM specific so moving here
 REFWAVELENGTH = 7000
@@ -174,8 +177,8 @@ LINES= {"Hg": # IN VACUUM
                            "doublet":False,
                         "info":"merge of 5771.210, 5792.276 blended"},
                5462.268 : {"ampl":62.,"mu":187-_REFORIGIN},
-               4359.560   : {"ampl":50. ,"mu":127-_REFORIGIN},
-               4047.708 : {"ampl":10. ,"mu":105-_REFORIGIN}, 
+               4359.560   : {"ampl":50. ,"mu":112-_REFORIGIN},
+               4047.708 : {"ampl":10. ,"mu":82-_REFORIGIN}, 
               
                },
         "Cd":  # IN VACUUM
@@ -207,9 +210,9 @@ LINES= {"Hg": # IN VACUUM
                             "doublet":False}, # yes but really close
                             
                             
-               8821.83    : {"ampl": 11.,"mu":294-_REFORIGIN},
+               8821.83    : {"ampl": 11.,"mu":289-_REFORIGIN},
                    
-               np.average([8954.71,9047.93]) : {"ampl": 11.,"mu":298-_REFORIGIN,
+               np.average([8954.71,9047.93]) : {"ampl": 11.,"mu":293-_REFORIGIN,
                              "doublet":True , "info": "merge of lines 9854.71,9047.93"},
                9165.16    : {"ampl": 4.5,"mu":303-_REFORIGIN},
                
@@ -428,7 +431,7 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
 
     # - Amtphore correction
     if atmcorrected:
-        atmspec = get_palomar_extinction()
+        atmspec = get_kittpeak_extinction()
         if 'AIRMASS' not in cube.header:
             extinction = atmspec.get_atm_extinction(cube.lbda, 1.1)
             print("WARNING: AIRMASS keyword missing from header, assuming 1.1")

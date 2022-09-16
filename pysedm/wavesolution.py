@@ -23,6 +23,7 @@ import modefit
 
 # - Internal Modules
 from .ccd import CCD
+from sedm import REFWAVELENGTH, SODIUM_SKYLINE_LBDA, TELLURIC_REF_LBDA, _REFORIGIN, LINES 
 
 # Vacuum wavelength
 # from KECK https://www2.keck.hawaii.edu/inst/lris/arc_calibrations.html
@@ -81,74 +82,74 @@ XE_LINES = {"air": [ 7119.614 ,  7642.0124,  8231.6305,  8231.6305,  8280.1113,
                 }
 
 
-# -------------- #
-#  SEDM          #
-# -------------- #
-REFWAVELENGTH = 7000
+# # -------------- #
+# #  SEDM          #
+# # -------------- #
+# REFWAVELENGTH = 7000
 
-# For Information:
-#    Sodium skyline fitted by SNIFS is at 5892.346 Angstrom
-SODIUM_SKYLINE_LBDA = 5900#5896
-TELLURIC_REF_LBDA   = 7630 #  7624.5
+# # For Information:
+# #    Sodium skyline fitted by SNIFS is at 5892.346 Angstrom
+# SODIUM_SKYLINE_LBDA = 5900#5896
+# TELLURIC_REF_LBDA   = 7630 #  7624.5
 
-_REFORIGIN = 69
+# _REFORIGIN = 69
 
-LINES= {"Hg": # IN VACUUM
-            { 
-               np.mean([5771.210, 5792.276])   : {"ampl":13. ,"mu":201-_REFORIGIN,
-                           "doublet":False,
-                        "info":"merge of 5771.210, 5792.276 blended"},
-               5462.268 : {"ampl":62.,"mu":187-_REFORIGIN},
-               4359.560   : {"ampl":50. ,"mu":127-_REFORIGIN},
-               4047.708 : {"ampl":10. ,"mu":105-_REFORIGIN}, 
+# LINES= {"Hg": # IN VACUUM
+#             { 
+#                np.mean([5771.210, 5792.276])   : {"ampl":13. ,"mu":201-_REFORIGIN,
+#                            "doublet":False,
+#                         "info":"merge of 5771.210, 5792.276 blended"},
+#                5462.268 : {"ampl":62.,"mu":187-_REFORIGIN},
+#                4359.560   : {"ampl":50. ,"mu":112-_REFORIGIN},
+#                4047.708 : {"ampl":10. ,"mu":82-_REFORIGIN}, 
               
-               },
-        "Cd":  # IN VACUUM
-              {4679.325 : {"ampl":14. ,"mu":146-_REFORIGIN}, 
-               4801.254 : {"ampl":40. ,"mu":153-_REFORIGIN},
-               5087.239 : {"ampl":60. ,"mu":169-_REFORIGIN},
-               6440.249 : {"ampl":19. ,"mu":227-_REFORIGIN}, 
-               # - Cd and Xe seems to have the same lines
-               # Almost same wavelength but diffent enough to save the code
-               8280.01  : {"ampl": 1. ,"mu":275-_REFORIGIN,
-                            "backup":"Xe", # used only if Xe is not there
-                            "doublet":True,"info":"merge of 8230, 8341"},
-               #8818.51  : {"ampl": 0.8,"mu":295-_REFORIGIN},
-               #9000.01  : {"ampl": 0.5,"mu":302-_REFORIGIN,
-               #             "doublet":True,"info":"merge of 8945, 9050"},
-                },
-        # Important for Xe. Keep the Bright line, the First one. or change get_line_shift()
-#        "Xe": {8280.    : {"ampl": 1. ,"mu":280-_REFORIGIN,
-#                            "doublet":True,"info":"merge of 8230, 8341"},
-#               8818.5   : {"ampl": 0.8,"mu":295-_REFORIGIN},
-#               9000     : {"ampl": 0.5,"mu":302-_REFORIGIN,
-#                            "doublet":True,"info":"merge of 8945, 9050"},
-#               }
+#                },
+#         "Cd":  # IN VACUUM
+#               {4679.325 : {"ampl":14. ,"mu":143-_REFORIGIN}, 
+#                4801.254 : {"ampl":40. ,"mu":153-_REFORIGIN},
+#                5087.239 : {"ampl":60. ,"mu":169-_REFORIGIN},
+#                6440.249 : {"ampl":19. ,"mu":227-_REFORIGIN}, 
+#                # - Cd and Xe seems to have the same lines
+#                # Almost same wavelength but diffent enough to save the code
+#                8280.01  : {"ampl": 1. ,"mu":275-_REFORIGIN,
+#                             "backup":"Xe", # used only if Xe is not there
+#                             "doublet":True,"info":"merge of 8230, 8341"},
+#                #8818.51  : {"ampl": 0.8,"mu":295-_REFORIGIN},
+#                #9000.01  : {"ampl": 0.5,"mu":302-_REFORIGIN,
+#                #             "doublet":True,"info":"merge of 8945, 9050"},
+#                 },
+#         # Important for Xe. Keep the Bright line, the First one. or change get_line_shift()
+# #        "Xe": {8280.    : {"ampl": 1. ,"mu":280-_REFORIGIN,
+# #                            "doublet":True,"info":"merge of 8230, 8341"},
+# #               8818.5   : {"ampl": 0.8,"mu":295-_REFORIGIN},
+# #               9000     : {"ampl": 0.5,"mu":302-_REFORIGIN,
+# #                            "doublet":True,"info":"merge of 8945, 9050"},
+# #               }
 
-        "Xe": {np.average([8233.90, 8282.39], weights=[2,1])  : {"ampl": 16. ,"mu":280-_REFORIGIN,
-                            "doublet":False},# yes but really close
+#         "Xe": {np.average([8233.90, 8282.39], weights=[2,1])  : {"ampl": 16. ,"mu":280-_REFORIGIN,
+#                             "doublet":False},# yes but really close
                             
-               np.average([8349.11, 8411.00], weights=[2,3])   : {"ampl": 3. ,"mu":283-_REFORIGIN,
-                            "doublet":False}, # yes but really close
+#                np.average([8349.11, 8411.00], weights=[2,3])   : {"ampl": 3. ,"mu":283-_REFORIGIN,
+#                             "doublet":False}, # yes but really close
                             
                             
-               8821.83    : {"ampl": 11.,"mu":294-_REFORIGIN},
+#                8821.83    : {"ampl": 11.,"mu":289-_REFORIGIN},
                    
-               np.average([8954.71,9047.93]) : {"ampl": 11.,"mu":298-_REFORIGIN,
-                             "doublet":True , "info": "merge of lines 9854.71,9047.93"},
-               9165.16    : {"ampl": 4.5,"mu":303-_REFORIGIN},
+#                np.average([8954.71,9047.93]) : {"ampl": 11.,"mu":293-_REFORIGIN,
+#                              "doublet":True , "info": "merge of lines 9854.71,9047.93"},
+#                9165.16    : {"ampl": 4.5,"mu":303-_REFORIGIN},
                
-               # small lines but isolated
-               7644.12    : {"ampl": 1.,"mu":264-_REFORIGIN},
+#                # small lines but isolated
+#                7644.12    : {"ampl": 1.,"mu":264-_REFORIGIN},
                
-               #9425.    : {"ampl": 2.,"mu":309-_REFORIGIN,
-               #                "doublet":True , "info": "merge of lines 9400 and 9450"},
+#                #9425.    : {"ampl": 2.,"mu":309-_REFORIGIN,
+#                #                "doublet":True , "info": "merge of lines 9400 and 9450"},
                
-               #9802.8    : {"ampl": 0.4,"mu":317-_REFORIGIN},
-               #9938.0    : {"ampl": 0.4,"mu":320-_REFORIGIN},
+#                #9802.8    : {"ampl": 0.4,"mu":317-_REFORIGIN},
+#                #9938.0    : {"ampl": 0.4,"mu":320-_REFORIGIN},
                
-               }
-        }
+#                }
+#         }
 
 ###########################
 #                         #

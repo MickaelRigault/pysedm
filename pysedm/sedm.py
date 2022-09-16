@@ -115,9 +115,9 @@ def get_sedm_version(cube_date):
 
     return "v4"
 
---- Palomar Atmosphere
-Palomar Extinction Data from Hayes & Latham 1975
-(Wavelength in Angstroms, Magnitudes per airmass)
+# --- Palomar Atmosphere
+# Palomar Extinction Data from Hayes & Latham 1975
+# (Wavelength in Angstroms, Magnitudes per airmass)
 PALOMAR_EXTINCTION = np.asarray([ (3200, 1.058),
  (3250, 0.911), (3300, 0.826), (3350, 0.757), (3390, 0.719), (3448, 0.663), (3509, 0.617),
  (3571, 0.575), (3636, 0.537), (3704, 0.500), (3862, 0.428), (4036, 0.364), (4167, 0.325),

@@ -6,6 +6,7 @@
 import numpy              as np
 import warnings
 from datetime import datetime
+import os
 
 # Propobject
 from propobject           import BaseObject

@@ -4,6 +4,7 @@
 """ This modules contains the Wavelength solution tools. """
 
 import warnings
+import os
 import numpy as np
 import matplotlib.pyplot as mpl
 from scipy         import optimize

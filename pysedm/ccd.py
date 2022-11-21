@@ -946,7 +946,7 @@ class DomeCCD( ScienceCCD ):
         """ """
         x, y, a, b, theta = self.sepobjects.get(["x","y","a","b","theta"]).T
         # This enables to remove cosmics
-        flagout =  a/b<10
+        flagout =  a/b<5
         x, y, theta = x[~flagout], y[~flagout], theta[~flagout]
 
         if bound_pixels is not None:

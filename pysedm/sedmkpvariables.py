@@ -6,14 +6,14 @@ import numpy as np
 # --- CCD
 SEDM_CCD_SIZE = [2048, 2048]
 DOME_TRACEBOUNDS = [70,230]
-TRACE_DISPERSION = 1.5#1.2*2 # PSF (sigma assuming gaussian) of the traces on the CCD.
+TRACE_DISPERSION = 1.2*2 # PSF (sigma assuming gaussian) of the traces on the CCD.
 
 SEDM_INVERT = False #  Shall the x and y axis extracted in the hexagrid be inverted ?
 SEDM_ROT    = 103 # SEDM alignment to have north up
 SEDM_MLA_RADIUS = 26#25
 
 # --- LBDA
-SEDM_LBDA = np.linspace(4000, 7500, 137)
+SEDM_LBDA = np.linspace(3700, 9300, 220)
 LBDA_PIXEL_CUT = 3
 
 DEFAULT_REFLBDA = 6000 # In Angstrom
@@ -55,8 +55,8 @@ SITE_COORDS = {"latitude":  31.9633, #North
                       }
 
 
-SEDM_XRED_EXTENTION = [5.972e-03, 30]# 54.4443
-SEDM_XBLUE_EXTENTION = [7.232e-03,-220] #236.4647
+SEDM_XRED_EXTENTION = [5.972e-03, 56]# 54.4443
+SEDM_XBLUE_EXTENTION = [7.232e-03,-238] #236.4647
 
 # -------------- #
 #  SEDMv2        #

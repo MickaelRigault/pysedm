@@ -120,7 +120,7 @@ def get_dome(domefile, tracematch=None,  load_sep=False, **kwargs):
 
     if load_sep:
         dome.datadet = dome.data/np.sqrt(np.abs(dome.data))
-        dome.sep_extract(thresh=50., on="datadet")
+        dome.sep_extract(thresh=dome._get_sep_extract_threshold_(), on="datadet")
 
     if tracematch is not None:
         # = Tracematch that gonna help the background

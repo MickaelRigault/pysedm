@@ -17,7 +17,7 @@ show_traceindex: plot the ccd using `show()` and overplot the trace coutours.
 
 import warnings
 import numpy as np
-
+import sep
 # Propobject
 from propobject            import BaseObject
 # Astrobject
@@ -117,7 +117,7 @@ def get_dome(domefile, tracematch=None,  load_sep=False, **kwargs):
         kwargs["background"] = 0
 
     dome = DomeCCD(domefile, **kwargs)
-
+    sep.set_extract_pixstack(3000000)
     if load_sep:
         dome.datadet = dome.data/np.sqrt(np.abs(dome.data))
         dome.sep_extract(thresh=dome._get_sep_extract_threshold_(), on="datadet")

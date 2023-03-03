@@ -1,5 +1,6 @@
 """ Basic Dask Tools  """
 
+import warnings
 import pandas
 import numpy as np
 import dask
@@ -32,9 +33,13 @@ def fetch_pysedmfluxcal(date, range_night=0):
     d_ = datetime.strptime(date, '%Y%m%d')
     dates = [(d_ + timedelta(n)).strftime('%Y%m%d').replace('-', '')
              for n in range(-range_night, range_night+1)]
+    
     for date_ in dates:
         for file in glob.glob(os.path.join(REDUXPATH, date_)+"/fluxcal*"):
             files.append(file)
+
+    if len(files) == 0:
+        warnings.warn(f"No fluxcal found for night {date}")
     return files
 
 
@@ -65,12 +70,13 @@ def get_fluxcal_file(cube, hgfirst=False, update=False):
         import json
         _ = squery.get_night_fluxcal(date, nprocess=1, show_progress=False)
     except (json.JSONDecodeError, OSError) as e:
-        import warnings
         warnings.warn(f"Corrupted file from whatdata at date {date}")
     # - grab the nearest
     try:
         fluxcal = io.fetch_nearest_fluxcal(mjd=cube.header.get("MJD_OBS"))
-    except FileNotFoundError:
+        
+    except:
+        print("enter inside the except.")
         filefluxcal = fetch_pysedmfluxcal(date)
         for f_ in filefluxcal:
             try:
@@ -81,17 +87,21 @@ def get_fluxcal_file(cube, hgfirst=False, update=False):
                 filefluxcal.remove(f_)
             except FileNotFoundError:
                 filefluxcal.remove(f_)
-                import warnings
-                warnings.warn(
-                    f"{f_} is a Corrupted file from whatdata at date {date}")
+                warnings.warn(f"{f_} is a Corrupted file from whatdata at date {date}")
+
+        if len(filefluxcal) == 0:
+            raise ValueError("no filefluxcal found.")
+        
         if len(filefluxcal) == 1:
             return filefluxcal[0]
+        
         elif len(filefluxcal) > 1:
             fluxcal_mjd_obs = [getval(f, "MJD_OBS") for f in filefluxcal]
             mjd = cube.header.get("MJD_OBS")
             target_mjd_obs = mjd
             fluxcal = filefluxcal[np.argmin(
                 np.abs(target_mjd_obs - np.asarray(fluxcal_mjd_obs)))]
+            
     return fluxcal
 
 

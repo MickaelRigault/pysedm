@@ -1,0 +1,23 @@
+# Basics
+numpy
+scipy
+matplotlib
+pandas
+
+# advanced
+shapely
+astropy
+sep
+pynverse
+iminuit
+
+# internal
+pyifu
+psfcube
+pycalspec
+photoifu
+
+# internal that should be removed
+propobject
+astrobject
+modefit

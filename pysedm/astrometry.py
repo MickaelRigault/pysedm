@@ -4,20 +4,23 @@
 
 """ This module is made for the joint IFU Rainbow camera astrometry. """
 
-import pandas
-import numpy as np
-import warnings
-from scipy import stats
-# Astropy
-from astropy import units, coordinates, wcs
+from astropy import units, coordinates, wcs, units
 from astropy.io import fits
 from astropy.time import Time
-
-
 import iminuit
-# Others
-
+import matplotlib.pyplot as mpl
+from matplotlib.patches import Polygon, Ellipse
+import numpy as np
+import pandas
 from psfcube import fitter
+from pyifu import spectroscopy
+from scipy import stats
+from scipy.optimize import fmin
+from scipy.spatial import distance
+import shapely
+import warnings
+
+
 from . import io
 from . import sedm
 
@@ -95,9 +98,7 @@ def position_source(cube,
 
 def read_radec(filename=None, header=None):
     """ """
-    from astropy import table, coordinates, units
     if header is None:
-        from astropy.io import fits
         header = fits.getheader(filename)
 
     co = coordinates.SkyCoord(header.get("OBJRA"), header.get("OBJDEC"),
@@ -140,9 +141,6 @@ def build_wcs(radec, spxy, rotation=2, scale=0.55):
 
 def fit_cube_pos(filename, lbdarange=[6000, 8000], guess="guess", show=False, **kwargs):
     """ """
-    from pyifu import spectroscopy
-    from psfcube import fitter
-    import shapely
     sl = spectroscopy.Slice.from_cubefile(filename)
     if guess in ["brightest"]:
         centroid = np.nanmean(np.asarray(
@@ -299,11 +297,9 @@ def get_ccd_coords(cube):
 
 def fit_conversion_matrix(cubes_to_fit, guess=None):
     """ """
-    from scipy.spatial import distance
-    from scipy.optimize import fmin
 
     if guess is None:
-        guess = sedm.get_sedm_astrom_param(cube_to_fit)
+        guess = sedm.get_sedm_astrom_param(cubes_to_fit)
     else:
         guess = np.asarray(guess)
 
@@ -318,7 +314,7 @@ def fit_conversion_matrix(cubes_to_fit, guess=None):
 
         return np.sum([distance.euclidean(im_, i_) for im_, i_ in zip(list_of_ifu_positions_MODEL,
                                                                       list_of_ifu_positions)])
-    return fmin(to_fit, GUESS, maxiter=10000)
+    return fmin(to_fit, guess, maxiter=10000)
 
 
 # ======================= #
@@ -375,7 +371,10 @@ def fit_cube_centroid(cube_, lbdamin=6000, lbdamax=7000):
 
 def get_standard_rainbow_coordinates(rainbow_wcs, stdname):
     """ """
-    import pycalspec
+    try:
+        import pycalspec
+    except ImportError:
+        raise ImportError("Cannot find pycalspec module. Please install it first")
     rhms = coordinates.SkyCoord(*pycalspec.std_radec(stdname),
                                 unit=(units.hourangle, units.deg))
     return np.asarray(rhms.icrs.to_pixel(rainbow_wcs))
@@ -514,13 +513,15 @@ class Astrometry():
 
     def load_slice(self, lbdarange=[5000, 6000]):
         """ """
-        from pyifu import spectroscopy
         self.slice = spectroscopy.Slice.from_cubefile(
             self.filename, lbdarange=lbdarange)
 
     def load_guider(self, load_gaiacat=True):
         """ """
-        from astrobject import photometry
+        try:
+            from astrobject import photometry
+        except ImportError:
+            raise ImportError("You need astrobject to load the guider")
         self._guider = photometry.get_image(self.astromfile, background=0)
         if load_gaiacat:
             self._guider.download_catalogue("gaia")
@@ -740,7 +741,10 @@ class IFUReference(Astrometry):
 
     def load_refimage(self):
         """ """
-        from photoifu import photoref
+        try:
+            from photoifu import photoref
+        except:
+            raise ImportError("Cannot import photoifu, please install it.")
         self.photoref = photoref.PhotoReference.from_coords(self.target_radec)
         self._sources_xy = self.refimage.sepobjects.get(["x", "y"]).T
 
@@ -755,7 +759,7 @@ class IFUReference(Astrometry):
     def get_iso_contours(self, where="ref", targetmag=None, isomag=None):
         """ """
         if targetmag is not None:
-            iref.photoref.build_pointsource_image(targetmag)
+            self.photoref.build_pointsource_image(targetmag)
         if isomag is None:
             isomag = np.linspace(20, 26, 13)
 
@@ -796,7 +800,10 @@ class IFUReference(Astrometry):
 
     def get_slicemodeller(self, mag, seeing=1.1, **kwargs):
         """ """
-        from photoifu import slice
+        try:
+            from photoifu import slice
+        except:
+            raise ImportError("Cannot import photoifu, please install it")
         smodel = slice.SliceModeller(self.slice, self.photoref)
         smodel.set_target(self.get_target_coordinate(), mag)
         smodel.load_modelslice(seeing=seeing, **kwargs)
@@ -809,8 +816,6 @@ class IFUReference(Astrometry):
     # ------- #
     def show(self, show_title=True, ifuvmax="99", ifuvmin="5"):
         """ """
-        import matplotlib.pyplot as mpl
-        from matplotlib.patches import Polygon
         fig = mpl.figure(figsize=[6, 3])
         axphoto = fig.add_axes([0.08, 0.135, 0.4, 0.7])
         axifu = fig.add_axes([0.55, 0.135, 0.35, 0.7])
@@ -1035,8 +1040,10 @@ class SliceAligner():
                 If True, also return a "segmentation map" giving the member
                 pixels of each object. Default is False.
         """
-        import sep
-        import pandas
+        try:
+            import sep
+        except ImportError:
+            raise ImportError("Cannot import sep. Please install sep.")
         flagin = self.slice.contains(*self.grid.geodataframe[["x", "y"]].values.T,
                                      buffer=-2)
 
@@ -1117,7 +1124,7 @@ class SliceAligner():
         chi2 = -2*np.sum(np.log(L))
         """
         if parameters is not None:
-            self.set_parameters(param)
+            self.set_parameters(parameters)
 
         distance = self.get_source_matching()[1].arcsec
         loglikelihood = stats.norm.logpdf(distance,
@@ -1149,22 +1156,24 @@ class SliceAligner():
         # 2. call minuit
         # 3. return and store value
 
-        # need to be updated!!!
+        # need to be tested and fixed!!!
         #limit_lbda0_ = (6563, self.parameters["lbda0"]+2*self.parameters["width"])
-        guesses = self.get_initial_guess(asarray=True, **guess_prop)
-        boundaries = self.get_boundaries(asarray=True, **boundaries_prop)
-        fiterr = self.get_fiterror(asarray=True, **error_prop)
-        fixed = self.get_fixed(asarray=True, **fixed_prop)
+        guesses = self.get_initial_guess(**guess_prop)
+        boundaries = self.get_boundaries(**boundaries_prop)
+        fiterr = self.get_fiterror(**error_prop)
+        fixed = self.get_fixed(**fixed_prop)
 
         self._function_to_minimize = self.get_priored_chi2 if use_prior else self.get_chi2
-        self._minuit = iminuit.Minuit.from_array_func(self._function_to_minimize,
-                                                      guesses,
-                                                      error=fiterr,
-                                                      limit=boundaries,
-                                                      fix=fixed,
-                                                      name=self.freeparameters,
-                                                      errordef=1)
-        self.prior_used = use_prior
+        self._minuit = iminuit.Minuit(self._function_to_minimize, **guesses)
+        self._minuit.errordef = 1
+        for limit in boundaries:
+            self._minuit.limits[limit] = boundaries[limit]
+        for error in fiterr:
+            self._minuit.errors[error] = fiterr[error]
+        for fix in fixed:
+            if fixed[fix] is True:
+                self._minuit.fixed[fix] = True
+        
         # Run the minimisation
         self._minuit.migrad()
 
@@ -1199,7 +1208,10 @@ class SliceAligner():
 
     def get_slicegrid(self, size=None):
         """ """
-        from pixelproject import grid
+        try:
+            from pixelproject import grid #TOFIX: not released on pypi?
+        except ImportError:
+            raise ImportError("Cannot import pixelproject. Please install it first.")
         if size is None:
             self.gridsize = int(
                 np.max(np.abs(self.slice.convexhull_vertices)))+1
@@ -1222,7 +1234,6 @@ class SliceAligner():
     # -------- #
     def show_extraction(self, ax=None, ellipses=True, sourcecolor="C1", **kwargs):
         """ """
-        import matplotlib.pyplot as mpl
         if ax is None:
             fig = mpl.figure(figsize=[6, 5])
             ax = fig.add_axes([0.15, 0.15, 0.75, 0.75])
@@ -1234,7 +1245,6 @@ class SliceAligner():
 
         ax.scatter(*self.slicesources, marker="x", color=sourcecolor)
         if ellipses:
-            from matplotlib.patches import Ellipse
             for i, pf in pandas.DataFrame(self._ellipses).iterrows():
                 ax.add_patch(Ellipse([pf.x, pf.y], pf.a*2, pf.b*2,
                                      angle=pf.theta*180/np.pi, facecolor="None",
@@ -1352,7 +1362,6 @@ class AstrometryFitter():
 
     def _load_dataframe_(self):
         """ """
-        import pandas
         dict_out = {}
         for id_ in [i for i in self.cube_xy.keys() if i in self.ccd_xy.keys()]:
             dict_out[id_] = {}
@@ -1391,7 +1400,10 @@ class AstrometryFitter():
                                                       default order is 2)
 
         """
-        from skimage import transform
+        try:
+            from skimage import transform
+        except ImportError:
+            raise ImportError("Cannot import skimage. Please install scikit-image first.")
         self.flagout = np.asarray(
             np.nansum(np.isnan(self.coordinates).values, axis=1), dtype="bool")
         dd = self.coordinates[~self.flagout]
@@ -1412,7 +1424,6 @@ class AstrometryFitter():
 
     def show(self):
         """ """
-        import matplotlib.pyplot as mpl
         fig = mpl.figure(figsize=[9, 3])
         axccd = fig.add_axes([0.08, 0.1, 0.27, 0.8])
         axcube = fig.add_axes([0.4, 0.1, 0.27, 0.8])
@@ -1497,7 +1508,10 @@ class WCSIFU():
 
     def load_transform(self, date):
         """ """
-        from skimage import transform
+        try:
+            from skimage import transform
+        except ImportError:
+            raise ImportError("Cannot import skimage. Please install scikit-image first.")
         if Time(date) < Time("2019-09-06"):
             transform_type = "Affine"
             parameters = np.asarray([[9.40402465e-01, -1.17417175e-01, -8.52095952e+02],
@@ -1545,7 +1559,10 @@ def get_astrometry_fitter(date=None, download_data=False):
     See timeline here http://www.astro.caltech.edu/sedm/Hardware.html
     """
     print("***   get_astrometry_fitter IS DEPRECATED   ***")
-    from ztfquery import sedm as zsedm
+    try:
+        from ztfquery import sedm as zsedm
+    except ImportError:
+        raise ImportError("Cannot import ztfquery. Please install ztfquery first.")
     if date is None:
         date = "2019-09-10"
 

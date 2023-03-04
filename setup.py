@@ -11,7 +11,7 @@ MAINTAINER_EMAIL = 'mickael.rigault@clermont.in2p3.fr'
 URL = 'https://github.com/MickaelRigault/pysedm/'
 LICENSE = 'BSD (3-clause)'
 DOWNLOAD_URL = 'https://github.com/MickaelRigault/pysedm/tarball/0.30'
-VERSION = '0.30.0'
+VERSION = '0.31.0'
 
 try:
     from setuptools import setup, find_packages
@@ -20,27 +20,7 @@ except ImportError:
     from distutils.core import setup
     _has_setuptools = False
 
-def check_dependencies():
-    install_requires = []
-
-    # Just make sure dependencies exist, I haven't rigorously
-    # tested what the minimal versions that will work are
-    # (help on that would be awesome)
-    try:
-        import pyifu
-    except ImportError:
-        install_requires.append('pyifu')
-
-    try:
-        import psfcube
-    except ImportError:
-        install_requires.append('psfcube')
-        
-    return install_requires
-
 if __name__ == "__main__":
-
-    install_requires = check_dependencies()
 
     if _has_setuptools:
         packages = find_packages()
@@ -62,7 +42,27 @@ if __name__ == "__main__":
           url=URL,
           version=VERSION,
           download_url=DOWNLOAD_URL,
-          install_requires=install_requires,
+          install_requires=[
+                "astropy>=4.0.5",
+                "dask>=2023.2.1",
+                "iminuit>=2.0.0",
+                "matplotlib",
+                "modefit>=0.4.0",
+                "numpy>=1.21.6",
+                "pandas>=1.3.0",
+                "psfcube>=0.9.0",
+                "pyifu",
+                "scipy>=0.16.0",
+                "shapely>=1.8.1",
+          ],
+          extra_requires=[
+                "astrobject",
+                "photoifu",
+                "pycalspec",
+                "scikit-image",
+                "sep",
+                "ztfquery>=1.6.0",
+          ],
           scripts=["bin/ccd_to_cube.py" ,
                    "bin/extract_star.py",
                    "bin/extractstar.py",

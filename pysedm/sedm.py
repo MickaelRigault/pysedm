@@ -1464,6 +1464,100 @@ class SEDMExtractStar( BaseObject ):
 
         return {"fig":fig, "ax":ax}
 
+    def bokeh_mla(self, vmin="2", vmax="98", lbdalim=[6000,9000], bcoords=None,
+                  width=600, height=600):
+        """ Show the MLA with bokeh, highlighting centroid and used spaxels.
+
+        Parameters
+        ----------
+        vmin, vmax: [float/str] -optional-
+            Lower and upper limit for the colormap.
+            If string, they will be considered as 'in percent of data'
+
+        lbdalim: [2-value array] -optional-
+            Lower and upper wavelength limit that will be integrated to provide 
+            the spaxel flux.
+
+        width : int -optional-
+            Width of the plot in pixels. Default=600.
+
+        height : int -optional-
+            Height of the plot in pixels. Default=600.
+
+        Returns
+        Bokeh figure
+
+        """
+
+        from bokeh.plotting import ColumnDataSource, figure
+        from bokeh.models import MultiPolygons
+        from bokeh.colors import RGB
+ 
+        plot = figure( 
+                frame_width=width,
+                height=height,
+                active_drag="box_zoom",
+                tools="poly_select,box_zoom,wheel_zoom,pan,reset,save",
+                toolbar_location='above',
+                toolbar_sticky=True,
+                x_axis_location='above',                                        
+                sizing_mode="stretch_width",
+        )
+
+        # - which colors
+        rgba_colors = self.cube._data_to_color_("data",
+                                                cmap=None,
+                                                lbdalim=lbdalim,
+                                                vmin = vmin,
+                                                vmax = vmax)
+        colors = []
+        for color in rgba_colors:
+            colors.append(RGB(int(256*color[0]), 
+                              int(256*color[1]),
+                              int(256*color[2]),
+                              color[3]))
+
+        xs = []
+        ys = []
+        for i,id_  in enumerate(self.cube.indexes):
+            verts = self.cube.spaxel_vertices+np.asarray(self.cube.index_to_xy(id_))
+            xs.append([[verts[:,0].tolist()]])
+            ys.append([[verts[:,1].tolist()]]) 
+
+        source = ColumnDataSource(dict(xs=xs, ys=ys, fill_color=colors))
+        glyph = MultiPolygons(xs="xs", ys="ys",
+                              fill_color="fill_color",
+                              line_width=2)
+        plot.add_glyph(source, glyph)
+
+        if self._es_headerkey["posok"]:
+            x, y = np.asarray(self.fitted_cube.index_to_xy(self.fitted_cube.indexes)).T
+            plot.scatter(x=x, y=y, marker=".", size=10, color="black")
+        else:
+            source = ColumnDataSource(dict(x=0.5,
+                                           y=0.95,
+                                           text="Target outside the MLA \n [%.1f, %.1f] (in spaxels)"%(self.centroid[0],self.centroid[1])))
+            glyph = Text(x="x", y="y", text="text", text_color="black")
+            plot.add_glyph(source, glyph)
+
+        opts = self._centroiddisplay
+        del opts['lw']
+        del opts['zorder']
+        opts['size'] = opts.pop('s')
+        opts['color'] = opts.pop('facecolors')
+        opts['line_color'] = opts.pop('edgecolors')
+        for key, value in opts.items():
+            if value == 'k':
+                opts[key] = 'black'
+        plot.scatter(x=self.centroid[0], y=self.centroid[1],
+                     **opts)
+        if bcoords:
+            bx = bcoords[0]
+            by = bcoords[1]
+            plot.scatter(x=bx, y=by, marker="+", color="red")
+
+        return plot
+
     def show_adr(self, ax=None, savefile=None, **kwargs):
         """ Show the ADR fit.
 

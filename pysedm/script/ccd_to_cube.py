@@ -53,7 +53,6 @@ def build_tracematcher(date, verbose=True, width=None,
     Void.  (Creates the file TraceMatch.pkl and TraceMatch_WithMasks.pkl if save_masks)
     """
     
-    
     timedir = io.get_datapath(date)
         
     if verbose:
@@ -71,7 +70,7 @@ def build_tracematcher(date, verbose=True, width=None,
         
     if rebuild:
         print("Building Nightly Solution")
-        smap = get_tracematcher(glob(timedir+"dome.fits*")[0], width=width)
+        smap = get_tracematcher( glob(timedir+"dome.fits*")[0], width=width)
         smap.writeto(timedir+"%s_TraceMatch.pkl"%date)
         print("Nightly Solution Saved")
         
@@ -89,15 +88,12 @@ def build_tracematcher(date, verbose=True, width=None,
 ############################
 def build_hexagonalgrid(date, xybounds=None, theta=None):
     """ """
-    smap  = io.load_nightly_tracematch(date)
-    # ----------------
-    # - Spaxel Selection
+    tmatch = io.load_nightly_tracematch(date, withmask=True)
     if xybounds is None:
-        xybounds=INDEX_CCD_CONTOURS
-    idxall = smap.get_traces_within_polygon(xybounds)
-
-    hgrid = smap.extract_hexgrid(idxall, theta=theta)
-
+        xybounds= INDEX_CCD_CONTOURS
+        
+    idxall = tmatch.get_traces_within_polygon(xybounds)
+    hgrid = tmatch.extract_hexgrid(idxall, theta=theta)
     timedir = io.get_datapath(date)
     hgrid.writeto(timedir+"%s_HexaGrid.pkl"%date)
 
@@ -116,36 +112,40 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000,
     reffile  = io.get_night_files(date, kind="cube.basic", target=ref)
 
     # - If the reference if not there yet.
-    if len(reffile)==0:
+    if len(reffile)==0 or build_ref:
         warnings.warn("The reference cube %s does not exist "%ref)
         if build_ref:
             warnings.warn("build_flatfield is building it!")
         else:
             raise IOError("No reference cube to build the flatfield (build_ref was set to False)")
+        
         # --------------------- #
         # Build the reference   #
         # --------------------- #
-        tmatch   = io.load_nightly_tracematch(date, withmask=True) 
+        tmatch = io.load_nightly_tracematch(date, withmask=True) 
+
         # - The CCD
         ccdreffile = io.get_night_files(date, kind="ccd.lamp", target=ref)[0]
-        ccdref     = get_ccd(ccdreffile, tracematch = tmatch, background = 0)
+        ccdref = get_ccd(ccdreffile, tracematch = tmatch, background = 0)
         ccdref.fetch_background(set_it=True, build_if_needed=True, ncore=ncore)
         if not ccdref.has_var():
             ccdref.set_default_variance()
+
         # - HexaGrid
-        hgrid    = io.load_nightly_hexagonalgrid(date)
-        wcol     = io.load_nightly_wavesolution(date)
+        hexagrid = io.load_nightly_hexagonalgrid(date)
+        wcol = io.load_nightly_wavesolution(date)
         wcol._load_full_solutions_()
+        
         # - Build a cube
-        build_sedmcube(ccdref, date, lbda=None, wavesolution=wcol, hexagrid=hgrid,
-                        flexure_corrected=False,
-                        flatfielded=False, build_calibrated_cube=False,atmcorrected=False)
+        refcube = ccdref.extract_cube(wcol, lbda=SEDM_LBDA, 
+                                    hexagrid=hexagrid,
+                                    pixel_shift=0)
+    else:
+        refcube  = get_sedmcube(reffile[0])
         
     # ---------------------- #
     #  Actual FlatFielding   #
     # ---------------------- #
-    reffile  = reffile  = io.get_night_files(date, kind="cube.basic", target=ref)[0]
-    refcube  = get_sedmcube(reffile)
     sliceref = refcube.get_slice(lbda_min=lbda_min, lbda_max=lbda_max, usemean=True)
     # - How to normalize the Flat
     if kind in ["med", "median"]:
@@ -213,7 +213,7 @@ def build_backgrounds(date, smoothing=[0,5], start=2, jump=10,
 #                          #
 ############################
 def build_wavesolution(date, verbose=False, ntest=None, idxrange=None,
-                       use_fine_tuned_traces=False,
+                       use_fine_tuned_traces=False, client=None, 
                        wavedegree=5, contdegree=3, show_progress=False,
                        lamps=["Hg","Cd","Xe"], savefig=True, saveindividuals=False,
                        xybounds=None, rebuild=True):
@@ -280,7 +280,7 @@ def build_wavesolution(date, verbose=False, ntest=None, idxrange=None,
         from astropy.utils.console import ProgressBar
         from ..utils import tools
         notebook = tools.is_running_from_notebook()
-        bar = ProgressBar( len(index_columnidx), ipython_widget=notebook)
+        bar = ProgressBar( len(idx), ipython_widget=notebook)
     else:
         bar = None
 
@@ -307,7 +307,7 @@ def build_wavesolution(date, verbose=False, ntest=None, idxrange=None,
             print("Saving Wavesolution plot")
             wsol = io.load_nightly_wavesolution(date)
             hexagrid = io.load_nightly_hexagonalgrid(date)
-            pl = wsol.show_dispersion_map(hexagrid,vmin="0.5",vmax="99.5",
+            pl = wsol.show_dispersion_map(hexagrid, vmin="0.5",vmax="99.5",
                                               outlier_highlight=5, show=False)
             pl['fig'].savefig(timedir+"%s_wavesolution_dispersionmap.pdf"%date)
             pl['fig'].savefig(timedir+"%s_wavesolution_dispersionmap.png"%date)
@@ -430,10 +430,10 @@ def build_cubes(ccdfiles,  date, lbda=None,
     # Loading the Inputs #
     # ------------------ #
     if tracematch is None:
-        tracematch   = io.load_nightly_tracematch(date, withmask=False if traceflexure_corrected else True) 
+        tracematch = io.load_nightly_tracematch(date, withmask=True) #False if traceflexure_corrected else True) 
         
     if hexagrid is None:
-        hexagrid     = io.load_nightly_hexagonalgrid(date)
+        hexagrid = io.load_nightly_hexagonalgrid(date)
     
     if wavesolution is None:
         wavesolution = io.load_nightly_wavesolution(date)
@@ -450,9 +450,9 @@ def build_cubes(ccdfiles,  date, lbda=None,
     # ---------------- #
     ccds = []
     for ccdfile in ccdfiles:
-        flexuresavefile = None if not savefig else [ccdfile.replace("crr","flexuretrace_crr").replace(".fits",".pdf"),
-                                                    ccdfile.replace("crr","flexuretrace_crr").replace(".fits",".png")]
-        ccd_    = get_ccd(ccdfile, tracematch = tracematch, background = 0,
+        flexuresavefile = None if not savefig else [ccdfile.replace("crr", "flexuretrace_crr").replace(".gz", "").replace(".fits",".pdf"),
+                                                    ccdfile.replace("crr", "flexuretrace_crr").replace(".gz", "").replace(".fits",".png")]
+        ccd_ = get_ccd(ccdfile, tracematch = tracematch, background = 0,
                               correct_traceflexure = traceflexure_corrected,
                               savefile_traceflexure=flexuresavefile)
         if traceflexure_corrected:

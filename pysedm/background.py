@@ -35,7 +35,7 @@ def build_background(ccd,
                        set_it=False, is_std= is_stdstars(ccd.header), smoothing=smoothing,
                        ncore=ncore)
     
-    ccd._background.writeto( filename_to_background_name(ccd.filename).replace('.gz','') )
+    ccd._background.writeto( filename_to_background_name(ccd.filename) )
     if savefile is not None:
         ccd._background.show(savefile=savefile)
         mpl.close("all")

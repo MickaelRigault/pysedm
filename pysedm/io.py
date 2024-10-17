@@ -59,6 +59,29 @@ __all__ = ["get_night_files",
 #  Data Access             #
 #                          #
 ############################
+def download_night_calibration(date, dirout=None, **kwargs):
+    """ uses ztfquery to download the night calibration files.
+
+    Parameters
+    -----------
+    date: str
+        date with the format: YYYYMMDD
+
+    dirout: str, path
+        where data should be downloaded (-> dirout/YYYYMMDD/_downloaded_data_).
+        by default this will be `$ZTDATA/sedm/redux`.
+    
+    **kwargs goes to ztfquery.sedm.SEDMQuery.download_night_calibrations
+
+    Returns
+    -------
+    None
+    """
+    from ztfquery import sedm
+    squery = sedm.SEDMQuery()
+    _ = squery.download_night_calibrations(date, dirout=dirout, **kwargs)
+    return _
+
 def get_night_files(date, kind, target=None, extention=".fits"):
     """ GENERIC IO FUNCTION
     
@@ -126,7 +149,8 @@ def get_night_files(date, kind, target=None, extention=".fits"):
     return [path+f for f in os.listdir(get_datapath(date))
                if re.search(r'%s'%regex, f) and
                  (target is None or re.search(r'%s'%target, f)) and
-                 (extention is None or f.endswith(extention))]
+                 (extention is None or (f.endswith(extention) or f.endswith(extention+".gz")))
+                ]
 
 def get_cleaned_sedmcube(filename):
     """ get sky and flux calibrated cube """
@@ -263,7 +287,8 @@ def parse_filename(filename):
 def filename_to_background_name(filename):
     """ predefined structure for background naming """
     last = filename.split("/")[-1]
-    return "".join([filename.split(last)[0],"bkgd_"+last])
+    file_background = "".join([filename.split(last)[0],"bkgd_"+last])
+    return file_background
 
 def get_night_schedule(YYYYMMDD):
     """ Return the list of observations (the what.list) """
@@ -324,16 +349,16 @@ def load_nightly_mapper(YYYYMMDD, within_ccd_contours=True):
     return mapper
 
 # - TraceMatch
-def load_nightly_tracematch(YYYYMMDD, withmask=False):
+def load_nightly_tracematch(YYYYMMDD, withmask=True):
     """ Load the spectral matcher.
     This object must have been created. 
     """
     from .spectralmatching import load_tracematcher
     if not withmask:
-        return load_tracematcher(get_datapath(YYYYMMDD)+"%s_TraceMatch.pkl"%(YYYYMMDD))
+        return load_tracematcher( os.path.join(get_datapath(YYYYMMDD), f"{YYYYMMDD}_TraceMatch.pkl") )
     else:
         try:
-            return load_tracematcher(get_datapath(YYYYMMDD)+"%s_TraceMatch_WithMasks.pkl"%(YYYYMMDD))
+            return load_tracematcher( os.path.join(get_datapath(YYYYMMDD), f"{YYYYMMDD}_TraceMatch_WithMasks.pkl") )
         except:
             warnings.warn("No TraceMatch_WithMasks found. returns the usual TraceMatch")
             return load_nightly_tracematch(YYYYMMDD, withmask=False)

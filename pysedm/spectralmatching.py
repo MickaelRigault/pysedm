@@ -454,7 +454,7 @@ class TraceMatch( BaseObject ):
         mpoly = geometry.MultiPolygon([self.trace_polygons[i_]
                             for i_ in self.get_traces_crossing_x(xpixel, ymin=ymin, ymax=ymax) ])
         
-        return np.asarray([m.intersection(line).xy[1]for m in mpoly.geoms])
+        return np.asarray([m.intersection(line).xy[1] for m in mpoly.geoms])
             
         
     def get_traces_crossing_y(self, ypixel, xmin=-1, xmax=1e5):

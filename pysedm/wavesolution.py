@@ -3,6 +3,7 @@
 
 """ This modules contains the Wavelength solution tools. """
 
+from tqdm import tqdm
 import warnings
 import numpy as np
 import matplotlib.pyplot as mpl
@@ -181,10 +182,12 @@ def get_arccollection(traceindex, lamps):
     
     for lamp in lamps:
         spec_ = lamp.get_spectrum(traceindex, on="data")[::-1]
-        lbda_ = np.arange(len(spec_))
+        lbda_ = np.arange( len(spec_) )
         sol_.add_arcspectrum( get_arcspectrum(x=lbda_, y=spec_,
                                             databound= np.sort(len(spec_) - lamp.tracematch.get_trace_xbounds(traceindex)),
-                                            name=lamp.objname))
+                                            name=lamp.objname)
+                                  )
+        
     sol_.set_databounds(*np.sort(len(spec_) - lamp.tracematch.get_trace_xbounds(traceindex)))
     return sol_
 
@@ -246,26 +249,41 @@ def fit_spaxel_wavelesolution(arccollection, sequential=True,
     arccollection.fit_wavelengthsolution(wavedegree, legendre=False)
     return arccollection
 
-def fit_wavesolution(lamps, indexes, multiprocess=True):
+def fit_wavesolution(lamps, indexes, use_dask=False, multiprocess=True):
     """ """
+    print("fit_wavesolution is DEPRECATED")
+    
     from .utils import tools
     notebook = tools.is_running_from_notebook()
-
-    if notebook:
-        print("RUNNING FROM NOTEBOOK")
-        try:
-            return _fit_background_notebook_(lamps, indexes, multiprocess=True)
-        except:
-            warnings.warn("FAILING fit_background for notebooks")
             
     # Running from ipython/python    
     arccollections = [get_arccollection(id_, lamps) for id_ in indexes]
     
-    wsolutions = ProgressBar.map(fit_spaxel_wavelesolution,
-                                arccollections,
-                                multiprocess=multiprocess, step=2)
+    wsolutions = [fit_spaxel_wavelesolution(arcs) for arcs in tarccollections]
     #  these are the wavesolutions
-    return {i_:wsol_.data for i_,wsol_ in zip(indexes, contval)}
+    return {i_:wsol_.data for i_,wsol_ in zip(indexes, wsolutions)}
+
+
+def fit_wavelength_solution(lamps, index, use_dask=True, **kwargs):
+    """ """
+    output = {}
+    
+    if use_dask: # delay them
+        import dask
+        for index_ in index: # loop over the spaxels (their trace's indexes)
+            arc_collection = dask.delayed(get_arccollection)(index_, lamps)
+            wavesol = dask.delayed(fit_spaxel_wavelesolution)(arc_collection, **kwargs)
+            output[index_] = wavesol.data
+
+    else: # do not delay them
+        for index_ in index: # loop over the spaxels (their trace's indexes)
+            arc_collection = get_arccollection(index_, lamps)
+            wavesol = fit_spaxel_wavelesolution(arc_collection, **kwargs)
+            output[index_] = wavesol.data
+            
+    return output
+        
+        
 
 def _fit_wavesolution_notebook_(lamps, indexes, multiprocess=True):
     """ """
@@ -285,7 +303,8 @@ def _fit_wavesolution_notebook_(lamps, indexes, multiprocess=True):
     
     # - No multiprocessing 
     return {indexes[i_]: fit_spaxel_wavelesolution(arccollection)
-                for i_,arccollection in enumerate(arccollections)}
+                for i_,arccollection in tqdm( enumerate(arccollections) )
+            }
 
 
 ###########################
@@ -603,7 +622,8 @@ class WaveSolution( BaseObject ):
     # BUILDER  #
     # -------- #
     def fit_wavelesolution(self, traceindex, sequential=True, contdegree=4, wavedegree=5,
-                            saveplot=None, show=False, plotprop={}):
+                            saveplot=None, show=False,
+                            inplace=True, plotprop={}):
         """ Fit the wavelength solution of the given trace.
 
         This matching is made in two steps:
@@ -645,13 +665,15 @@ class WaveSolution( BaseObject ):
         wsol_.fit_lineposition(contdegree=contdegree, sequential=sequential)
         # 0.01s
         wsol_.fit_wavelengthsolution(wavedegree, legendre=False)
-        self.wavesolutions[traceindex] = wsol_.data
-
-                                         
-        self._wsol = wsol_
+        if inplace:
+            self.wavesolutions[traceindex] = wsol_.data
+            self._wsol = wsol_
+            
         if saveplot is not None or show:
             wsol_.show(traceindex=traceindex, xrange=[3600,9500], savefile=saveplot, **plotprop)
 
+        if not inplace:
+            return wsol_
     # -------- #
     # GETTER   #
     # -------- #
@@ -687,18 +709,23 @@ class WaveSolution( BaseObject ):
     # -------- #
     def set_wavesolutions(self, wavesolutions):
         """ Load a dictionary containing the wavelength solution of individual spaxels """
-        [self.add_trace_wavesolution(traceindex, data) for traceindex,data in wavesolutions.items()]
+        [self.add_trace_wavesolution(traceindex, data)
+             for traceindex,data in wavesolutions.items()]
         
             
-    def add_trace_wavesolution(self, traceindex, data, replace=False):
+    def add_trace_wavesolution(self, traceindex, data_or_spxsolution, replace=False):
         """ add to the current instance 'data' of a new wavelength solution.
         see SpaxelWaveSolution.data
         """
         if traceindex in self.wavesolutions.keys() and not replace:
-            raise ValueError("%d is already loaded. Set `replace=True` to replace the current value."%traceindex)
+            raise ValueError(f"{traceindex} is already loaded. Set `replace=True` to replace the current value.")
         
-        self.wavesolutions[traceindex] = data
-        self._solution[traceindex]     = SpaxelWaveSolution(data["wavesolution"], datafitted=[data["usedlines"], data["fit_linepos"], data['fit_linepos.err']])
+        self.wavesolutions[traceindex] = data_or_spxsolution
+        if type(data_or_spxsolution) == SpaxelWaveSolution:
+            self._solution[traceindex] = data_or_spxsolution
+        else:
+            data = data_or_spxsolution
+            self._solution[traceindex] = SpaxelWaveSolution(data["wavesolution"], datafitted=[data["usedlines"], data["fit_linepos"], data['fit_linepos.err']])
         
 
         
@@ -787,6 +814,7 @@ class WaveSolution( BaseObject ):
         if self._derived_properties["wavesolutions"] is None:
             self._derived_properties["wavesolutions"] = {}
         return self._derived_properties["wavesolutions"]
+    
     @property
     def _solution(self):
         """ WaveSolution object. use get_wavesolution() """
@@ -822,6 +850,7 @@ class SpaxelWaveSolution( BaseObject ):
         self.__build__()
         if polycoefs is not None:
             self.set_solution(polycoefs)
+            
         if datafitted is not None:
             self.set_datafitted(*datafitted)
             
@@ -1011,6 +1040,7 @@ class VirtualArcSpectrum( BaseObject ):
         """ Shift of the central line value based on the considered spaxel """
         if self.arcname in ["Hg"]:
             wavemax = np.max(self.lbda[self.get_arg_maxflux(2)])
+            
         elif self.arcname in ["Xe"]:
             wavemax = np.min(self.lbda[self.get_arg_maxflux(2)])
         else:
@@ -1049,16 +1079,19 @@ class VirtualArcSpectrum( BaseObject ):
     # --------- #
     #  FITTER   #
     # --------- #
-    def fit_wavelengthsolution(self, wavesolution_degree=3, legendre=False,**kwargs):
+    def fit_wavelengthsolution(self, wavesolution_degree=3, legendre=False, inplace=True, **kwargs):
         """ fit the 'pixel<->wavelength' solution 
         
         Parameters
         ----------
-        wavesolution_degree: [degree] -optional-
+        wavesolution_degree: int 
             degree of the polynom used to fit the 'pixel<->wavelength' solution
 
-        legendre: [bool] -optional-
+        legendre: bool 
             should the fitted polynom be based on Legendre polynoms?
+
+        inplace: bool
+            should this update the loaded wavelength solution
 
         **kwargs goes to fit_lineposition()
             
@@ -1103,11 +1136,14 @@ class VirtualArcSpectrum( BaseObject ):
         self.solutionfitter.fit(**guesses)
         self.datafitted = [self.usedlines, mus, emus]
         # - Set the best fit solution
-        self._derived_properties["wavesolution"] = \
-          SpaxelWaveSolution([self.solutionfitter.fitvalues["a%i"%i]
-                        for i in range(self.solutionfitter.model.DEGREE)[::-1]],
-                            datafitted=self.datafitted)
-
+        spaxel_wavesol =  SpaxelWaveSolution([self.solutionfitter.fitvalues["a%i"%i]
+                                                  for i in range(self.solutionfitter.model.DEGREE)[::-1]],
+                                                 datafitted=self.datafitted)
+        if inplace:
+            self._derived_properties["wavesolution"] = spaxel_wavesol
+            
+        return spaxel_wavesol
+        
     def _load_lineposition_(self, contdegree=2, line_shift=None,
                              exclude_reddest_part=True,
                              red_buffer=30,
@@ -1166,7 +1202,7 @@ class VirtualArcSpectrum( BaseObject ):
 
         # where do you wanna fit? (~1ms)
         if exclude_reddest_part:
-            flagin *= (self.lbda<=self._normguesses["mu%d_guess"%(len(self.usedlines)-1)]+red_buffer)
+            flagin *= (self.lbda<=self._normguesses["mu%d_guess"%(len(self.usedlines)-1)] + red_buffer)
         else:
             warnings.warn("part redder than %d *not* removed"%(self._normguesses["mu%d_guess"%(len(self.usedlines)-1)]+red_buffer))
             
@@ -1442,10 +1478,13 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
         
         if "Cd" in self.arcspectra:
             return self.arcspectra["Cd"].get_line_shift()
+        
         if "Hg" in self.arcspectra:
             return self.arcspectra["Hg"].get_line_shift()
+        
         if "Xe" in self.arcspectra:
             return self.arcspectra["Xe"].get_line_shift()
+        
         raise AttributeError("known of the pre-defined lines (Cd, Hg and Xe) have been found in the arcspectra."+\
                               " They are requested for the line_shift ")
 

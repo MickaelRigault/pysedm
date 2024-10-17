@@ -36,9 +36,7 @@ Then to set this Matching to all the ScienceCCD objects.
 
 """
 
-__all__ = ["get_dome","get_ccd"]
-
-##################################
+__all__ = ["get_dome","get_ccd"]##################################
 #                                #
 #   Object Generators            #
 #                                #
@@ -79,8 +77,8 @@ def get_ccd(lampfile, ccdspec_mask=None,
                                 savefile=savefile_traceflexure, get_object=False)
 
             new_tracematch = lamp.tracematch.get_shifted_tracematch(0, j_offset)
-            new_tracematch.set_buffer( TRACE_DISPERSION)
-            lamp.set_tracematch(new_tracematch )
+            new_tracematch.set_buffer(TRACE_DISPERSION)
+            lamp.set_tracematch(new_tracematch)
             lamp.header["JFLXCORR"] =  (True, "Is TraceMatch corrected for j flexure?")
             lamp.header["CCDJFLX"] =  (j_offset, "amplitude in pixel of the  j flexure Trace correction")
         else:
@@ -477,11 +475,12 @@ class CCD( BaseCCD ):
         # ---------------- #
         #  Test it exists  #
         # ---------------- #
-        from glob import glob
-        if len(glob(filename_to_background_name(self.filename)))==0:
-            warnings.warn("No background has been found for %s"%self.filename)
+        import os
+        if not os.path.isfile(filename_to_background_name(self.filename)):
+            warnings.warn(f"No background has been found for {self.filename}")
             if not build_if_needed:
                 raise IOError("Since build_if_needed=False, No background available.")
+            
             from .background import build_background
             build_background(self, ncore=ncore, **kwargs)
             warnings.warn("A background has been built")
@@ -541,7 +540,7 @@ class CCD( BaseCCD ):
         minpix, maxpix = self.tracematch.get_trace_xbounds(traceindex)
         mask = pixs[(pixs>minpix)* (pixs<maxpix)][::-1]
         if lbda is not None:
-            from scipy.interpolate     import interp1d
+            from scipy.interpolate  import interp1d
             pxl_wanted = wavesolution.lbda_to_pixels(lbda, traceindex) + pixel_shift
             flux = interp1d(pixs[mask], f[mask], kind=kind)(pxl_wanted)
             var  = interp1d(pixs[mask], v[mask], kind=kind)(pxl_wanted) if v is not None else v
@@ -616,6 +615,7 @@ class CCD( BaseCCD ):
         if rotation is None:
             rotation = SEDM_ROT
         # - index check
+        
         if traceindexes is None:
             traceindexes = np.sort(list(wavesolution.wavesolutions.keys()))
 
@@ -641,9 +641,13 @@ class CCD( BaseCCD ):
                                                                 get_spectrum=False,
                                                                 pixel_shift=pixel_shift)
             except:
-                warnings.warn("FAILING EXTRACT_SPECTRUM for trace index %d: most likely wavesolution failed for this trace. *NaN Spectrum set*"%i_)
-                flux_ = np.ones(len(lbda) )*np.NaN
-                variance_ = np.ones(len(lbda) )*np.inf
+                print(i_)
+                raise ValueError(f"not working for {i_}")
+            
+        #    except:
+        #        warnings.warn("FAILING EXTRACT_SPECTRUM for trace index %d: most likely wavesolution failed for this trace. *NaN Spectrum set*"%i_)
+        #        flux_ = np.ones(len(lbda) )*np.NaN
+        #        variance_ = np.ones(len(lbda) )*np.inf
 
             cubeflux_[i_] = flux_
             if cubevar_ is not None:
@@ -668,13 +672,16 @@ class CCD( BaseCCD ):
         #  SEDM DEPENDENT
         hexagrid.set_rot_degree(rotation)
         spaxels_position = np.asarray(hexagrid.index_to_xy( hexagrid.ids_to_index(used_indexes),
-                                        invert_rotation=False,
+                                        invert_rotation=True, # CAREFUL HERE
                                         switch_axis=SEDM_INVERT)).T
 
 
         spaxel_map = {i:c for i,c in zip(used_indexes, spaxels_position)}
 
-        cube.create(cubeflux.T,lbda=lbda, spaxel_mapping=spaxel_map, variance=cubevar.T)
+        if cubevar is not None:
+            cubevar = cubevar.T #
+            
+        cube.create(cubeflux.T,lbda=lbda, spaxel_mapping=spaxel_map, variance=cubevar)
         cube.set_spaxel_vertices(np.dot(hexagrid.grid_rotmatrix,SEDMSPAXELS.T).T)
         return cube
 
@@ -810,11 +817,11 @@ class CCD( BaseCCD ):
         if vmin is None:
             vmin = 0
         if type(vmin) == str:
-            vmin = np.percentile(data, vmin)
+            vmin = np.percentile(data, float(vmin) )
         if vmax is None:
             vmax = "95"
         if type(vmax) == str:
-            vmax = np.percentile(data, vmax)
+            vmax = np.percentile(data, float(vmax) )
 
         #  parameters
         ntraces = len(traceindexes)

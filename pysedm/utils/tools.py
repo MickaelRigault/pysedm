@@ -5,8 +5,13 @@
 
 import numpy as np
 
+
 __all__ = ["kwargs_update","shape_ajustment", "is_arraylike"]
 
+
+# =========== #
+#  Tools      #
+# =========== #
 
 def kwargs_update(default,**kwargs):
     """

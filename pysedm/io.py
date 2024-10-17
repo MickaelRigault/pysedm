@@ -355,10 +355,10 @@ def load_nightly_tracematch(YYYYMMDD, withmask=True):
     """
     from .spectralmatching import load_tracematcher
     if not withmask:
-        return load_tracematcher(get_datapath(YYYYMMDD)+"%s_TraceMatch.pkl"%(YYYYMMDD))
+        return load_tracematcher( os.path.join(get_datapath(YYYYMMDD), f"{YYYYMMDD}_TraceMatch.pkl") )
     else:
         try:
-            return load_tracematcher(get_datapath(YYYYMMDD)+"%s_TraceMatch_WithMasks.pkl"%(YYYYMMDD))
+            return load_tracematcher( os.path.join(get_datapath(YYYYMMDD), f"{YYYYMMDD}_TraceMatch_WithMasks.pkl") )
         except:
             warnings.warn("No TraceMatch_WithMasks found. returns the usual TraceMatch")
             return load_nightly_tracematch(YYYYMMDD, withmask=False)

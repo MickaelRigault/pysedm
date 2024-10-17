@@ -6,7 +6,7 @@ import os
 import warnings
 #import matplotlib
 #matplotlib.use('Agg')
-import matplotlib.pyplot as mpl
+import matplotlib.pyplot as plt
 from glob import glob
 
 from astrobject.utils.tools import dump_pkl
@@ -71,7 +71,7 @@ def build_tracematcher(date, verbose=True, width=None,
     if rebuild:
         print("Building Nightly Solution")
         smap = get_tracematcher( glob(timedir+"dome.fits*")[0], width=width)
-        smap.writeto(timedir+"%s_TraceMatch.pkl"%date)
+        smap.writeto(timedir+f"{date}_TraceMatch.pkl")
         print("Nightly Solution Saved")
         
     if save_masks:
@@ -79,7 +79,7 @@ def build_tracematcher(date, verbose=True, width=None,
             warnings.warn("TraceMatch_WithMasks already exists for %s. rebuild is False, so nothing is happening"%date)
             return
         load_trace_masks(smap, smap.get_traces_within_polygon(INDEX_CCD_CONTOURS), ncore=ncore)
-        smap.writeto(timedir+"%s_TraceMatch_WithMasks.pkl"%date)
+        smap.writeto(timedir+f"{date}_TraceMatch_WithMasks.pkl")
     
 ############################
 #                          #
@@ -262,20 +262,29 @@ def build_wavesolution(date, verbose=False, ntest=None, idxrange=None,
     idxall = smap.get_traces_within_polygon(xybounds)
     if idxrange is not None:
         idxall = [l for l in idxall if l>=idxrange[0] and l<idxrange[1]]
-    idx = idxall if ntest is None else np.random.choice(idxall,ntest, replace=False) 
+
+    if ntest is None:
+        idx = idxall
+    else:
+        idx = np.random.choice(idxall, ntest, replace=False) 
 
     # - Do The loop and map it thanks to astropy
+    # ==================== #
     def fitsolution(idx_):
         if saveindividuals:
             saveplot = timedir+"%s_wavesolution_trace%d.pdf"%(date,idx_)
         else:
             saveplot = None
         csolution.fit_wavelesolution(traceindex=idx_, saveplot=None,
-                    contdegree=contdegree, wavedegree=wavedegree, plotprop={"show_guesses":True})
+                                     contdegree=contdegree,
+                                     wavedegree=wavedegree,
+                                     plotprop={"show_guesses":True})
         if saveplot is not None:
             csolution._wsol.show(show_guesses=True, savefile=saveplot)
-            mpl.close("all")
+            plt.close("all")
 
+    # ================== #
+            
     if show_progress:
         from astropy.utils.console import ProgressBar
         from ..utils import tools
@@ -288,9 +297,11 @@ def build_wavesolution(date, verbose=False, ntest=None, idxrange=None,
         fitsolution(i_)
         if bar is not None:
             bar.update(j)
+            
     if bar is not None:
         bar.update(len(idx))
-        
+
+    
     # - output - #
     outfile = "%s_WaveSolution"%date
     if idxrange is not None:

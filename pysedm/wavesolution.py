@@ -10,12 +10,8 @@ import matplotlib.pyplot as mpl
 from scipy         import optimize
 from astropy.utils.console import ProgressBar
 
-try:
-    from pynverse import inversefunc
-    _HASPYNVERSE = True
-except ImportError:
-    warnings.warn("Cannont Import pynverse, limited wavelength solution tools | pip install pynverse")
-    _HASPYNVERSE = False
+from pynverse import inversefunc
+    
 # - External Modules
 from propobject              import BaseObject
 from pyifu.spectroscopy      import Spectrum
@@ -118,7 +114,7 @@ LINES= {"Hg": # IN VACUUM
                #9000.01  : {"ampl": 0.5,"mu":302-_REFORIGIN,
                #             "doublet":True,"info":"merge of 8945, 9050"},
                 },
-        # Important for Xe. Keep the Bright line, the First one. or change get_line_shift()
+        # Important for Xe. Keep the Bright line, the First one. or change get_lines_shift()
 #        "Xe": {8280.    : {"ampl": 1. ,"mu":280-_REFORIGIN,
 #                            "doublet":True,"info":"merge of 8230, 8341"},
 #               8818.5   : {"ampl": 0.8,"mu":295-_REFORIGIN},
@@ -597,21 +593,64 @@ class WaveSolution( BaseObject ):
     # ================== #
     #  Main Methods      #
     # ================== #
+    @classmethod
+    def from_night(cls, night):
+        """ shortcut to load the wavesolution of a given night (YYYYMMMDD) """
+        from .io import _get_wavesolution_filepath
+        parquet_file = _get_wavesolution_filepath(night, "parquet")
+        return cls.from_parquet(parquet_file)
+        
+    @classmethod
+    def from_parquet(cls, parquetfile):
+        """ reads the wavesolution.parquet file that is expected to have the format
+        outputting to_dict() {index_: poly1d.coefs} or equivalent pandas.DataFrame
+        """
+        import pandas
+        these_coefs = pandas.read_parquet(parquetfile)
+        polycoefs_dict = these_coefs.T.to_dict("list")
+        return cls.from_polycoefs(polycoefs_dict)
+    
+    @classmethod
+    def from_polycoefs(cls, polycoefs):
+        """ loads the instance given polycoefs {index_: poly1d.coefs} as output by to_dict() """
+        this = cls()
+        spaxel_solutions = {index_: SpaxelWaveSolution(polycoefs=coefs_)
+                                for index_, coefs_ in polycoefs.items()}
+        this.set_wavesolutions( spaxel_solutions )
+        return this
+    
     # -------- #
     #  I/O     #
     # -------- #
+    def to_dict(self):
+        """ returns a dict of {index_: poly1d.coefs} """
+        return {i: self.get_spaxel_wavesolution(i)._wavesolution.coef for i in self.traceindexes}
+
+    def to_dataframe(self):
+        """ returns a dataframe (index=> traceindex) """
+        import pandas
+        return pandas.DataFrame(self.to_dict).T
+    
+    def to_parquet(self, filename):
+        """ """
+        df = self.to_dataframe()
+        return df.to_parquet(filename)
+    
     def writeto(self, filename):
         """ save the object into the given filename (.pkl). 
         Load it the using the load() method.
         """
-        from pysedm.utils.tools import dump_pkl
+        warnings.warn("WaveSolution.writeto is DEPRECATED, use to_parquet")
+        
+        from .utils.tools import dump_pkl
         dump_pkl(self.wavesolutions, filename)
 
     def load(self, filename):
         """ Load the object from the given filename (.pkl).
         object created by the writeto() method can be opened this way.
         """
-        from pysedm.utils.tools import load_pkl
+        warnings.warn("WaveSolution.load() is DEPRECATED, use from_parquet")        
+        from .utils.tools import load_pkl
         data = load_pkl(filename)
         if "wavesolution" not in list(data.values())[0]:
             raise TypeError('The given dictionary file does not seem to be a wavelength solution. No "wavesolution" in the first entry')
@@ -621,7 +660,7 @@ class WaveSolution( BaseObject ):
     # -------- #
     # BUILDER  #
     # -------- #
-    def fit_wavelesolution(self, traceindex, sequential=True, contdegree=4, wavedegree=5,
+    def fit_wavelesolution(self, traceindex, sequential=True, contdegree=3, wavedegree=5,
                             saveplot=None, show=False,
                             inplace=True, plotprop={}):
         """ Fit the wavelength solution of the given trace.
@@ -754,7 +793,7 @@ class WaveSolution( BaseObject ):
                                 kind="nMAD", vmin="0.5", vmax="99.5",
                             clabel=r"nMAD [$\AA$]", **kwargs):
         """ """
-        from pysedm.sedm import display_on_hexagrid
+        from .sedm import display_on_hexagrid
         traceindexes = list(self._solution.keys())
         value = nmad = [self._solution[i].get_wavesolution_rms(kind="nMAD") for i in traceindexes]
         return display_on_hexagrid(value, traceindexes,hexagrid=hexagrid, 
@@ -1000,10 +1039,7 @@ class SpaxelWaveSolution( BaseObject ):
 
     def load_pixel_to_lbda_solution(self):
         """ """
-        if _HASPYNVERSE:
-            self._properties["inverse_wavesolution"] = inversefunc(self.lbda_to_pixels)
-        else:
-            raise ImportError("You need pynverse | pip install pynverse")
+        self._properties["inverse_wavesolution"] = inversefunc(self.lbda_to_pixels)
             
     @property
     def pixels_to_lbda(self):
@@ -1029,6 +1065,8 @@ class VirtualArcSpectrum( BaseObject ):
 
     PROPERTIES         = ["wavesolution"]
     DERIVED_PROPERTIES = ["linefitter", "solutionfitter"]
+
+    _MU_ERR = {"Cd": 5, "Xe":2, "Hg":5}
     
     # ================ #
     #  Main Method     #
@@ -1036,15 +1074,15 @@ class VirtualArcSpectrum( BaseObject ):
     # --------- #
     #  GETTER   #
     # --------- #
-    def get_line_shift(self):
+    def get_lines_shift(self):
         """ Shift of the central line value based on the considered spaxel """
-        if self.arcname in ["Hg"]:
+        if self.arcname in ["Hg", "Cd"]:
             wavemax = np.max(self.lbda[self.get_arg_maxflux(2)])
             
         elif self.arcname in ["Xe"]:
             wavemax = np.min(self.lbda[self.get_arg_maxflux(2)])
         else:
-            wavemax = self.lbda[self.get_arg_maxflux(1)]
+            raise ValueError(f"Unexpected arclamp name {self.arcname}")
           
           
         wavemax_expected = self.arclines[self.expected_brightesline]["mu"]
@@ -1098,11 +1136,11 @@ class VirtualArcSpectrum( BaseObject ):
             contdegree: [int] -optional-
                 Degree of the (Legendre) polynom used as continuum
 
-            line_shift: [float] -optional-
+            lines_shift: [float] -optional-
                 Force the expected line pixel shift used as first guesses. 
                 If not provided an internal procedure based on expected and observed 
                 brightest emission position will be used. 
-                (see `get_line_shift()`)
+                (see `get_lines_shift()`)
         
             exclude_reddest_part: [bool] -optional-
                 If True, wavelengths that are more than *red_buffer* [wave units] redder
@@ -1119,7 +1157,7 @@ class VirtualArcSpectrum( BaseObject ):
         """
         from modefit import get_polyfit
         
-        if not self.has_linefitter():
+        if not self.has_linefitter() or len(kwargs)>0:
             self.fit_lineposition(**kwargs)
             
         mus, emus = self._linefit_to_mus_()
@@ -1144,7 +1182,7 @@ class VirtualArcSpectrum( BaseObject ):
             
         return spaxel_wavesol
         
-    def _load_lineposition_(self, contdegree=2, line_shift=None,
+    def _load_lineposition_(self, contdegree=3, lines_shift=None,
                              exclude_reddest_part=True,
                              red_buffer=30,
                              exclude_bluest_part=True,
@@ -1161,11 +1199,11 @@ class VirtualArcSpectrum( BaseObject ):
         contdegree: [int] -optional-
             Degree of the (Legendre) polynom used as continuum
 
-        line_shift: [float] -optional-
+        lines_shift: [float] -optional-
             Force the expected line pixel shift used as first guesses. 
             If not provided an internal procedure based on expected and observed 
             brightest emission position will be used. 
-            (see `get_line_shift()`)
+            (see `get_lines_shift()`)
         
         exclude_reddest_part: [bool] -optional-
             If True, wavelengths that are more than *red_buffer* [wave units] redder
@@ -1187,15 +1225,17 @@ class VirtualArcSpectrum( BaseObject ):
 
         # Building guess (~1ms)
         self._normguesses = {}
-        if line_shift is None:
-            lines_shift = self.get_line_shift()
-            
+        if lines_shift is None:
+            lines_shift = self.get_lines_shift()
+
+        this_mu_err = self._MU_ERR[self.arcname]
         for i,l in enumerate(self.usedlines):
             self._normguesses["ampl%d_guess"%i]      = self.arclines[l]["ampl"]
             self._normguesses["ampl%d_boundaries"%i] = [self.arclines[l]["ampl"]*0.2, self.arclines[l]["ampl"]*3]
             
             self._normguesses["mu%d_guess"%i]        = self.arclines[l]["mu"]+lines_shift
-            self._normguesses["mu%d_boundaries"%i]   = [self._normguesses["mu%d_guess"%i]-2, self._normguesses["mu%d_guess"%i]+2]
+            self._normguesses["mu%d_boundaries"%i]   = [self._normguesses["mu%d_guess"%i]-this_mu_err,
+                                                            self._normguesses["mu%d_guess"%i]+this_mu_err]
             
             self._normguesses["sig%d_guess"%i]       = 1.1 if (not "doublet" in self.arclines[l] or not self.arclines[l]["doublet"]) else 1.8
             self._normguesses["sig%d_boundaries"%i]  = [0.9,1.5] if (not "doublet" in self.arclines[l] or not self.arclines[l]["doublet"]) else [1.1, 3]
@@ -1221,7 +1261,7 @@ class VirtualArcSpectrum( BaseObject ):
                               errors,
                               contdegree, ngauss=len(self.usedlines), legendre=True)
 
-    def fit_lineposition(self, contdegree=2, line_shift=None,
+    def fit_lineposition(self, contdegree=3, lines_shift=None,
                              exclude_reddest_part=True,
                              red_buffer=30,
                              exclude_bluest_part=True,
@@ -1239,11 +1279,11 @@ class VirtualArcSpectrum( BaseObject ):
         contdegree: [int] -optional-
             Degree of the (Legendre) polynom used as continuum
 
-        line_shift: [float] -optional-
+        lines_shift: [float] -optional-
             Force the expected line pixel shift used as first guesses. 
             If not provided an internal procedure based on expected and observed 
             brightest emission position will be used. 
-            (see `get_line_shift()`)
+            (see `get_lines_shift()`)
         
         exclude_reddest_part: [bool] -optional-
             If True, wavelengths that are more than *red_buffer* [wave units] redder
@@ -1261,7 +1301,7 @@ class VirtualArcSpectrum( BaseObject ):
         
         if not self.has_linefitter():
             self._load_lineposition_(contdegree=contdegree,
-                                         line_shift=line_shift,
+                                         lines_shift=lines_shift,
                                          exclude_reddest_part=exclude_reddest_part,
                                          red_buffer=red_buffer,
                                          exclude_bluest_part=exclude_bluest_part,
@@ -1463,10 +1503,49 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
     PROPERTIES = ["arcspectra"]
     DERIVED_PROPERTIES = ["arclines", "lbda"]
     
+    def __init__(self, fluxes, lbda, databound, names):
+        """ """
+        for name, flux in zip(names, fluxes):
+            arcspec = get_arcspectrum(x=lbda, y=flux, 
+                                      databound=databound, 
+                                      name=name)
+            
+            self.add_arcspectrum(arcspec)
+        self.set_databounds(*databound)
+        
+    def dumps(self):
+        return {"fluxes": [f.flux for f in self.arcspectra.values()],
+                "lbda": self.lbda,
+                "databound": self.databounds,
+                "names": list(self.arcspectra.keys())
+                }    
+        
+    @classmethod
+    def from_json(cls, json):
+        """ """
+        return cls(**json)
+    
+    @classmethod
+    def from_lamps(cls, lamps, traceindex):
+        """ """
+        spectra = [lamp.get_spectrum(traceindex, on="data")[::-1] for lamp in lamps]
+        spec_size = len(spectra[0])
+        names = [lamp.objname for lamp in lamps]
+        lbda_ = np.arange( spec_size )
+        databound = np.sort(spec_size - lamps[0].tracematch.get_trace_xbounds(traceindex))
+
+        return cls.from_arcspectra(spectra, lbda=lbda_, databound=databound, names=names)
+        
+    @classmethod
+    def from_arcspectra(cls, fluxes, lbda, databound, names):
+        """ """
+        this = cls(fluxes, lbda, databound, names)
+        return this
+
     # ================ #
     #  Main Methods    #
     # ================ #
-    def get_line_shift(self):
+    def get_lines_shift(self):
         """ Shift of the central line value based on the considered spaxel.
         This is based on sequential check Cd then Hd then Xe. 
         First find, first pick.
@@ -1477,22 +1556,22 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
         """
         
         if "Cd" in self.arcspectra:
-            return self.arcspectra["Cd"].get_line_shift()
+            return self.arcspectra["Cd"].get_lines_shift()
         
         if "Hg" in self.arcspectra:
-            return self.arcspectra["Hg"].get_line_shift()
+            return self.arcspectra["Hg"].get_lines_shift()
         
         if "Xe" in self.arcspectra:
-            return self.arcspectra["Xe"].get_line_shift()
+            return self.arcspectra["Xe"].get_lines_shift()
         
         raise AttributeError("known of the pre-defined lines (Cd, Hg and Xe) have been found in the arcspectra."+\
-                              " They are requested for the line_shift ")
+                              " They are requested for the lines_shift ")
 
     # -------- #
     #  FITTER  #
     # -------- #
     def fit_lineposition(self, sequential=True,
-                             contdegree=2, line_shift=None,
+                             contdegree=3, lines_shift=None,
                              exclude_reddest_part=True,
                              red_buffer=30,
                              exclude_bluest_part=True,
@@ -1513,11 +1592,11 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
         contdegree: [int] -optional-
             Degree of the (Legendre) polynom used as continuum
 
-        line_shift: [float] -optional-
+        lines_shift: [float] -optional-
             Force the expected shift of the lines that are used as first guesses 
             for the fit. If not provided, an internal automatic procedure based
             of the expected and observed brightest emission position is used.
-            (see `get_line_shift()`)
+            (see `get_lines_shift()`)
         
         exclude_reddest_part: [bool] -optional-
             If True, wavelengths that are more than *red_buffer* [wave units] redder
@@ -1534,7 +1613,7 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
         """
         self._build_arclines_()
         
-        lineprop = dict(contdegree=contdegree, line_shift=line_shift,
+        lineprop = dict(contdegree=contdegree, lines_shift=lines_shift,
                         exclude_reddest_part=exclude_reddest_part,
                         red_buffer=red_buffer,
                         exclude_bluest_part=exclude_bluest_part,
@@ -1731,7 +1810,7 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
     def _lamp_to_color_(self, lamp, alpha=1):
         """ Internal Ploting tool to get a consistent color for the lamp.
         Slower to use that, but prettier."""
-        from pysedm.utils.mpl import get_lamp_color
+        from .utils.mpl import get_lamp_color
         return get_lamp_color(lamp, alpha=alpha)
         
     # ================ #
@@ -1817,7 +1896,45 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
         self._derived_properties["arclines"] = di
         
 
-   
+
+# ===================== #
+#  ArcLamp Collection   #
+# ===================== #
+class ArcLampCollection():
+    """ Top level class to gather arclamps (e.g. from_night() ) 
+    and returns information needed to get the spaxel wavelength 
+    (eg. get_trace_arccollection_json)
+
+    """
+    def __init__(self, lamps):
+        """ """
+        self._lamps = lamps
+
+    @classmethod
+    def from_night(cls, night):
+        """ """
+        from . import io, ccd
+        #from pysedm import ccd, spectralmatching, io, wavesolution
+        tmap = io.load_nightly_tracematch(night, withmask=True)
+        Cd = ccd.get_ccd(io.get_night_files(night,"ccd.lamp","Cd")[0], tracematch=tmap)
+        Hg = ccd.get_ccd(io.get_night_files(night,"ccd.lamp","Hg")[0], tracematch=tmap)
+        Xe = ccd.get_ccd(io.get_night_files(night,"ccd.lamp","Xe")[0], tracematch=tmap)
+        return cls( [Hg,Xe,Cd] )
+        
+    def get_trace_arccollection_json(self, index):
+        """ """
+        spectra = [lamp.get_spectrum(index, on="data")[::-1] for lamp in self.lamps]
+        spec_size = len(spectra[0])
+        names = [lamp.objname for lamp in self.lamps]
+        lbda_ = np.arange( spec_size )
+        databound = np.sort(spec_size - self.lamps[0].tracematch.get_trace_xbounds(index))
+        
+        return {"fluxes":spectra, "lbda":lbda_, "databound":databound, "names":names}
+
+    @property
+    def lamps(self):
+        """ """
+        return self._lamps
 
 
     

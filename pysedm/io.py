@@ -394,13 +394,20 @@ def load_nightly_hexagonalgrid(YYYYMMDD, download_it=True,
     raise IOError(f"Cannot find an hexagrid for date {YYYYMMDD}, even after calling squery.download_night_calibrations()")
         
 # - WaveSolution
+def _get_wavesolution_filepath(YYYYMMDD, format="pkl"):
+    """ stored filepath for the wavelength solution """
+    return os.path.join(get_datapath(YYYYMMDD), f"{YYYYMMDD}_WaveSolution.{format}")
+
+    
 def load_nightly_wavesolution(YYYYMMDD, subprocesses=False):
     """ Load the spectral matcher.
     This object must have been created. 
     """
+    warnings.warn("load_nightly_wavesolution is DEPRECATED, use pysedm.WaveSolution.from_night() ")    
     from .wavesolution import load_wavesolution
     if not subprocesses:
-        return load_wavesolution(get_datapath(YYYYMMDD)+"%s_WaveSolution.pkl"%(YYYYMMDD))
+        filpath = _get_wavesolution_filepath(YYYYMMDD)
+        return load_wavesolution(filpath)
     return [load_wavesolution(subwave) for subwave in glob(get_datapath(YYYYMMDD)+"%s_WaveSolution_range*.pkl"%(YYYYMMDD))]
 
 # - 3D Flat

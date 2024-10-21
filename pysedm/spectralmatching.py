@@ -60,9 +60,7 @@ def load_tracematcher(tracematchfile):
     -------
     SpectralMatch
     """
-    smap = TraceMatch()
-    smap.load(tracematchfile)
-    return smap
+    return TraceMatch.from_filepath(tracematchfile)
 
 def get_tracematcher(domefile, build_tracemask=False, width=None, **kwargs):
     """ build the spectral match object on the domefile data. 
@@ -280,12 +278,26 @@ class TraceMatch( BaseObject ):
     traceindex = ID of the trace (as in _tracecolor and trace_vertices)
     
     """
-    PROPERTIES         = ["trace_linestring","trace_vertices","subpixelization", "trace_indexes", "width"]
+    PROPERTIES         = ["trace_linestring","trace_vertices","subpixelization",
+                              "trace_indexes", "width"]
     SIDE_PROPERTIES    = ["trace_masks","ij_offset", ]
     DERIVED_PROPERTIES = ["tracecolor", "facecolor", "maskimage",
                           "rmap", "gmap", "bmap",
                           "trace_polygons"]
 
+    @classmethod
+    def from_night(cls, night):
+        """ """
+        from .io import _get_tracematch_filepath
+        tracematchfile = _get_tracematch_filepath(night)
+        return cls.from_filepath(tracematchfile)
+    
+    @classmethod
+    def from_filepath(cls, filename):
+        this = cls()
+        this.load( filename )
+        return this
+        
     # ===================== #
     #   Main Methods        #
     # ===================== #

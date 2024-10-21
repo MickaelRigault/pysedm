@@ -618,7 +618,13 @@ class WaveSolution( BaseObject ):
                                 for index_, coefs_ in polycoefs.items()}
         this.set_wavesolutions( spaxel_solutions )
         return this
-    
+
+    @classmethod
+    def from_spaxel_wavesolutions(cls, indexes, spaxel_wavesolutions):
+        """ """
+        this = cls()
+        this.set_wavesolutions( dict( zip(indexes, spaxel_wavesolutions) ))
+        return this
     # -------- #
     #  I/O     #
     # -------- #
@@ -629,7 +635,7 @@ class WaveSolution( BaseObject ):
     def to_dataframe(self):
         """ returns a dataframe (index=> traceindex) """
         import pandas
-        return pandas.DataFrame(self.to_dict).T
+        return pandas.DataFrame( self.to_dict() ).T
     
     def to_parquet(self, filename):
         """ """
@@ -1880,7 +1886,7 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
         return self._derived_properties["arclines"]
     
 
-    def _build_arclines_(self, rebuild=False):
+    def _build_arclines_(self, rebuild=False, warn_skipped_line=False):
         """ """
         if self._derived_properties["arclines"] is not None and not rebuild:
             return
@@ -1888,9 +1894,12 @@ class ArcSpectrumCollection( VirtualArcSpectrum ):
         for lampname,d in list(self.arcspectra.items()):
             for k,v in list(d.arclines.items()):
                 if "backup" in v.keys() and v["backup"] in self.arcnames:
-                    warnings.warn("line %s skipped since %s loaded"%(k,v["backup"]))
+                    if warn_skipped_line:
+                        warnings.warn("line %s skipped since %s loaded"%(k,v["backup"]))
+                        
                     d.remove_line(k)
                     continue
+                
                 v["arcname"] = lampname
                 di[k]=v
         self._derived_properties["arclines"] = di

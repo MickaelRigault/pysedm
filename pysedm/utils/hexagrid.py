@@ -13,9 +13,7 @@ __all__ = ["get_hexprojection"]
 
 def load_hexprojection(hexfile):
     """ """
-    hex_ = HexagoneProjection(None, empty=True)
-    hex_.load(hexfile)
-    return hex_
+    return HexagoneProjection.from_filepath(hexfile)
 
 def get_hexprojection(xy, ids=None, qdistance=None,
                       reference_ids=None, build=True, theta=None, **kwargs):
@@ -52,6 +50,20 @@ class HexagoneProjection( BaseObject ):
         if load:
             self.fetch_neighbors()
 
+    @classmethod
+    def from_night(cls, night):
+        """ shortcut to load the wavesolution of a given night (YYYYMMMDD) """
+        from ..io import _get_hexagrid_filepath
+        filepath = _get_hexagrid_filepath(night)
+        return cls.from_filepath(filepath)
+
+    @classmethod
+    def from_filepath(cls, filepath):
+        """ load instance from file """
+        this = cls(None, empty=True)
+        this.load( filepath )
+        return this
+        
     # -------------- #
     #   I/O          #
     # -------------- #

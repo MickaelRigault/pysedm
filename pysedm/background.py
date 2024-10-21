@@ -22,6 +22,8 @@ CONTDEGREE_GAUSS = 4
 LEGENDRE_GAUSS= False
 
 
+# Background uses multiprocess and not dask. #
+
 # ------------------ #
 #  Builder           #
 # ------------------ #

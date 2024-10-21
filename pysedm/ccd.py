@@ -433,7 +433,7 @@ class CCD( BaseCCD ):
         maskidx  = self.get_trace_mask(traceindex, finetune=finetune)
         return np.sum(eval("self.%s"%on)*maskidx, axis=0)
 
-    def get_xslice(self, i, on="data"):
+    def get_xslice(self, i, on="data", warn_variance=False):
         """ build a `CCDSlice` based on the ith-column.
 
         Returns
@@ -444,12 +444,14 @@ class CCD( BaseCCD ):
 
         slice_ = CCDSlice(None)
         if "data" in on and not self.has_var():
-            warnings.warn("Setting the default variance for 'get_xslice' ")
+            if warn_variance:
+                warnings.warn("Setting the default variance for 'get_xslice' ")
+                
             self.set_default_variance()
 
-        var = self.var.T[i] if 'data' in on else np.ones(np.shape("self.%s"%on))*np.nanstd("self.%s"%on)
+        var = self.var.T[i] if 'data' in on else np.ones(np.shape(f"self.{on}"))*np.nanstd(f"self.{on}")
 
-        slice_.create(eval("self.%s.T[i]"%on), variance = var,
+        slice_.create(eval(f"self.{on}.T[i]"), variance = var,
                     lbda = np.arange(len(self.data.T[i])), logwave=False)
 
         slice_.set_tracebounds(self.tracematch.get_traces_crossing_x_ybounds(i))
@@ -482,7 +484,7 @@ class CCD( BaseCCD ):
                 raise IOError("Since build_if_needed=False, No background available.")
             
             from .background import build_background
-            build_background(self, ncore=ncore, **kwargs)
+            
             warnings.warn("A background has been built")
 
         self._background = load_background( filename_to_background_name( self.filename ))

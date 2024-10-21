@@ -349,21 +349,34 @@ def load_nightly_mapper(YYYYMMDD, within_ccd_contours=True):
     return mapper
 
 # - TraceMatch
+def _get_tracematch_filepath(night, withmask):
+    """ """
+    if withmask:
+        basename = f"{night}_TraceMatch_WithMasks.pkl"
+    else:
+        basename = f"{night}_TraceMatch.pkl"
+        
+    return os.path.join(get_datapath(night), basename)
+
 def load_nightly_tracematch(YYYYMMDD, withmask=True):
     """ Load the spectral matcher.
     This object must have been created. 
     """
     from .spectralmatching import load_tracematcher
-    if not withmask:
-        return load_tracematcher( os.path.join(get_datapath(YYYYMMDD), f"{YYYYMMDD}_TraceMatch.pkl") )
-    else:
-        try:
-            return load_tracematcher( os.path.join(get_datapath(YYYYMMDD), f"{YYYYMMDD}_TraceMatch_WithMasks.pkl") )
-        except:
-            warnings.warn("No TraceMatch_WithMasks found. returns the usual TraceMatch")
-            return load_nightly_tracematch(YYYYMMDD, withmask=False)
+    filepath = _get_tracematch_filepath( YYYYMMDD, withmask)
+    if withmask and not os.path.isfile(filepath):
+        warnings.warn("No TraceMatch_WithMasks found. returns the usual TraceMatch")
+        filepath = _get_tracematch_filepath_( YYYYMMDD, False)
+    
+    
+    return load_tracematcher( filepath )
+    
 
 # - HexaGrid
+def _get_hexagrid_filepath(night):
+    """ """
+    return os.path.join(get_datapath(night),f"{night}_HexaGrid.pkl" )
+
 def load_nightly_hexagonalgrid(YYYYMMDD, download_it=True,
                                    nprocess_dl=1, **kwargs):
     """ Load the Grid id <-> QR<->XY position
@@ -375,7 +388,7 @@ def load_nightly_hexagonalgrid(YYYYMMDD, download_it=True,
 
     """
     from .utils.hexagrid import load_hexprojection
-    hexagrid_path = os.path.join(get_datapath(YYYYMMDD),"%s_HexaGrid.pkl"%(YYYYMMDD) )
+    hexagrid_path = _get_hexagrid_filepath(YYYYMMDD)
     if os.path.isfile(hexagrid_path):
         return load_hexprojection( hexagrid_path )
 
@@ -394,21 +407,17 @@ def load_nightly_hexagonalgrid(YYYYMMDD, download_it=True,
     raise IOError(f"Cannot find an hexagrid for date {YYYYMMDD}, even after calling squery.download_night_calibrations()")
         
 # - WaveSolution
-def _get_wavesolution_filepath(YYYYMMDD, format="pkl"):
+def _get_wavesolution_filepath(YYYYMMDD, format="parquet"):
     """ stored filepath for the wavelength solution """
     return os.path.join(get_datapath(YYYYMMDD), f"{YYYYMMDD}_WaveSolution.{format}")
 
     
-def load_nightly_wavesolution(YYYYMMDD, subprocesses=False):
+def load_nightly_wavesolution(YYYYMMDD):
     """ Load the spectral matcher.
     This object must have been created. 
     """
-    warnings.warn("load_nightly_wavesolution is DEPRECATED, use pysedm.WaveSolution.from_night() ")    
-    from .wavesolution import load_wavesolution
-    if not subprocesses:
-        filpath = _get_wavesolution_filepath(YYYYMMDD)
-        return load_wavesolution(filpath)
-    return [load_wavesolution(subwave) for subwave in glob(get_datapath(YYYYMMDD)+"%s_WaveSolution_range*.pkl"%(YYYYMMDD))]
+    from .wavesolution import WaveSolution
+    return WaveSolution.from_night(YYYYMMDD)
 
 # - 3D Flat
 def load_nightly_flat(YYYYMMDD):

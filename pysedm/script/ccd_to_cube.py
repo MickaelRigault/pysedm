@@ -202,10 +202,16 @@ def build_backgrounds(date, smoothing=[0,5], start=2, jump=10,
     
     # - The files
     fileccds = []
+    if lamps:
+        crrfiles = io.get_night_files(date, "ccd.lamp")
+        fileccds += crrfiles
+        
     if not only_lamps:
         crrfiles  = io.get_night_files(date, "ccd.crr", target=target)
-        if skip_calib: fileccds = [f for f in crrfiles if "Calib" not in fits.getval(f,"Name")]            
+        if skip_calib:
+                fileccds = [f for f in crrfiles if "Calib" not in fits.getval(f,"Name")]
         fileccds += crrfiles
+        
 
     # - Building the background
     tmap = io.load_nightly_tracematch(date)

@@ -315,10 +315,9 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
         fileout_ = "%s_%s"%(ccd.filename.split("/")[-1].split(".fits")[0], ccd.objname)
 
 
-    fileindex = "_%s"%fileindex if fileindex is not None and fileindex.replace(" ","") != "" else ""
+    fileindex = f"_{fileindex}" if fileindex is not None and fileindex.replace(" ","") != "" else ""
 
-    fileout     = io.get_datapath(date)+"%s%s_%s.fits"%(io.PROD_CUBEROOT,fileindex,fileout_)
-
+    fileout = io.get_datapath(date)+f"{io.PROD_CUBEROOT}{fileindex}_{fileout_}.fits"
 
 
     # - INPUT [optional]
@@ -327,7 +326,6 @@ def build_sedmcube(ccd, date, lbda=None, flatfield=None,
 
     if wavesolution is None:
         wavesolution = io.load_nightly_wavesolution(date)
-        wavesolution._load_full_solutions_()
 
     if lbda is None:
         lbda = SEDM_LBDA

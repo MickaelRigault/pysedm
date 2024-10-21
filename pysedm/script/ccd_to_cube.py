@@ -19,6 +19,24 @@ from ..spectralmatching import get_tracematcher, illustrate_traces, load_trace_m
 
 from ..sedm import INDEX_CCD_CONTOURS, TRACE_DISPERSION, build_sedmcube, build_calibrated_sedmcube, SEDM_LBDA
 
+
+# Expected Sequence
+## Night Calibration 
+# night =
+# client = 
+# 1. build_backgrounds(night, only_lamps=True)
+# 2. build_tracematcher(night)
+# 3. build_hexagonalgrid(nigh)
+# 4. build_wavesolution(nigh, client)
+# 5. build_flatfield(nigh)
+## After each exposure
+# target_name = 
+# 6. build_backgrounds(night, target=target_name)the 
+# 7. build_night_cubes(night, target=target_name)
+
+
+
+
 ############################
 #                          #
 #  Spectral Matcher        #
@@ -191,7 +209,7 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000,
 #                          #
 ############################
 def build_backgrounds(date, smoothing=[0,5], start=2, jump=10, 
-                        target=None, lamps=True, only_lamps=False, skip_calib=True,
+                        target=None, lamps=False, only_lamps=False, skip_calib=True,
                         multiprocess=True,
                         savefig=True, ncore=None):
     """ """
@@ -202,7 +220,7 @@ def build_backgrounds(date, smoothing=[0,5], start=2, jump=10,
     
     # - The files
     fileccds = []
-    if lamps:
+    if lamps or only_lamps:
         crrfiles = io.get_night_files(date, "ccd.lamp")
         fileccds += crrfiles
         
@@ -342,13 +360,14 @@ def build_wavesolution(night, client,
 #  Build Cubes             #
 #                          #
 ############################
-def build_night_cubes(date, target=None, lamps=True, only_lamps=False,
+def build_night_cubes(date, target=None, lamps=False, only_lamps=False,
                           skip_calib=True, ncore=None, **kwargs):
     """ 
     """
     fileccds = []
-    if lamps:
+    if lamps or only_lamps:
         fileccds += io.get_night_files(date, "ccd.lamp", target=target)
+        
     if not only_lamps:
         crrfiles  = io.get_night_files(date, "ccd.crr", target=target)
         if skip_calib: crrfiles = [f for f in crrfiles if "Calib" not in fits.getval(f,"Name")]            
@@ -460,7 +479,6 @@ def build_cubes(ccdfiles,  date, lbda=None,
     
     if wavesolution is None:
         wavesolution = io.load_nightly_wavesolution(date)
-        wavesolution._load_full_solutions_()
     
     if lbda is None:
         lbda = SEDM_LBDA

@@ -30,8 +30,14 @@ if  __name__ == "__main__":
     parser.add_argument('--solvewcs',  action="store_true", default=False,
                         help='Shall the wcs solution of the guider be solved (ignored if --noguider). [part of the --build]')
 
+    # --------------- #
+    #  Distribution   #
+    # --------------- #
     parser.add_argument('--ncore',  type=int, default=None,
-                        help='Number of cores to use for multiprocessing. ncore=1 means no multiprocessing.')
+                        help='Number of cores to use for multiprocessing or dask. ncore=1 means no multiprocessing.')
+    
+    parser.add_argument('--nthread',  type=int, default=2,
+                        help='Number of thread per core (dask).')
 
     # --------------- #
     #  Cube Building  #
@@ -189,12 +195,15 @@ if  __name__ == "__main__":
         
     # - Wavelength Solution
     if args.wavesol:
+        from dask.distributed import Client
+        client = Client(threads_per_worker=args.nthread, n_workers=args.ncore)
+
         ntest = None if "None" in args.wavesoltest else int(args.wavesoltest)
         spaxelrange = None if "None" in args.spaxelrange else np.asarray(args.spaxelrange.split(","), dtype="int")
 
-        build_wavesolution(date, ntest=ntest, use_fine_tuned_traces=False,
-                            idxrange=spaxelrange,
-                            lamps=["Hg","Cd","Xe"], saveindividuals=args.wavesolplots,
+        build_wavesolution(date, client,
+                            ntest=ntest, idxrange=spaxelrange,
+                            lamps=["Hg","Cd","Xe"],
                             savefig = False if args.nofig else True,
                             rebuild=args.rebuild)
 

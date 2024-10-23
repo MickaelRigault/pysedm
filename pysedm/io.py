@@ -366,7 +366,7 @@ def load_nightly_tracematch(YYYYMMDD, withmask=True):
     filepath = _get_tracematch_filepath( YYYYMMDD, withmask)
     if withmask and not os.path.isfile(filepath):
         warnings.warn("No TraceMatch_WithMasks found. returns the usual TraceMatch")
-        filepath = _get_tracematch_filepath_( YYYYMMDD, False)
+        filepath = _get_tracematch_filepath( YYYYMMDD, False)
     
     
     return load_tracematcher( filepath )

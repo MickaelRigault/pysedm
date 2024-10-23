@@ -484,7 +484,7 @@ class CCD( BaseCCD ):
                 raise IOError("Since build_if_needed=False, No background available.")
             
             from .background import build_background
-            
+            build_background(self, ncore=ncore, **kwargs)
             warnings.warn("A background has been built")
 
         self._background = load_background( filename_to_background_name( self.filename ))

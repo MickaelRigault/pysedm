@@ -28,8 +28,8 @@ LEGENDRE_GAUSS= False
 #  Builder           #
 # ------------------ #
 def build_background(ccd,
-                    smoothing=[0,5],
-                    start=2, jump=10, multiprocess=True, 
+                    smoothing=[0,5], start=2, jump=10,
+                    multiprocess=True, 
                     savefile=None, ncore=None):
     """ """
     from .io import is_stdstars, filename_to_background_name

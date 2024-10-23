@@ -126,6 +126,12 @@ if  __name__ == "__main__":
     # --------- #
     date = args.infile
 
+    # ----------- #
+    # Dask Client #
+    # ----------- #
+    from dask.distributed import Client
+    client = Client(threads_per_worker=args.nthread, n_workers=args.ncore)
+    
     # ------------ #
     # Short Cuts   #
     # ------------ #
@@ -195,9 +201,6 @@ if  __name__ == "__main__":
         
     # - Wavelength Solution
     if args.wavesol:
-        from dask.distributed import Client
-        client = Client(threads_per_worker=args.nthread, n_workers=args.ncore)
-
         ntest = None if "None" in args.wavesoltest else int(args.wavesoltest)
         spaxelrange = None if "None" in args.spaxelrange else np.asarray(args.spaxelrange.split(","), dtype="int")
 
@@ -206,6 +209,7 @@ if  __name__ == "__main__":
                             lamps=["Hg","Cd","Xe"],
                             savefig = False if args.nofig else True,
                             rebuild=args.rebuild)
+        
 
     # - Flat Fielding
     if args.flat:
@@ -235,3 +239,10 @@ if  __name__ == "__main__":
         stat_f.close()
         print("nspax, min, avg, med, max Wid: %d, %.3f, %.3f, %.3f, %.3f" %
               (len(b), min(b), np.nanmean(b), np.nanmedian(b), max(b)))
+
+
+    # ============= #
+    #   Finishing   #
+    # ============= #
+    client.close()
+    

@@ -237,34 +237,23 @@ def verts_to_mask(verts):
     return maskfull.T
     
 
-def load_trace_masks(tmatch, trace_indexes=None, multiprocess=True,
-                         ncore=None, show_progress=False):
+def load_trace_masks(tmatch, client, trace_indexes=None):
     """ """
+    import dask
     if trace_indexes is None:
         trace_indexes = tmatch.trace_indexes
-    
-    if multiprocess:
-        import multiprocessing
-        if show_progress:
-            notebook = tools.is_running_from_notebook()
-            bar = ProgressBar( len(trace_indexes), ipython_widget=notebook)
-        else:
-            bar = None
-            
-        if ncore is None:
-            ncore = np.max([multiprocessing.cpu_count() - 1, 1])
-        
-        p = multiprocessing.Pool(ncore)
-        for j, mask in enumerate( p.imap(verts_to_mask, [tmatch.trace_vertices[i_]
-                                                             for i_ in trace_indexes])):
-            tmatch.set_trace_masks(sparse.csr_matrix(mask), trace_indexes[j])
-            if bar is not None:
-                bar.update(j)
-        if bar is not None:
-            bar.update( len(trace_indexes) )
-        
-    else:
-        raise NotImplementedError("Use multiprocess = True (load_trace_masks)")
+
+    sparse_masks = []
+    for index_ in trace_indexes:
+        verts = tmatch.trace_vertices[index_]
+        mask = dask.delayed(spectralmatching.verts_to_mask)(verts)
+        mask_sparse = dask.delayed(sparse.csr_matrix)(mask)
+        sparse_masks.append(mask_sparse)
+
+    sparse_masks = client.gather( client.compute(sparse_masks) ) # compute them
+    tmatch.set_trace_masks(sparse_masks, trace_indexes) # set them in    
+    return tmatch
+
 
 #####################################
 #                                   #

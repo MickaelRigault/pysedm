@@ -42,10 +42,10 @@ from ..sedm import INDEX_CCD_CONTOURS, TRACE_DISPERSION, build_sedmcube, build_c
 #  Spectral Matcher        #
 #                          #
 ############################
-def build_tracematcher(date, verbose=True, width=None,
+def build_tracematcher(date, client,
+                           verbose=True, width=None,
                            save_masks=False,
-                           rebuild=False,
-                           ncore=None):
+                           rebuild=False):
     
     """ Create Spaxel trace Solution 
     This enable to know which pixel belong to which spaxel
@@ -87,17 +87,22 @@ def build_tracematcher(date, verbose=True, width=None,
         
     if rebuild:
         print("Building Nightly Solution")
-        smap = get_tracematcher( glob(timedir+"dome.fits*")[0], width=width)
-        smap.writeto(timedir+f"{date}_TraceMatch.pkl")
+        dome_fitsfile = glob(timedir+"dome.fits*")[0] # allows fits.gz
+        smap = get_tracematcher(dome_fitsfile, width=width)
+        fileout = io._get_tracematch_filepath(night, withmask=False)
+        smap.writeto(fileout, savemasks=False)
         print("Nightly Solution Saved")
         
     if save_masks:
-        if not rebuild and len(glob(timedir+"%s_TraceMatch_WithMasks.pkl"%date))>0:
+        fileout = io._get_tracematch_filepath(night, withmask=True)
+        if not rebuild and os.path.isfile(fileout):
             warnings.warn("TraceMatch_WithMasks already exists for %s. rebuild is False, so nothing is happening"%date)
             return
-        load_trace_masks(smap, smap.get_traces_within_polygon(INDEX_CCD_CONTOURS), ncore=ncore)
-        smap.writeto(timedir+f"{date}_TraceMatch_WithMasks.pkl")
-    
+
+        trace_indexes = smap.get_traces_within_polygon(INDEX_CCD_CONTOURS)
+        load_trace_masks(smap, client=client, trace_indexes=trace_indexes)
+        smap.writeto(fileout)
+        
 ############################
 #                          #
 # Spaxel Spacial Position  #
@@ -360,8 +365,9 @@ def build_wavesolution(night, client,
 #  Build Cubes             #
 #                          #
 ############################
-def build_night_cubes(date, target=None, lamps=False, only_lamps=False,
-                          skip_calib=True, ncore=None, **kwargs):
+def build_night_cubes(date, client,
+                          target=None, lamps=False, only_lamps=False,
+                          skip_calib=True, **kwargs):
     """ 
     """
     fileccds = []
@@ -374,13 +380,14 @@ def build_night_cubes(date, target=None, lamps=False, only_lamps=False,
         fileccds += crrfiles
 
     print("fileccds:", fileccds)
-    build_cubes(fileccds, date, ncore=ncore, **kwargs)
+    build_cubes(fileccds, date, client=client, **kwargs)
 
 
 # ----------------- #
 #  Build Cubes      #
 # ----------------- #
-def build_cubes(ccdfiles,  date, lbda=None,
+def build_cubes(ccdfiles, date, client,
+                lbda=None,
                 tracematch=None, wavesolution=None, hexagrid=None,
                 # Background:
                 nobackground = False,
@@ -497,9 +504,8 @@ def build_cubes(ccdfiles,  date, lbda=None,
                               correct_traceflexure = traceflexure_corrected,
                               savefile_traceflexure=flexuresavefile)
         if traceflexure_corrected:
-            load_trace_masks(ccd_.tracematch,
-                                ccd_.tracematch.get_traces_within_polygon(INDEX_CCD_CONTOURS),
-                                ncore=ncore)
+            trace_indexes = ccd_.tracematch.get_traces_within_polygon(INDEX_CCD_CONTOURS)
+            load_trace_masks(ccd_.tracematch, client, trace_indexes=trace_indexes)
             
         if not nobackground:
             ccd_.fetch_background(set_it=True, build_if_needed=True, ncore=ncore)

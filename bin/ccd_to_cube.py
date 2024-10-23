@@ -158,7 +158,8 @@ if  __name__ == "__main__":
         
     if args.build is not None and len(args.build) >0:
         for target in args.build.split(","):
-            build_night_cubes(date, target=target,
+            build_night_cubes(date, client=client,
+                             target=target,
                              lamps=True, only_lamps=False, skip_calib=True,
                              fileindex=fileindex,
                              nobackground=bool(args.nobackground),
@@ -187,13 +188,14 @@ if  __name__ == "__main__":
                                   lamps=True, only_lamps=True, skip_calib=True, 
                                   ncore=args.ncore)
             
-    # -----------
-    # 
-    # ----------- 
+    # ---------------- #
+    #  Night solutuon  #
+    # ---------------- #
     # - TraceMatch
     if args.tracematch or args.tracematchnomasks:
-        build_tracematcher(date, save_masks= True if not args.tracematchnomasks else False,
-                           rebuild=args.rebuild, ncore=args.ncore)
+        build_tracematcher(date, client=client,
+                           save_masks= True if not args.tracematchnomasks else False,
+                           rebuild=args.rebuild)
         
     # - Hexagonal Grid        
     if args.hexagrid:

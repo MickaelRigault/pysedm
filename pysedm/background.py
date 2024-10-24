@@ -27,15 +27,15 @@ LEGENDRE_GAUSS= False
 # ------------------ #
 #  Builder           #
 # ------------------ #
-def build_background(ccd,
+def build_background(ccd, client=None,
                     smoothing=[0,5], start=2, jump=10,
-                    multiprocess=True, 
-                    savefile=None, ncore=None):
+                    savefile=None, ):
     """ """
     from .io import is_stdstars, filename_to_background_name
-    ccd.fit_background(start=start, jump=jump, multiprocess=multiprocess, 
-                       set_it=False, is_std= is_stdstars(ccd.header), smoothing=smoothing,
-                       ncore=ncore)
+    ccd.fit_background(start=start, jump=jump, smoothing=smoothing,
+                       set_it=False,
+                       is_std = is_stdstars(ccd.header), 
+                       client=client)
     
     ccd._background.writeto( filename_to_background_name(ccd.filename) )
     if savefile is not None:
@@ -72,10 +72,24 @@ def get_contvalue_sdt(spec):
     spec.fit_continuum(CONTDEGREE_GAUSS, legendre=LEGENDRE_GAUSS, ngauss=NGAUSS)
     return spec.contmodel.fitvalues
 
-def fit_background(ccd, start=2, jump=10, multiprocess=True,
-                       ncore=None, is_std=False, show_progress=False):
+def fit_background(ccd, client, 
+                   start=2, jump=10, is_std=False):
     """ calling `get_contvalue` for each ccd column (xslice).
     This uses astropy's ProgressBar.map 
+
+    Parameters
+    ----------
+    ccd: pysedm.CCD
+        ccd for which we have to fit a background.
+
+    client: dask.distributed.Client
+        client use for computed distribution. None means simple for-loop
+
+    start, jump: int
+        decide which column to fit (from {start} every {jump})
+
+    is_std: bool
+        is it a standard star ? (much brighter)
 
     Returns 
     -------
@@ -83,46 +97,25 @@ def fit_background(ccd, start=2, jump=10, multiprocess=True,
     """
     # Running from ipython notebook
     
-    
     index_column = range(ccd.width)[start::jump]
-    if show_progress:
-        notebook = tools.is_running_from_notebook()
-        bar = ProgressBar( len(index_column), ipython_widget=notebook)
-    else:
-        bar = None
 
-    if ncore is not None and ncore==1:
-        if multiprocess:
-            warnings.warn("you requested ncore=1, then multiprocess is set to False")
-        multiprocess = False
+    # - which function
+    apply_func = get_contvalue_sdt if is_std else get_contvalue
+    # - delayed or not ?
+    if client is not None:
+        import dask
+        apply_func = dask.delayed(apply_func)
         
-    # - Multiprocessing 
-    if multiprocess:
-        import multiprocessing
-        if ncore is None:
-            if multiprocessing.cpu_count()>20:
-                ncore = multiprocessing.cpu_count() - 10
-            elif multiprocessing.cpu_count()>8:
-                ncore = multiprocessing.cpu_count() - 5
-            else:
-                ncore = multiprocessing.cpu_count() - 2
-            if ncore==0:
-                ncore = 1
-                
-        p = multiprocessing.Pool(ncore)
-        res = {}
-        for j, result in enumerate( p.imap(get_contvalue if not is_std else get_contvalue_sdt, [ccd.get_xslice(i_) for i_ in index_column])):
-            res[index_column[j]] = result
-            if bar is not None:
-                bar.update(j)
-                
-        if bar is not None:
-            bar.update(len(index_column))
-            
-        return res
-    
-    # - No multiprocessing 
-    return {index_column[i_]: get_contvalue(ccd.get_xslice(spec_)) if not is_std else get_contvalue_sdt(ccd.get_xslice(spec_)) for i_,spec_ in enumerate(bar)}
+    # - looping over dask.
+    res = {}
+    for index_ in index_column:
+        slice_ = ccd.get_xslice(index_)
+        res[index_] = apply_func(slice_) # dasked or not
+        
+    if client is not None: # is dasked
+        res = client.gather( client.compute(res) )
+
+    return res
 
 def _get_xaxis_polynomial_(xyv, degree=DEGREE, legendre=LEGENDRE,
                          xmodel=None, clipping = [5,5]):

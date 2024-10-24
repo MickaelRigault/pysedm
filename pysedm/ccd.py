@@ -458,19 +458,17 @@ class CCD( BaseCCD ):
 
         return slice_
 
-    def fit_background(self, start=2, jump=10, multiprocess=True, set_it=True, smoothing=[0,5], **kwargs):
+    def fit_background(self, client=None, start=2, jump=10, set_it=True, smoothing=[0,5], **kwargs):
         """ """
         from .background import get_background, fit_background
-        self._background = get_background( fit_background(self, start=start, jump=jump,
-                                                            multiprocess=multiprocess, **kwargs),
-                                               smoothing=smoothing )
+        self._background = get_background( fit_background(self, start=start, jump=jump, client=client, **kwargs),
+                                           smoothing=smoothing )
         if set_it:
             self.set_background(self._background.background, force_it=True)
 
-
-    def fetch_background(self, set_it=True, build_if_needed=True, ncore=None, **kwargs):
+    def fetch_background(self, set_it=True, build_if_needed=True, client=None, **kwargs):
         """ 
-        ncore is used only if build_background() is called.
+        client is used only if build_background() is called.
         """
         from .background import load_background
         from .io import filename_to_background_name
@@ -484,7 +482,7 @@ class CCD( BaseCCD ):
                 raise IOError("Since build_if_needed=False, No background available.")
             
             from .background import build_background
-            build_background(self, ncore=ncore, **kwargs)
+            build_background(self, client=client, **kwargs)
             warnings.warn("A background has been built")
 
         self._background = load_background( filename_to_background_name( self.filename ))

@@ -168,8 +168,7 @@ if  __name__ == "__main__":
                              solve_wcs = args.solvewcs,
                              savefig = False if args.nofig else True,
                              flexure_corrected = False if args.noflexure else True,
-                             traceflexure_corrected = False if args.notraceflexure else True,
-                             ncore=args.ncore)
+                             traceflexure_corrected = False if args.notraceflexure else True)
             
     if args.buildcal is not None:
         if args.buildcal=="*": args.buildcal=args.build
@@ -182,11 +181,9 @@ if  __name__ == "__main__":
     # - Background
     if args.buildbkgd is not None and len(args.buildbkgd) > 0:
         for target in args.buildbkgd.split(","):
-            build_backgrounds(date, target=target,
-                                  show_progress=True,
-                                  multiprocess=False, # Force no multiprocessing here
-                                  lamps=True, only_lamps=True, skip_calib=True, 
-                                  ncore=args.ncore)
+            build_backgrounds(date, client=client,
+                                  target=target,
+                                  lamps=True, only_lamps=True, skip_calib=True)
             
     # ---------------- #
     #  Night solutuon  #
@@ -216,18 +213,20 @@ if  __name__ == "__main__":
     # - Flat Fielding
     if args.flat:
         lbda_min,lbda_max = np.asarray(args.flatlbda.split(","), dtype="float")
-        build_flatfield(date,
+        build_flatfield(date, client=client,
                         lbda_min=lbda_min,
                         lbda_max=lbda_max,
                         ref=args.flatref, build_ref=True,
-                        savefig=~args.nofig, ncore=args.ncore)
+                        savefig=~args.nofig)
+        
         # Now calc stats
         from pysedm import ccd
         from pysedm.io import get_datapath
         import numpy as np
+        
         dome = ccd.get_dome("dome.fits", background=0, load_sep=True)
         a, b = dome.sepobjects.get(["a", "b"]).T
-        savefile = get_datapath(date) + "%s_dome_stats.txt" % date
+        savefile = os.path.join(get_datapath(date), f"{date}_dome_stats.txt")
         stat_f = open(savefile, "w")
         stat_f.write("NSpax: %d\n" % len(b))
         stat_f.write("MinWid: %.3f\n" % min(b))

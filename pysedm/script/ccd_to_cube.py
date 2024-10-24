@@ -24,14 +24,14 @@ from ..sedm import INDEX_CCD_CONTOURS, TRACE_DISPERSION, build_sedmcube, build_c
 ## Night Calibration 
 # night =
 # client = 
-# 1. build_backgrounds(night, only_lamps=True)
-# 2. build_tracematcher(night)
-# 3. build_hexagonalgrid(nigh)
+# 1. build_backgrounds(night, client, only_lamps=True)
+# 2. build_tracematcher(night, client)
+# 3. build_hexagonalgrid(nigh) # fast, no need for client
 # 4. build_wavesolution(nigh, client)
-# 5. build_flatfield(nigh)
+# 5. build_flatfield(nigh, client)
 ## After each exposure
 # target_name = 
-# 6. build_backgrounds(night, target=target_name)the 
+# 6. build_backgrounds(night, client, target=target_name)
 # 7. build_night_cubes(night, target=target_name)
 
 
@@ -127,9 +127,10 @@ def build_hexagonalgrid(date, xybounds=None, theta=None):
 # Spaxel Spacial Position  #
 #                          #
 ############################
-def build_flatfield(date, lbda_min=7000, lbda_max=9000,
+def build_flatfield(date, client=None,
+                    lbda_min=7000, lbda_max=9000,
                     ref="dome", build_ref=True,
-                    kind="median", savefig=True, ncore=None):
+                    kind="median", savefig=True):
     """ """
     from ..sedm import get_sedmcube
     from pyifu.spectroscopy  import get_slice
@@ -138,30 +139,30 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000,
 
     # - If the reference if not there yet.
     if len(reffile)==0 or build_ref:
-        warnings.warn("The reference cube %s does not exist "%ref)
+        warnings.warn(f"The reference cube {ref} does not exist ")
         if build_ref:
             warnings.warn("build_flatfield is building it!")
         else:
             raise IOError("No reference cube to build the flatfield (build_ref was set to False)")
 
-
         # --------------------- #
         # Build the reference   #
         # --------------------- #
-        # - Nightly Solutions
+        # - load nightly solutions
         wsol = io.load_nightly_wavesolution(date)
         tracematch = io.load_nightly_tracematch(date, withmask=True)
         hexagrid = io.load_nightly_hexagonalgrid(date)
 
-        # - The CCD
-        ccdreffile = io.get_night_files(date, kind="ccd.lamp", target=ref)
-        if len(ccdreffile)==0:
-            raise IOError(f"not {ref} available for {date}")
+        # - get reference ccd source (dome)
+        ccd_reffile = io.get_night_files(date, kind="ccd.lamp", target=ref)
+        if len(ccd_reffile)==0:
+            raise IOError(f"not {ref} ccd available for {date}. Cannot get the flatfield.")
         else:
-            ccdreffile = ccdreffile[0]
-            
-        ccdref = get_ccd(ccdreffile, tracematch = tracematch, background = 0)
-        ccdref.fetch_background(set_it=True, build_if_needed=True, ncore=ncore)
+            ccd_reffile = ccd_reffile[0]
+
+        # - load the ccd and extract the cube           
+        ccdref = get_ccd(ccd_reffile, tracematch=tracematch, background=0)
+        ccdref.fetch_background(set_it=True, build_if_needed=True, client=client)
         if not ccdref.has_var():
             ccdref.set_default_variance()
 
@@ -190,9 +191,9 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000,
     lbda_eff = np.mean([lbda_min, lbda_max])
     flat = sliceref / norm
     slice_ = get_slice(flat, np.asarray(refcube.index_to_xy(refcube.indexes)),
-                        refcube.spaxel_vertices,
-                        indexes=refcube.indexes, variance=None,
-                           lbda=lbda_eff)
+                             refcube.spaxel_vertices,
+                             indexes=refcube.indexes, variance=None,
+                             lbda=lbda_eff)
     # - Figure
     timedir = io.get_datapath(date)
     
@@ -213,14 +214,20 @@ def build_flatfield(date, lbda_min=7000, lbda_max=9000,
 #   BackGround             #
 #                          #
 ############################
-def build_backgrounds(date, smoothing=[0,5], start=2, jump=10, 
+def build_backgrounds(date, client,
                         target=None, lamps=False, only_lamps=False, skip_calib=True,
-                        multiprocess=True,
-                        savefig=True, ncore=None):
-    """ """
-    from tqdm import tqdm
-    
-    from ..background import build_background
+                        savefig=True,  **kwargs):
+    """ 
+
+
+    kwargs goes to background.build_background => smoothing, start, jump
+
+    Returns
+    -------
+    None
+    """
+    import dask
+    from pysedm.background import build_background
     timedir  = io.get_datapath(date)
     
     # - The files
@@ -235,17 +242,23 @@ def build_backgrounds(date, smoothing=[0,5], start=2, jump=10,
                 fileccds = [f for f in crrfiles if "Calib" not in fits.getval(f,"Name")]
         fileccds += crrfiles
         
-
     # - Building the background
-    tmap = io.load_nightly_tracematch(date)
+    tracematch = io.load_nightly_tracematch(date)
     nfiles = len(fileccds)
-    print("%d files to go..."%nfiles)
-    for i,file_ in tqdm( enumerate(fileccds), total=nfiles):
-        build_background(get_ccd(file_, tracematch=tmap, background=0),
-                        start=start, jump=jump, multiprocess=multiprocess, 
-                        smoothing=smoothing,
-                        savefile = None if not savefig else timedir+"bkgd_%s.pdf"%(file_.split('/')[-1].replace(".fits","")),
-                        ncore=ncore)
+    print(f"{nfiles} files to go...")
+
+    results = []
+    for file_ in fileccds:
+        # storing
+        basename = os.path.basename(file_).replace(".fits", "")
+        savefile = None if not savefig else os.path.join(timedir, f"bkgd_{basename}.pdf")
+        
+        # ccd_ => background | client at the top level.
+        ccd_ = dask.delayed(get_ccd)(file_, tracematch=tracematch, background=0)
+        background_ = dask.delayed(build_background)(ccd_, client=None, savefile=savefile, **kwargs)
+        results.append(background_)
+
+    return client.gather( client.compute(results) )
         
     
 ############################
@@ -401,8 +414,7 @@ def build_cubes(ccdfiles, date, client,
                 # Out
                 build_guider=True, solve_wcs=False,
                 fileindex=None, show_progress=False,
-                savefig=True, verbose=True, 
-                ncore=None):
+                savefig=True, verbose=True):
     """ Build a cube from the an IFU ccd image. This image 
     should be bias and cosmic ray corrected.
 
@@ -508,7 +520,7 @@ def build_cubes(ccdfiles, date, client,
             load_trace_masks(ccd_.tracematch, client, trace_indexes=trace_indexes)
             
         if not nobackground:
-            ccd_.fetch_background(set_it=True, build_if_needed=True, ncore=ncore)
+            ccd_.fetch_background(set_it=True, build_if_needed=True, client=client)
             ccd_.header["CCDBKGD"] = (True, "is the ccd been background subtracted?")
         else:
             ccd_.header["CCDBKGD"] = (False, "is the ccd been background subtracted?")

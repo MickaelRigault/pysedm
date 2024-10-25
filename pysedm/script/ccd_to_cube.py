@@ -89,12 +89,12 @@ def build_tracematcher(date, client,
         print("Building Nightly Solution")
         dome_fitsfile = glob(timedir+"dome.fits*")[0] # allows fits.gz
         smap = get_tracematcher(dome_fitsfile, width=width)
-        fileout = io._get_tracematch_filepath(night, withmask=False)
+        fileout = io._get_tracematch_filepath(date, withmask=False)
         smap.writeto(fileout, savemasks=False)
         print("Nightly Solution Saved")
         
     if save_masks:
-        fileout = io._get_tracematch_filepath(night, withmask=True)
+        fileout = io._get_tracematch_filepath(date, withmask=True)
         if not rebuild and os.path.isfile(fileout):
             warnings.warn("TraceMatch_WithMasks already exists for %s. rebuild is False, so nothing is happening"%date)
             return

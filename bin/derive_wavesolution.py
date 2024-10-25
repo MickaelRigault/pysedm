@@ -48,7 +48,9 @@ if  __name__ == "__main__":
     
     # - End
     args = parser.parse_args()
-    
+
+
+    print("DERIVE WAVESOLUTION IS DEPRECATED, use 'ccd_to_cube.py NIGHT --wavesol' directly. ")
     # ================= #
     #   The Scripts     #
     # ================= #

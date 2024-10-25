@@ -246,7 +246,7 @@ def load_trace_masks(tmatch, client, trace_indexes=None):
     sparse_masks = []
     for index_ in trace_indexes:
         verts = tmatch.trace_vertices[index_]
-        mask = dask.delayed(spectralmatching.verts_to_mask)(verts)
+        mask = dask.delayed(verts_to_mask)(verts)
         mask_sparse = dask.delayed(sparse.csr_matrix)(mask)
         sparse_masks.append(mask_sparse)
 

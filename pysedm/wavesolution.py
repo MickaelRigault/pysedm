@@ -1082,11 +1082,15 @@ class VirtualArcSpectrum( BaseObject ):
     # --------- #
     def get_lines_shift(self):
         """ Shift of the central line value based on the considered spaxel """
-        if self.arcname in ["Hg", "Cd"]:
+        if self.arcname in ["Hg"]:
             wavemax = np.max(self.lbda[self.get_arg_maxflux(2)])
+            
+        elif self.arcname in ["Cd"]:
+            wavemax = np.sort(self.lbda[self.get_arg_maxflux(4)])[-2]
             
         elif self.arcname in ["Xe"]:
             wavemax = np.min(self.lbda[self.get_arg_maxflux(2)])
+            
         else:
             raise ValueError(f"Unexpected arclamp name {self.arcname}")
           

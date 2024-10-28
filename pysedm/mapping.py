@@ -149,7 +149,7 @@ class Mapper( BaseObject ):
         try:
             return i_eff, np.mean(self.tracematch.trace_polygons[traceindex].intersection(LineString([[i_eff,0],[i_eff, maxlines]])), axis=0)[1]
         except:
-            return i_eff, np.NaN
+            return i_eff, np.nan
 
     # .................... #
     #  i,j <-> traceindex  #

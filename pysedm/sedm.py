@@ -843,7 +843,7 @@ class SEDMExtractStar( BaseObject ):
 
     def build_backup_output(self):
         """ """
-        backup_spec = get_spectrum( SEDM_LBDA, np.ones(len(SEDM_LBDA))*np.NaN,
+        backup_spec = get_spectrum( SEDM_LBDA, np.ones(len(SEDM_LBDA))*np.nan,
                                         header=self.cube.header )
         self.set_es_products(backup_spec, None, None, None, None, None, backup=True)
 
@@ -1812,7 +1812,7 @@ class SEDMCube( Cube ):
         byecrcl = byecr.SEDM_BYECR(night, self)
         cr_df = byecrcl.get_cr_spaxel_info(cut_criteria=cut_criteria)
         
-        # and NaN their flux.
+        # and nan their flux.
         newdata = self.data.copy()
         newdata[cr_df["cr_lbda_index"], cr_df["cr_spaxel_index"]] = np.nan
         # Update the header...

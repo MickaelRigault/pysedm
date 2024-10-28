@@ -372,10 +372,10 @@ class FluxCalibrator( BaseObject ):
             #
             # Finally Merge the two continuums
             #
-            cont_blue = np.ones(len(self.spectrum.lbda))*np.NaN
+            cont_blue = np.ones(len(self.spectrum.lbda))*np.nan
             cont_blue[blue_range] = self.tpoly_blue.model._get_continuum_()
         
-            cont_red  = np.ones(len(self.spectrum.lbda))*np.NaN
+            cont_red  = np.ones(len(self.spectrum.lbda))*np.nan
             cont_red[red_range] = self.poly_red.model.get_model()
         
             response_continuum = np.nanmean([cont_blue, cont_red], axis=0)

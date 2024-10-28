@@ -255,9 +255,9 @@ class HexagoneProjection( BaseObject ):
         qr = np.asarray(self.index_to_qr(index)).T
 
         if not is_arraylike(index):
-            q,r = qr if qr is not None else [np.NaN, np.NaN]
+            q,r = qr if qr is not None else [np.nan, np.nan]
         else:
-            q,r = np.asarray([qr_ if qr_ is not None else [np.NaN, np.NaN]
+            q,r = np.asarray([qr_ if qr_ is not None else [np.nan, np.nan]
                                   for qr_ in qr]).T
             
         return self.qr_to_xy(q,r, invert_rotation=invert_rotation,

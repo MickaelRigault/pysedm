@@ -195,7 +195,7 @@ class TraceFlexure( BaseObject ):
             try:
                 js.append( self.mapper.get_expected_j(i_,j_) )
             except:
-                js.append(np.NaN)
+                js.append(np.nan)
 
         
         self._derived_properties['js']     = np.asarray(js)

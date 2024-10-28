@@ -250,7 +250,7 @@ def get_ccd_pos(filename, radec=None, verbose=True):
     if len(astrom_file) == 0:
         if verbose:
             print("No astrom file found for %s" % filename)
-        return [np.NaN, np.NaN]
+        return [np.nan, np.nan]
 
     astrom_file = astrom_file[0]
     with fits.open(filename) as f:
@@ -405,7 +405,7 @@ class Astrometry():
         self.date = date
         scale = 0.55
         rotation = 1
-        position = np.NaN, np.NaN
+        position = np.nan, np.nan
 
         if Time(date) >= Time("2020-10-04"):
             position = 1039.5, 968.5
@@ -1049,7 +1049,7 @@ class SliceAligner():
 
         data = self.grid.geodataframe["data"].values.copy()
         # set nans to things outside the slice
-        data[~flagin] = np.NaN
+        data[~flagin] = np.nan
         # Normalize everything
         data = (data - np.percentile(data[data == data], 1)) / (np.percentile(
             data[data == data], 99) - np.percentile(data[data == data], 1))

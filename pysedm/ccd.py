@@ -581,7 +581,7 @@ class CCD( BaseCCD ):
            [using the ids_to_index() and index_to_xy() methods from hexagrid]
 
         If anything false (most likely the interpolation because of wavelength matching)
-        the flux (or variance) per lbda will be set to an array of NaNs
+        the flux (or variance) per lbda will be set to an array of nans
 
         All the spaxels fluxes will be set to a cube (SEDMCube see .sedm)
 
@@ -645,8 +645,8 @@ class CCD( BaseCCD ):
                 raise ValueError(f"not working for {i_}")
             
         #    except:
-        #        warnings.warn("FAILING EXTRACT_SPECTRUM for trace index %d: most likely wavesolution failed for this trace. *NaN Spectrum set*"%i_)
-        #        flux_ = np.ones(len(lbda) )*np.NaN
+        #        warnings.warn("FAILING EXTRACT_SPECTRUM for trace index %d: most likely wavesolution failed for this trace. *nan Spectrum set*"%i_)
+        #        flux_ = np.ones(len(lbda) )*np.nan
         #        variance_ = np.ones(len(lbda) )*np.inf
 
             cubeflux_[i_] = flux_
@@ -654,9 +654,9 @@ class CCD( BaseCCD ):
                 cubevar_[i_] = variance_
             #except:
             #    warnings.warn("FAILED FOR %s. Most likely, the requested wavelength are not fully covered by the trace"%i_)
-            #    cubeflux_[i_] = np.zeros(len(lbda))*np.NaN
+            #    cubeflux_[i_] = np.zeros(len(lbda))*np.nan
             #    if cubevar_ is not None:
-            #        cubevar_[i_] = np.zeros(len(lbda))*np.NaN
+            #        cubevar_[i_] = np.zeros(len(lbda))*np.nan
 
         # ------------ #
         # - MultiThreading to speed this up
@@ -873,7 +873,7 @@ class CCD( BaseCCD ):
 
         if add_mask is not None and cut_bright_pixels is not None:
             data_ = self.rawdata.copy()
-            data_[add_mask] = np.NaN
+            data_[add_mask] = np.nan
             add_mask = add_mask + (data_>np.percentile(data_[data_==data_],50))
 
         if exclude_edges:
@@ -1108,7 +1108,7 @@ class CCDSlice( Spectrum ):
 
         ax.specplot(self.lbda, self.data, var=self.variance, color="0.7")
         dataout = self.data.copy()
-        dataout[~self.tracemaskout] = np.NaN
+        dataout[~self.tracemaskout] = np.nan
         ax.specplot(self.lbda, dataout, var=None, color="C1")
 
         if show_model and self.contmodel is not None:

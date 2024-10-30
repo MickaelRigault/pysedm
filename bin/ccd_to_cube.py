@@ -223,8 +223,8 @@ if  __name__ == "__main__":
         from pysedm import ccd
         from pysedm.io import get_datapath
         import numpy as np
-        
-        dome = ccd.get_dome("dome.fits", background=0, load_sep=True)
+        dome_file = os.path.join(get_datapath(date), "dome.fits")
+        dome = ccd.get_dome(dome_file, background=0, load_sep=True)
         a, b = dome.sepobjects.get(["a", "b"]).T
         savefile = os.path.join(get_datapath(date), f"{date}_dome_stats.txt")
         stat_f = open(savefile, "w")

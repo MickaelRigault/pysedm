@@ -666,7 +666,7 @@ class CCD( BaseCCD ):
         _ = [_build_ith_flux_(i) for i in used_indexes]
 
         cubeflux = np.asarray([cubeflux_[i] for i in used_indexes])
-        cubevar  = np.asarray([cubevar_[i]   for i in used_indexes]) if cubevar_ is not None else None
+        cubevar  = np.asarray([cubevar_[i] for i in used_indexes]) if cubevar_ is not None else None
 
         # - Fill the Cube
         #  SEDM DEPENDENT
@@ -683,6 +683,7 @@ class CCD( BaseCCD ):
             
         cube.create(cubeflux.T,lbda=lbda, spaxel_mapping=spaxel_map, variance=cubevar)
         cube.set_spaxel_vertices(np.dot(hexagrid.grid_rotmatrix,SEDMSPAXELS.T).T)
+        cube._lbda_to_header_(cube.lbda) # force dump lbda to the header.
         return cube
 
 

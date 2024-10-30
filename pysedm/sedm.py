@@ -1105,6 +1105,7 @@ class SEDMExtractStar( BaseObject ):
 
         if update:
             self.set_fitted_spaxels(pysedm_spaxels_tofit)
+            
         return pysedm_spaxels_tofit
 
     def get_centroid(self, centroid=None, centroiderr=None, **kwargs):

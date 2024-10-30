@@ -1086,7 +1086,12 @@ class VirtualArcSpectrum( BaseObject ):
             wavemax = np.max(self.lbda[self.get_arg_maxflux(2)])
             
         elif self.arcname in ["Cd"]:
-            wavemax = np.sort(self.lbda[self.get_arg_maxflux(4)])[-2]
+            lbda_peaks = np.sort(self.lbda[self.get_arg_maxflux(2)])
+            delta_lbda = np.abs(lbda_peaks[1]-lbda_peaks[0])
+            if delta_lbda>40: # _|__| #
+                wavemax = lbda_peaks[0]
+            else: # |_|__
+                wavemax = lbda_peaks[1]
             
         elif self.arcname in ["Xe"]:
             wavemax = np.min(self.lbda[self.get_arg_maxflux(2)])

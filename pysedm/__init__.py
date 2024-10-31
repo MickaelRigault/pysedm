@@ -1,4 +1,4 @@
-__version__ = "0.42.1"
+__version__ = "0.42.2"
 
 from .io import *
 from .sedm import *

@@ -407,11 +407,11 @@ class Astrometry():
         rotation = 1
         position = np.nan, np.nan
 
-        if Time(date) >= Time("2024-10-12"): # TO BE CHECKED
-            position = 1050.5, 968.5
-            scale = 0.55
-            rotation = 1
-        elif Time(date) >= Time("2020-10-04"):
+        #if Time(date) >= Time("2024-10-12"): # TO BE CHECKED
+        #    position = 1050.5, 968.5
+        #    scale = 0.55
+        #    rotation = 1
+        if Time(date) >= Time("2020-10-04"):
             position = 1039.5, 968.5
             scale = 0.55
             rotation = 1

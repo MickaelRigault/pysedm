@@ -25,26 +25,16 @@ def kwargs_update(default,**kwargs):
 def load_pkl(filename):
     """
     """
-    try:
-        import cPickle as pkl
-    except:
-        import pickle
-        with open(filename, 'rb') as f:
-            u = pickle._Unpickler(f)
-            u.encoding = 'latin1'
-            return u.load()
-
-    pkl_file = open(filename,'rb')
-    return pkl.load(pkl_file)
-
+    import pickle
+    with open(filename, 'rb') as f:
+        u = pickle._Unpickler(f)
+        u.encoding = 'latin1'
+        return u.load()
 
 def dump_pkl(data,filename,**kwargs):
     """
     """
-    try:
-        from cPickle import dump
-    except:
-        from pickle import dump
+    from pickle import dump
         
     if len(filename.split("."))>1 and filename.split(".")[-1]=="pkl":
         outfile =  open(filename,"wb")

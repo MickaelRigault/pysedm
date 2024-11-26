@@ -63,6 +63,7 @@ def get_fluxcal_file(cube, hgfirst=False, update=False):
             mjd = cube.header.get("MJD_OBS")
             target_mjd_obs = mjd
             return filefluxcal[np.argmin(np.abs(target_mjd_obs - np.asarray(fluxcal_mjd_obs)))]
+        
     from ztfquery import sedm
     squery = sedm.SEDMQuery()
     # downloads what is missing.

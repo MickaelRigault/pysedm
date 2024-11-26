@@ -124,8 +124,8 @@ def build_wcs(radec, spxy, rotation=2, scale=0.55):
     rot = np.asarray([[np.cos(theta), np.sin(theta)],
                      [-np.sin(theta), np.cos(theta)]])
     scaling = scale * np.asarray([-1/np.cos(radec[1]*np.pi/180), 1])
+    
     offset_radec = np.dot(rot, np.asarray(spxy)/3600)
-
     ra0, dec0 = radec - scaling*offset_radec
 
     return {"CTYPE1": 'RA---TAN',
@@ -134,6 +134,7 @@ def build_wcs(radec, spxy, rotation=2, scale=0.55):
             "CRPIX1": 1, "CRPIX2": 1,
             "CDELT1": -scale/3600,
             "CDELT2": scale/3600}
+
 # ======================= #
 #   High Level            #
 # ======================= #
